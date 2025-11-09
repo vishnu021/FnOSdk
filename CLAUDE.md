@@ -17,6 +17,7 @@ Each module has a dedicated guide with API reference, examples, and integration 
 - `docs/module-guides/fno-utils.md` - Utility functions
 - `docs/module-guides/fno-technicals.md` - Technical indicators and Greeks
 - `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration
+- `docs/module-guides/fno-strategy-utils.md` - Strategy utilities for price action, CPR/PCR analysis
 
 ---
 
@@ -35,7 +36,7 @@ mvn clean install
 
 ### Build Individual Module
 ```bash
-cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader
+cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader, fno-strategy-utils
 mvn clean install
 ```
 
@@ -82,6 +83,15 @@ fno-technicals (depends on fno-utils and fno-models)
     ├── fno-utils
     │   └── fno-models
     └── fno-models
+
+fno-strategy-utils (depends on fno-technicals, fno-utils, and fno-models)
+    ├── fno-technicals
+    │   ├── fno-utils
+    │   │   └── fno-models
+    │   └── fno-models
+    ├── fno-utils
+    │   └── fno-models
+    └── fno-models
 ```
 
 ### Module Responsibilities
@@ -114,6 +124,13 @@ fno-technicals (depends on fno-utils and fno-models)
 - Market data retrieval and real-time WebSocket streaming
 - Order placement and management: `OrderUtils`
 - Utilities: `InstrumentFileUtils`, `OptionPriceUtils`
+
+**fno-strategy-utils** - Advanced strategy utilities (depends on fno-technicals, fno-utils, fno-models):
+- Price action analysis: `Point`, `ChartPoint`, `Vector2`, `DataAnalyser`, `Line`
+- CPR utilities: `CPRUtils` (Central Pivot Range calculations)
+- PCR utilities: `PCRUtils` (Put-Call Ratio analysis)
+- Trend analysis: `HATrendUtils` (Heikin Ashi trend detection)
+- Order flow management: `PartialRevisingStopLoss` (dynamic stop-loss strategies)
 
 ## Key Architecture Patterns
 
@@ -179,6 +196,34 @@ All API documentation, usage examples, and integration patterns are maintained i
 ---
 
 ## Automatic Documentation Maintenance
+
+**🚨 CRITICAL REQUIREMENT - READ THIS FIRST 🚨**
+
+Documentation updates are **MANDATORY** for all public API changes. This is **NON-NEGOTIABLE**.
+
+### STRICT DOCUMENTATION ENFORCEMENT
+
+**⚠️ EVERY TIME you modify ANY public API in `*/src/main/java/**`, you MUST:**
+
+1. ✅ Make your code changes
+2. ✅ Fix PMD violations and ensure compilation succeeds
+3. ✅ **IMMEDIATELY invoke the `fnosdk-doc-watcher` agent** using the Task tool:
+   ```
+   Task(subagent_type="fnosdk-doc-watcher", ...)
+   ```
+4. ✅ Verify documentation was updated in `docs/module-guides/`
+5. ✅ Only then mark tasks as complete or suggest commits
+
+**❌ FAILURE TO UPDATE DOCUMENTATION IS A BLOCKING ERROR**
+
+**Rules for Claude Code assistants:**
+- ❌ NEVER mark tasks complete without updating docs
+- ❌ NEVER suggest commits without verifying docs are synchronized
+- ❌ NEVER skip the doc-watcher agent after API changes
+- ✅ ALWAYS treat missing documentation as a critical failure
+- ✅ ALWAYS launch the agent proactively, not reactively
+
+---
 
 **IMPORTANT**: FnOSdk uses AI-powered automatic documentation maintenance via Claude Code agents.
 
@@ -313,7 +358,8 @@ docs/
 │   ├── fno-models.md                 # Core data models
 │   ├── fno-utils.md                  # Utility functions
 │   ├── fno-technicals.md             # Technical indicators & Greeks
-│   └── fno-kite-reader.md            # Kite Connect integration
+│   ├── fno-kite-reader.md            # Kite Connect integration
+│   └── fno-strategy-utils.md         # Strategy utilities
 └── work-progress/                     # Temporary work-in-progress docs
     ├── DOCUMENTATION_AUDIT_REPORT.md
     ├── DOCUMENTATION_FIX_SUMMARY.md

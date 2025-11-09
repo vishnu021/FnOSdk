@@ -20,6 +20,9 @@ public final class TimeUtils {
 
     public static final List<String> timeArray = new ArrayList<>();
 
+    // SimpleDateFormat for ISO-8601 format with timezone like "2025-08-20T09:57:00+0530"
+    private static final SimpleDateFormat ISO_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.ENGLISH);
+
     static {
         int hour = 9;
         int minute = 15;
@@ -239,5 +242,121 @@ public final class TimeUtils {
             return ("0" + timeVal);
         }
         return String.valueOf(timeVal);
+    }
+
+    /**
+     * Parse timestamp from candlestick time string.
+     * Handles both millisecond timestamps and ISO-8601 datetime strings.
+     *
+     * @param timeStr The time string to parse (either milliseconds or ISO-8601 format)
+     * @return The timestamp in milliseconds
+     */
+    public static long parseCandlestickTimestamp(String timeStr) {
+        if (timeStr == null || timeStr.isEmpty()) {
+            log.warn("Empty timestamp provided, using current time");
+            return System.currentTimeMillis();
+        }
+
+        // First try to parse as a long (milliseconds)
+        try {
+            return Long.parseLong(timeStr);
+        } catch (NumberFormatException e) {
+            // If not a number, parse as ISO-8601 datetime string
+            try {
+                synchronized (ISO_FORMAT) {
+                    // SimpleDateFormat is not thread-safe, so we synchronize
+                    Date date = ISO_FORMAT.parse(timeStr);
+                    return date.getTime();
+                }
+            } catch (Exception e2) {
+                log.warn("Failed to parse timestamp: '{}', using current time", timeStr);
+                return System.currentTimeMillis();
+            }
+        }
+    }
+
+    /**
+     * Check if timestamp is within trading hours (9:15 AM to 3:30 PM IST)
+     *
+     * @param timestamp The timestamp in milliseconds
+     * @return true if within trading hours, false otherwise
+     */
+    public static boolean isWithinTradingHours(long timestamp) {
+        LocalDateTime dateTime = fromEpochMilli(timestamp);
+        int hour = dateTime.getHour();
+        int minute = dateTime.getMinute();
+
+        // Trading hours: 9:15 AM to 3:30 PM
+        int totalMinutes = hour * 60 + minute;
+        int marketOpen = 9 * 60 + 15;  // 9:15 AM
+        int marketClose = 15 * 60 + 30; // 3:30 PM
+
+        return totalMinutes >= marketOpen && totalMinutes <= marketClose;
+    }
+
+    /**
+     * Convert epoch milliseconds to LocalDateTime in IST timezone
+     *
+     * @param epochMilli The timestamp in milliseconds
+     * @return LocalDateTime representation in Asia/Kolkata timezone
+     */
+    public static LocalDateTime fromEpochMilli(long epochMilli) {
+        return LocalDateTime.ofInstant(
+            Instant.ofEpochMilli(epochMilli),
+            ZoneId.of("Asia/Kolkata")
+        );
+    }
+
+    /**
+     * Parse a datetime string to epoch milliseconds
+     * Supports multiple date formats
+     *
+     * @param dateTimeStr The datetime string to parse
+     * @return The timestamp in milliseconds
+     */
+    public static long parseDateTimeToEpoch(String dateTimeStr) {
+        if (dateTimeStr == null || dateTimeStr.isEmpty()) {
+            return System.currentTimeMillis();
+        }
+
+        // Try ISO format first
+        try {
+            synchronized (ISO_FORMAT) {
+                Date date = ISO_FORMAT.parse(dateTimeStr);
+                return date.getTime();
+            }
+        } catch (Exception e) {
+            // Try other formats
+            String[] formats = {
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd",
+                "dd-MM-yyyy HH:mm:ss",
+                "dd-MM-yyyy"
+            };
+
+            for (String format : formats) {
+                try {
+                    SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.ENGLISH);
+                    Date date = sdf.parse(dateTimeStr);
+                    return date.getTime();
+                } catch (Exception ex) {
+                    // Try next format
+                }
+            }
+
+            log.warn("Failed to parse datetime: '{}', using current time", dateTimeStr);
+            return System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * Format a timestamp to human-readable datetime string
+     *
+     * @param timestamp The timestamp in milliseconds
+     * @return Formatted datetime string in "yyyy-MM-dd HH:mm:ss" format
+     */
+    public static String formatDateTime(long timestamp) {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
+        return dateFormat.format(new Date(timestamp));
     }
 }
