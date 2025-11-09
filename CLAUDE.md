@@ -18,6 +18,7 @@ Each module has a dedicated guide with API reference, examples, and integration 
 - `docs/module-guides/fno-technicals.md` - Technical indicators and Greeks
 - `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration
 - `docs/module-guides/fno-strategy-utils.md` - Strategy utilities for price action, CPR/PCR analysis
+- `docs/module-guides/fno-phase-analyzer.md` - Wyckoff phase analysis and market regime identification
 
 ---
 
@@ -36,7 +37,7 @@ mvn clean install
 
 ### Build Individual Module
 ```bash
-cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader, fno-strategy-utils
+cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader, fno-strategy-utils, fno-phase-analyzer
 mvn clean install
 ```
 
@@ -92,6 +93,23 @@ fno-strategy-utils (depends on fno-technicals, fno-utils, and fno-models)
     ├── fno-utils
     │   └── fno-models
     └── fno-models
+
+fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, and fno-models)
+    ├── fno-strategy-utils
+    │   ├── fno-technicals
+    │   │   ├── fno-utils
+    │   │   │   └── fno-models
+    │   │   └── fno-models
+    │   ├── fno-utils
+    │   │   └── fno-models
+    │   └── fno-models
+    ├── fno-technicals
+    │   ├── fno-utils
+    │   │   └── fno-models
+    │   └── fno-models
+    ├── fno-utils
+    │   └── fno-models
+    └── fno-models
 ```
 
 ### Module Responsibilities
@@ -131,6 +149,18 @@ fno-strategy-utils (depends on fno-technicals, fno-utils, and fno-models)
 - PCR utilities: `PCRUtils` (Put-Call Ratio analysis)
 - Trend analysis: `HATrendUtils` (Heikin Ashi trend detection)
 - Order flow management: `PartialRevisingStopLoss` (dynamic stop-loss strategies)
+
+**fno-phase-analyzer** - Wyckoff phase analysis and market regime identification (depends on fno-strategy-utils, fno-technicals, fno-utils, fno-models):
+- Wyckoff phase models: `WyckoffPhase` (enum), `IWyckoffPhaseIdentifier` (interface), `WyckoffIndicators`
+- Classical Wyckoff: `ClassicalWyckoffPhaseIdentifier` (traditional Wyckoff methodology)
+- Volume-based analysis: `VolumeBasedWyckoffPhaseIdentifier` (volume profile analysis)
+- Heikin Ashi integration: `HeikinAshiWyckoffPhaseIdentifier` (smoothed trend analysis)
+- Renko analysis: `RenkoWyckoffPhaseIdentifier` (noise-filtered analysis)
+- Structure & swing: `StructureSwingWyckoffPhaseIdentifier` (market structure detection)
+- Market Profile: `MarketProfileTPOWyckoffPhaseIdentifier` (Time Price Opportunity analysis)
+- Derivatives/Futures: `DerivativesFuturesOIWyckoffPhaseIdentifier` (Open Interest analysis)
+- Composite strategy: `CompositeWyckoffPhaseIdentifier` (combines multiple strategies)
+- Factory pattern: `WyckoffPhaseIdentifierFactory` (creates appropriate identifiers)
 
 ## Key Architecture Patterns
 
@@ -359,7 +389,8 @@ docs/
 │   ├── fno-utils.md                  # Utility functions
 │   ├── fno-technicals.md             # Technical indicators & Greeks
 │   ├── fno-kite-reader.md            # Kite Connect integration
-│   └── fno-strategy-utils.md         # Strategy utilities
+│   ├── fno-strategy-utils.md         # Strategy utilities
+│   └── fno-phase-analyzer.md         # Wyckoff phase analysis
 └── work-progress/                     # Temporary work-in-progress docs
     ├── DOCUMENTATION_AUDIT_REPORT.md
     ├── DOCUMENTATION_FIX_SUMMARY.md

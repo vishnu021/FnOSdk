@@ -647,6 +647,553 @@ public class OptionsOrderBuilder {
 }
 ```
 
+## Wyckoff Phase Analysis Models
+
+### `com.vish.fno.model.wyckoff` - Wyckoff Market Phase Models
+
+#### WyckoffPhase - Market Phase Enumeration
+
+Enum representing Wyckoff market phases for technical analysis.
+
+```java
+public enum WyckoffPhase
+```
+
+**Enum Constants:**
+
+**Accumulation Phases:**
+- `ACCUMULATION_PHASE_A` - "Stopping the Prior Downtrend - PS, SC, AR, ST"
+- `ACCUMULATION_PHASE_B` - "Building a Cause - Testing supply and demand"
+- `ACCUMULATION_PHASE_C` - "Spring/Shakeout - Testing support levels"
+- `ACCUMULATION_PHASE_D` - "Sign of Strength - Breaking resistance"
+
+**Distribution Phases:**
+- `DISTRIBUTION_PHASE_A` - "Stopping the Prior Uptrend - PSY, BC, AR, ST"
+- `DISTRIBUTION_PHASE_B` - "Building a Cause - Testing demand and supply"
+- `DISTRIBUTION_PHASE_C` - "Upthrust - Testing resistance levels"
+- `DISTRIBUTION_PHASE_D` - "Sign of Weakness - Breaking support"
+
+**Trending Phases:**
+- `MARKUP` - "Uptrend - Higher highs and higher lows"
+- `MARKDOWN` - "Downtrend - Lower highs and lower lows"
+
+**Continuation Phases:**
+- `REACCUMULATION` - "Continuation pattern in an uptrend"
+- `REDISTRIBUTION` - "Continuation pattern in a downtrend"
+- `CONSOLIDATION` - "Sideways movement - Range bound"
+- `UNKNOWN` - "Unable to determine phase"
+
+**Methods:**
+```java
+public String getPhaseName()
+```
+- **Returns:** Human-readable phase name
+
+```java
+public String getDescription()
+```
+- **Returns:** Detailed description of the phase
+
+```java
+public boolean isAccumulation()
+```
+- **Returns:** `true` if this is an accumulation phase (A, B, C, or D)
+
+```java
+public boolean isDistribution()
+```
+- **Returns:** `true` if this is a distribution phase (A, B, C, or D)
+
+```java
+public boolean isMarkup()
+```
+- **Returns:** `true` if phase is MARKUP or ACCUMULATION_PHASE_D
+
+```java
+public boolean isMarkdown()
+```
+- **Returns:** `true` if phase is MARKDOWN or DISTRIBUTION_PHASE_D
+
+**Usage Example:**
+```java
+import com.vish.fno.model.wyckoff.WyckoffPhase;
+
+public class PhaseAnalyzer {
+    public void analyzePhase(WyckoffPhase phase) {
+        System.out.println("Phase: " + phase.getPhaseName());
+        System.out.println("Description: " + phase.getDescription());
+
+        // Trading logic based on phase type
+        if (phase.isAccumulation()) {
+            System.out.println("Consider long positions");
+        } else if (phase.isDistribution()) {
+            System.out.println("Consider short positions or exit longs");
+        }
+
+        // Specific phase actions
+        if (phase == WyckoffPhase.ACCUMULATION_PHASE_D) {
+            System.out.println("Sign of Strength detected - strong buy signal");
+        } else if (phase == WyckoffPhase.DISTRIBUTION_PHASE_C) {
+            System.out.println("Upthrust detected - potential reversal");
+        }
+
+        // Check markup/markdown
+        if (phase.isMarkup()) {
+            System.out.println("Uptrend confirmed - follow the trend");
+        } else if (phase.isMarkdown()) {
+            System.out.println("Downtrend confirmed - avoid longs");
+        }
+    }
+}
+```
+
+---
+
+#### IWyckoffPhaseIdentifier - Phase Identification Interface
+
+Interface for implementing Wyckoff phase identification strategies.
+
+```java
+public interface IWyckoffPhaseIdentifier
+```
+
+**Core Methods:**
+```java
+WyckoffPhase identifyPhase(List<Candle> data, int currentIndex)
+```
+- **Parameters:**
+  - `data`: List of candlestick data (must not be null or empty)
+  - `currentIndex`: The index in the data list to analyze (0-based)
+- **Returns:** The identified Wyckoff phase
+- **Description:** Analyzes market data to identify the current Wyckoff phase.
+
+```java
+String getIdentifierType()
+```
+- **Returns:** Implementation name (e.g., "Classical", "Volume-Based", "ML-Based")
+- **Description:** Returns the type/name of this identifier implementation.
+
+```java
+String getDescription()
+```
+- **Returns:** Description of the identification methodology
+- **Description:** Explains the approach used by this identifier.
+
+**Optional Methods (with defaults):**
+```java
+default double getPhaseConfidence(List<Candle> data, int currentIndex)
+```
+- **Parameters:**
+  - `data`: List of candlestick data
+  - `currentIndex`: Index to analyze
+- **Returns:** Confidence score (0.0 to 1.0)
+- **Default:** Returns 0.5 (moderate confidence)
+- **Description:** Calculates confidence in the identified phase. Higher values indicate higher certainty.
+
+```java
+default int getMinimumDataPoints()
+```
+- **Returns:** Minimum number of data points needed
+- **Default:** Returns 5
+- **Description:** Returns the minimum number of candles required for accurate identification.
+
+```java
+default boolean supportsRealTimeAnalysis()
+```
+- **Returns:** `true` if real-time analysis is supported
+- **Default:** Returns `true`
+- **Description:** Indicates whether this identifier can be used for live/real-time market analysis.
+
+```java
+default void reset()
+```
+- **Description:** Resets any internal state or caches. Useful when switching symbols or starting new analysis.
+- **Default:** Does nothing (override if your implementation has state)
+
+**Implementation Example:**
+```java
+import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
+import com.vish.fno.model.wyckoff.WyckoffPhase;
+import com.vish.fno.model.Candle;
+import java.util.List;
+
+public class CustomWyckoffIdentifier implements IWyckoffPhaseIdentifier {
+
+    @Override
+    public WyckoffPhase identifyPhase(List<Candle> data, int currentIndex) {
+        if (data == null || data.isEmpty() || currentIndex < 0) {
+            return WyckoffPhase.UNKNOWN;
+        }
+
+        // Your custom logic here
+        double trendStrength = calculateTrendStrength(data, currentIndex);
+        double volumeRatio = calculateVolumeRatio(data, currentIndex);
+
+        if (trendStrength > 0.5 && volumeRatio > 1.5) {
+            return WyckoffPhase.MARKUP;
+        } else if (trendStrength < -0.5 && volumeRatio > 1.5) {
+            return WyckoffPhase.MARKDOWN;
+        } else if (Math.abs(trendStrength) < 0.1 && volumeRatio > 1.2) {
+            return WyckoffPhase.ACCUMULATION_PHASE_B;
+        }
+
+        return WyckoffPhase.CONSOLIDATION;
+    }
+
+    @Override
+    public String getIdentifierType() {
+        return "Custom";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Custom Wyckoff identifier using proprietary trend and volume analysis";
+    }
+
+    @Override
+    public double getPhaseConfidence(List<Candle> data, int currentIndex) {
+        // Calculate confidence based on signal strength
+        double trendStrength = Math.abs(calculateTrendStrength(data, currentIndex));
+        double volumeRatio = calculateVolumeRatio(data, currentIndex);
+
+        double confidence = 0.5; // Base confidence
+
+        if (trendStrength > 0.7) confidence += 0.2;
+        if (volumeRatio > 1.5) confidence += 0.2;
+
+        return Math.min(1.0, confidence);
+    }
+
+    @Override
+    public int getMinimumDataPoints() {
+        return 20; // Need 20 candles for our analysis
+    }
+
+    private double calculateTrendStrength(List<Candle> data, int currentIndex) {
+        // Your trend calculation logic
+        return 0.0;
+    }
+
+    private double calculateVolumeRatio(List<Candle> data, int currentIndex) {
+        // Your volume analysis logic
+        return 1.0;
+    }
+}
+```
+
+**Usage with Factory Pattern:**
+```java
+import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
+import com.vish.fno.model.Candle;
+import java.util.List;
+
+public class PhaseAnalysisService {
+    private final IWyckoffPhaseIdentifier identifier;
+
+    public PhaseAnalysisService(IWyckoffPhaseIdentifier identifier) {
+        this.identifier = identifier;
+    }
+
+    public void analyze(List<Candle> candles) {
+        // Check minimum data requirement
+        if (candles.size() < identifier.getMinimumDataPoints()) {
+            System.out.println("Insufficient data. Need at least " +
+                identifier.getMinimumDataPoints() + " candles");
+            return;
+        }
+
+        int currentIndex = candles.size() - 1;
+
+        // Identify phase
+        WyckoffPhase phase = identifier.identifyPhase(candles, currentIndex);
+        double confidence = identifier.getPhaseConfidence(candles, currentIndex);
+
+        System.out.println("Identifier: " + identifier.getIdentifierType());
+        System.out.println("Phase: " + phase.getPhaseName());
+        System.out.println("Confidence: " + (confidence * 100) + "%");
+        System.out.println("Description: " + identifier.getDescription());
+
+        // Only trade on high confidence
+        if (confidence > 0.7) {
+            if (phase.isMarkup()) {
+                System.out.println("HIGH CONFIDENCE BUY SIGNAL");
+            } else if (phase.isMarkdown()) {
+                System.out.println("HIGH CONFIDENCE SELL SIGNAL");
+            }
+        }
+    }
+}
+```
+
+---
+
+#### WyckoffIndicators - Technical Indicators Record
+
+Java record containing Wyckoff analysis indicators.
+
+```java
+public record WyckoffIndicators(
+    double pricePosition,
+    double volumeAnalysis,
+    double trendStrength,
+    double rangePosition,
+    double supplyDemandBalance,
+    double volatility,
+    double momentum,
+    double relativeStrength,
+    boolean hasSpring,
+    boolean hasUpthrust,
+    boolean hasSignOfStrength,
+    boolean hasSignOfWeakness,
+    double supportLevel,
+    double resistanceLevel,
+    double averageVolume,
+    double currentVolume,
+    int daysInRange,
+    double rangeWidth
+)
+```
+
+**Parameters:**
+- `pricePosition`: Current price position within the range (0.0 to 1.0)
+- `volumeAnalysis`: Volume ratio compared to average (e.g., 1.5 = 50% above average)
+- `trendStrength`: Trend strength indicator (-1.0 to 1.0, positive = uptrend, negative = downtrend)
+- `rangePosition`: Position within the trading range (0.0 = bottom, 1.0 = top)
+- `supplyDemandBalance`: Supply vs demand balance (-1.0 = all supply, 1.0 = all demand)
+- `volatility`: Current market volatility (as ratio of price range to average price)
+- `momentum`: Price momentum indicator (absolute price change)
+- `relativeStrength`: Relative strength compared to previous periods
+- `hasSpring`: `true` if spring pattern detected (false breakdown below support)
+- `hasUpthrust`: `true` if upthrust pattern detected (false breakout above resistance)
+- `hasSignOfStrength`: `true` if sign of strength detected (strong move through resistance)
+- `hasSignOfWeakness`: `true` if sign of weakness detected (strong move through support)
+- `supportLevel`: Identified support level price
+- `resistanceLevel`: Identified resistance level price
+- `averageVolume`: Average volume over lookback period
+- `currentVolume`: Current bar/candle volume
+- `daysInRange`: Number of periods price stayed within the range
+- `rangeWidth`: Width of the trading range (resistance - support)
+
+**Usage Example:**
+```java
+import com.vish.fno.model.wyckoff.WyckoffIndicators;
+import com.vish.fno.model.Candle;
+import java.util.List;
+
+public class IndicatorAnalyzer {
+    public WyckoffIndicators calculateIndicators(List<Candle> data, int currentIndex) {
+        // Calculate all indicator values
+        double pricePos = calculatePricePosition(data, currentIndex);
+        double volumeAnalysis = calculateVolumeAnalysis(data, currentIndex);
+        double trendStr = calculateTrendStrength(data, currentIndex);
+        // ... calculate other values
+
+        // Create immutable indicators record
+        return new WyckoffIndicators(
+            pricePos,                  // pricePosition
+            volumeAnalysis,            // volumeAnalysis
+            trendStr,                  // trendStrength
+            pricePos,                  // rangePosition
+            0.5,                       // supplyDemandBalance
+            0.02,                      // volatility
+            100.0,                     // momentum
+            55.0,                      // relativeStrength
+            false,                     // hasSpring
+            false,                     // hasUpthrust
+            true,                      // hasSignOfStrength
+            false,                     // hasSignOfWeakness
+            19400.0,                   // supportLevel
+            19600.0,                   // resistanceLevel
+            1000000.0,                 // averageVolume
+            1500000.0,                 // currentVolume
+            15,                        // daysInRange
+            200.0                      // rangeWidth
+        );
+    }
+
+    public void analyzeIndicators(WyckoffIndicators indicators) {
+        // Access indicator values
+        System.out.println("Price Position: " + (indicators.pricePosition() * 100) + "%");
+        System.out.println("Volume: " + (indicators.volumeAnalysis() * 100) + "% of average");
+        System.out.println("Trend Strength: " + indicators.trendStrength());
+
+        // Check for Wyckoff events
+        if (indicators.hasSpring()) {
+            System.out.println("SPRING DETECTED - Potential accumulation complete");
+        }
+
+        if (indicators.hasSignOfStrength()) {
+            System.out.println("SIGN OF STRENGTH - Breaking resistance");
+        }
+
+        // Analyze volume
+        if (indicators.currentVolume() > indicators.averageVolume() * 1.5) {
+            System.out.println("High volume detected - significant interest");
+        }
+
+        // Range analysis
+        System.out.println("Support: " + indicators.supportLevel());
+        System.out.println("Resistance: " + indicators.resistanceLevel());
+        System.out.println("Range Width: " + indicators.rangeWidth());
+        System.out.println("Days in Range: " + indicators.daysInRange());
+    }
+
+    // Helper methods
+    private double calculatePricePosition(List<Candle> data, int index) {
+        // Implementation
+        return 0.65; // Example: 65% from bottom to top of range
+    }
+
+    private double calculateVolumeAnalysis(List<Candle> data, int index) {
+        // Implementation
+        return 1.3; // Example: 30% above average
+    }
+
+    private double calculateTrendStrength(List<Candle> data, int index) {
+        // Implementation
+        return 0.8; // Example: Strong uptrend
+    }
+}
+```
+
+**Integration with Phase Identifiers:**
+```java
+import com.vish.fno.model.wyckoff.WyckoffIndicators;
+import com.vish.fno.model.wyckoff.WyckoffPhase;
+import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
+
+public class AdvancedWyckoffAnalyzer implements IWyckoffPhaseIdentifier {
+    @Override
+    public WyckoffPhase identifyPhase(List<Candle> data, int currentIndex) {
+        WyckoffIndicators indicators = calculateIndicators(data, currentIndex);
+
+        // Use indicators to determine phase
+        if (indicators.hasSpring() && indicators.pricePosition() < 0.3) {
+            return WyckoffPhase.ACCUMULATION_PHASE_C;
+        }
+
+        if (indicators.hasSignOfStrength() && indicators.volumeAnalysis() > 1.5) {
+            return WyckoffPhase.ACCUMULATION_PHASE_D;
+        }
+
+        if (indicators.trendStrength() > 0.5 && indicators.momentum() > 0) {
+            return WyckoffPhase.MARKUP;
+        }
+
+        if (indicators.hasUpthrust() && indicators.pricePosition() > 0.7) {
+            return WyckoffPhase.DISTRIBUTION_PHASE_C;
+        }
+
+        if (indicators.daysInRange() > 10 && Math.abs(indicators.trendStrength()) < 0.1) {
+            if (indicators.supplyDemandBalance() > 0) {
+                return WyckoffPhase.ACCUMULATION_PHASE_B;
+            } else {
+                return WyckoffPhase.DISTRIBUTION_PHASE_B;
+            }
+        }
+
+        return WyckoffPhase.CONSOLIDATION;
+    }
+
+    @Override
+    public String getIdentifierType() {
+        return "AdvancedIndicators";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Advanced Wyckoff identification using comprehensive indicator analysis";
+    }
+
+    private WyckoffIndicators calculateIndicators(List<Candle> data, int currentIndex) {
+        // Calculate all indicators and return record
+        // ... implementation
+        return null; // Placeholder
+    }
+}
+```
+
+**Note:** `WyckoffIndicators` is a Java record (Java 17+), making it immutable and providing automatic `equals()`, `hashCode()`, and `toString()` implementations.
+
+---
+
+### Wyckoff Models Integration Example
+
+Complete example showing all Wyckoff models working together:
+
+```java
+import com.vish.fno.model.wyckoff.*;
+import com.vish.fno.model.Candle;
+import java.util.List;
+
+public class WyckoffTradingSystem {
+    private final IWyckoffPhaseIdentifier identifier;
+
+    public WyckoffTradingSystem(IWyckoffPhaseIdentifier identifier) {
+        this.identifier = identifier;
+    }
+
+    public TradingDecision analyze(List<Candle> candles) {
+        int index = candles.size() - 1;
+
+        // Identify phase
+        WyckoffPhase phase = identifier.identifyPhase(candles, index);
+        double confidence = identifier.getPhaseConfidence(candles, index);
+
+        System.out.println("=== Wyckoff Analysis ===");
+        System.out.println("Phase: " + phase.getPhaseName());
+        System.out.println("Description: " + phase.getDescription());
+        System.out.println("Confidence: " + (confidence * 100) + "%");
+
+        // Decision logic based on phase
+        if (confidence < 0.6) {
+            return new TradingDecision("HOLD", "Low confidence - wait for clarity");
+        }
+
+        // Accumulation phases
+        if (phase == WyckoffPhase.ACCUMULATION_PHASE_C) {
+            return new TradingDecision("PREPARE_LONG", "Spring detected - prepare to buy");
+        }
+        if (phase == WyckoffPhase.ACCUMULATION_PHASE_D) {
+            return new TradingDecision("BUY", "Sign of Strength - enter long");
+        }
+
+        // Distribution phases
+        if (phase == WyckoffPhase.DISTRIBUTION_PHASE_C) {
+            return new TradingDecision("PREPARE_SHORT", "Upthrust detected - prepare to sell");
+        }
+        if (phase == WyckoffPhase.DISTRIBUTION_PHASE_D) {
+            return new TradingDecision("SELL", "Sign of Weakness - exit longs or enter short");
+        }
+
+        // Trending phases
+        if (phase.isMarkup()) {
+            return new TradingDecision("HOLD_LONG", "Uptrend - hold long positions");
+        }
+        if (phase.isMarkdown()) {
+            return new TradingDecision("AVOID_LONG", "Downtrend - avoid long positions");
+        }
+
+        // Consolidation phases
+        if (phase == WyckoffPhase.ACCUMULATION_PHASE_B) {
+            return new TradingDecision("ACCUMULATE", "Building cause - accumulate on dips");
+        }
+        if (phase == WyckoffPhase.DISTRIBUTION_PHASE_B) {
+            return new TradingDecision("DISTRIBUTE", "Building cause - distribute on rallies");
+        }
+
+        return new TradingDecision("HOLD", "No clear signal");
+    }
+
+    record TradingDecision(String action, String reason) {}
+}
+```
+
+For complete implementation examples and advanced phase identification strategies, see:
+- **fno-phase-analyzer module**: `/docs/module-guides/fno-phase-analyzer.md`
+
+---
+
 ## Best Practices
 
 1. **Always use Builder pattern** for order requests
@@ -654,6 +1201,9 @@ public class OptionsOrderBuilder {
 3. **Use proper enums** for orderType, transactionType, product
 4. **Set appropriate lot sizes** (NIFTY=50, BANKNIFTY=15, etc.)
 5. **MongoDB integration** available via `@Document` annotation
+6. **Check confidence scores** when using Wyckoff phase identifiers (>0.6 recommended)
+7. **Validate minimum data points** before phase identification
+8. **Reset identifiers** when switching symbols or timeframes
 
 ## Dependencies
 
@@ -664,6 +1214,8 @@ public class OptionsOrderBuilder {
 ## Thread Safety
 
 All model classes are POJOs and not thread-safe by default. If sharing across threads, use proper synchronization or immutable copies.
+
+**Note:** Wyckoff model records (`WyckoffIndicators`) are immutable and thread-safe.
 
 ## Validation
 
