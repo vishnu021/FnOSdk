@@ -214,7 +214,13 @@ public class DataService {
 #### Fetch Historical Data
 
 ```java
+import com.vish.fno.model.Candle;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+
 Long instrumentToken = 256265L; // NIFTY token
+DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
 try {
     List<HistoricalData> data = histService.getHistoricalData(
@@ -224,22 +230,21 @@ try {
         "day"  // Intervals: "minute", "5minute", "15minute", "day"
     );
 
-    // Convert to Candlestick objects
-    List<Candlestick> candles = data.stream()
-        .map(hd -> {
-            Candlestick c = new Candlestick();
-            c.setDate(hd.timeStamp.toInstant()
+    // Convert to Candle objects
+    List<Candle> candles = data.stream()
+        .map(hd -> new Candle(
+            hd.timeStamp.toInstant()
                 .atZone(ZoneId.of("Asia/Kolkata"))
-                .toLocalDateTime());
-            c.setOpen(hd.open);
-            c.setHigh(hd.high);
-            c.setLow(hd.low);
-            c.setClose(hd.close);
-            c.setVolume(hd.volume);
-            c.setOi(hd.oi);
-            return c;
-        })
-        .collect(Collectors.toList());
+                .toLocalDateTime()
+                .format(formatter),
+            hd.open,
+            hd.high,
+            hd.low,
+            hd.close,
+            hd.volume,
+            hd.oi
+        ))
+        .toList();
 
 } catch (KiteException | IOException e) {
     logger.error("Failed to fetch historical data", e);
@@ -351,11 +356,237 @@ public class RealtimeDataService {
 }
 ```
 
+## Utility Classes
+
+### OrderUtils - Order Parameter Builder
+
+```java
+import com.vish.fno.reader.util.OrderUtils;
+import com.zerodhatech.models.OrderParams;
+import com.zerodhatech.kiteconnect.utils.Constants;
+
+public class OrderService {
+    public OrderParams createOrder(String symbol, int quantity, String transactionType) {
+        // Creates market order with NFO exchange and MIS product
+        OrderParams params = OrderUtils.createMarketOrderWithParameters(
+            symbol,           // e.g., "NIFTY24SEPFUT"
+            quantity,         // e.g., 50
+            transactionType,  // "BUY" or "SELL"
+            "MY_STRATEGY"     // Tag (max 20 chars)
+        );
+
+        // Pre-configured with:
+        // - orderType: MARKET
+        // - product: MIS (intraday)
+        // - exchange: NFO
+        // - validity: DAY
+        // - triggerPrice: 0.0
+
+        return params;
+    }
+}
+```
+
+**Method Signature:**
+```java
+public static OrderParams createMarketOrderWithParameters(
+    String symbol,
+    int orderSize,
+    String transactionType,  // "BUY" or "SELL"
+    String tag               // Strategy tag (max 20 chars, auto-truncated)
+)
+```
+
+**Returns:** `OrderParams` ready for use with `KiteConnect.placeOrder()`
+
+**Use Case:** Quickly create standardized market orders without manually setting all parameters.
+
+**Thread Safety:** Safe (no shared state)
+
+---
+
+### InstrumentFileUtils - Instrument Cache Persistence
+
+```java
+import com.vish.fno.reader.util.InstrumentFileUtils;
+import com.zerodhatech.models.Instrument;
+
+public class CacheService {
+    public void saveAndLoadInstruments() {
+        // 1. Fetch instruments from Kite
+        List<Instrument> instruments = kiteConnect.getInstruments();
+
+        // 2. Save to local file (instrument_cache/instruments_<date>.json)
+        InstrumentFileUtils.saveInstrumentCache(instruments);
+
+        // 3. Save filtered version with pretty print
+        List<Instrument> niftyOptions = instruments.stream()
+            .filter(i -> i.getName().equals("NIFTY"))
+            .toList();
+        InstrumentFileUtils.saveFilteredInstrumentCache(niftyOptions);
+
+        // 4. Load cached instruments (avoids API call)
+        List<Instrument> cachedToday = InstrumentFileUtils.loadInstrumentCache(0);  // Today
+        List<Instrument> cachedYesterday = InstrumentFileUtils.loadInstrumentCache(1);  // 1 day ago
+
+        if (cachedToday == null) {
+            // Cache file doesn't exist, fetch from API
+            instruments = kiteConnect.getInstruments();
+            InstrumentFileUtils.saveInstrumentCache(instruments);
+        }
+    }
+}
+```
+
+**Methods:**
+
+```java
+// Save all instruments to date-stamped file
+public static void saveInstrumentCache(List<Instrument> instruments)
+
+// Save filtered instruments with pretty formatting
+public static void saveFilteredInstrumentCache(Object instruments)
+
+// Load instruments from N days ago (0 = today, 1 = yesterday, etc.)
+public static List<Instrument> loadInstrumentCache(int days)
+```
+
+**File Location:** `./instrument_cache/instruments_<yyyy-MM-dd>.json`
+
+**Use Case:**
+- Reduce API calls by caching instrument list
+- Instrument list changes daily, so cache by date
+- Avoid hitting rate limits during startup
+
+**Thread Safety:** Not thread-safe for concurrent writes
+
+---
+
+### OptionPriceUtils - Option Strike Selection
+
+```java
+import com.vish.fno.reader.service.OptionPriceUtils;
+import com.zerodhatech.models.Instrument;
+import lombok.extern.slf4j.Slf4j;
+import java.util.Optional;
+
+@Slf4j
+public class OptionSelector {
+    private final List<Instrument> instruments;
+
+    public void selectOptions(double niftySpot) {
+        // 1. Get next expiry future symbol
+        Optional<String> futureSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(
+            "NIFTY 50",
+            instruments
+        );
+        futureSymbol.ifPresent(symbol ->
+            log.info("Next expiry future: {}", symbol)  // e.g., "NIFTY24SEPFUT"
+        );
+
+        // 2. Get ITM call option
+        String itmCall = OptionPriceUtils.getITMStock(
+            "NIFTY 50",
+            niftySpot,        // e.g., 19500.0
+            true,             // true = Call, false = Put
+            instruments
+        );
+        log.info("ITM Call: {}", itmCall);  // e.g., "NIFTY24SEP19400CE"
+
+        // 3. Get ITM put option
+        String itmPut = OptionPriceUtils.getITMStock(
+            "NIFTY 50",
+            niftySpot,
+            false,            // Put option
+            instruments
+        );
+        log.info("ITM Put: {}", itmPut);    // e.g., "NIFTY24SEP19500PE"
+
+        // 4. Get OTM call option
+        String otmCall = OptionPriceUtils.getOTMStock(
+            "NIFTY 50",
+            niftySpot,
+            true,
+            instruments
+        );
+        log.info("OTM Call: {}", otmCall);  // e.g., "NIFTY24SEP19550CE"
+
+        // 5. Get OTM put option
+        String otmPut = OptionPriceUtils.getOTMStock(
+            "NIFTY 50",
+            niftySpot,
+            false,
+            instruments
+        );
+        log.info("OTM Put: {}", otmPut);    // e.g., "NIFTY24SEP19450PE"
+    }
+}
+```
+
+**Methods:**
+
+```java
+// Get nearest expiry future symbol
+public static Optional<String> getNextExpiryFutureSymbol(
+    String symbol,          // "NIFTY 50", "NIFTY BANK", "NIFTY FIN SERVICE"
+    List<Instrument> instruments
+)
+
+// Get in-the-money option symbol
+public static String getITMStock(
+    String indexSymbol,     // "NIFTY 50", "NIFTY BANK", "NIFTY FIN SERVICE"
+    double price,           // Current spot price
+    boolean isCall,         // true = Call, false = Put
+    List<Instrument> instruments
+)
+
+// Get out-of-the-money option symbol
+public static String getOTMStock(
+    String indexSymbol,
+    double price,
+    boolean isCall,
+    List<Instrument> instruments
+)
+```
+
+**Returns:**
+- `getNextExpiryFutureSymbol()`: `Optional<String>` (empty if not found)
+- `getITMStock()`: Trading symbol string (empty if not found)
+- `getOTMStock()`: Trading symbol string (empty if not found)
+
+**Supported Indices:**
+- `"NIFTY 50"` → Maps to "NIFTY"
+- `"NIFTY BANK"` → Maps to "BANKNIFTY"
+- `"NIFTY FIN SERVICE"` → Maps to "FINNIFTY"
+
+**Use Cases:**
+- Build option strategies (straddles, strangles, spreads)
+- Dynamically select strikes based on spot price
+- Find nearest expiry contracts for rolling positions
+
+**Thread Safety:** Safe (no shared state)
+
+**Edge Cases:**
+- Returns empty string if no matching strike found
+- Logs warnings when symbols not found
+- Always selects nearest expiry date
+
+---
+
 ## Common Integration Patterns
 
 ### Pattern 1: Live Trading with Historical Analysis
 
 ```java
+import com.vish.fno.reader.service.KiteService;
+import com.vish.fno.reader.service.HistoricalDataService;
+import com.vish.fno.reader.service.InstrumentCache;
+import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
+import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import com.vish.fno.model.Candle;
+import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import java.time.LocalDate;
+
 @Service
 public class LiveTradingService {
     private final KiteService kiteService;
@@ -378,7 +609,7 @@ public class LiveTradingService {
             );
 
             // 3. Convert to candles
-            List<Candlestick> candles = convertToCandles(recentData);
+            List<Candle> candles = convertToCandles(recentData);
 
             // 4. Calculate indicators
             List<Double> smaValues = sma50.calculate(candles);

@@ -180,55 +180,192 @@ All API documentation, usage examples, and integration patterns are maintained i
 
 ## Automatic Documentation Maintenance
 
-**IMPORTANT**: FnOSdk uses AI-powered automatic documentation maintenance.
+**IMPORTANT**: FnOSdk uses AI-powered automatic documentation maintenance via Claude Code agents.
 
-### Agent Policy
+### Agent-Based Automation
 
-This repository has `.claude/agent_policy.md` that **automatically triggers documentation updates** when you modify public APIs.
+FnOSdk has a `.claude/` directory containing agents, skills, and policies that automate documentation maintenance:
 
-**How it works:**
+```
+.claude/
+├── README.md                         # Overview of automation system
+├── agent_policy.md                   # Automatic trigger rules
+├── agents/
+│   └── fnosdk-doc-watcher.md        # Documentation maintenance agent
+├── skills/
+│   └── doc-maintainer.md            # Documentation maintenance skill
+└── commands/
+    └── update-docs.md               # Manual documentation update command
+```
+
+### How It Works
+
+**Automatic Process:**
 1. You modify a Java file with public API changes
-2. Claude Code **automatically** detects the change
-3. Claude Code **automatically** invokes the `doc-maintainer` skill
-4. Documentation in `docs/module-guides/` is **automatically** updated
-5. You commit code + documentation together
+2. Agent policy (`.claude/agent_policy.md`) detects the change
+3. `fnosdk-doc-watcher` agent is **automatically invoked**
+4. Agent uses `doc-maintainer` skill to update documentation
+5. Documentation in `docs/module-guides/` is **automatically** updated
+6. You commit code + documentation together
 
-**Manual trigger:**
-```
-/update-docs
+**Manual Triggers:**
+```bash
+/update-docs                    # Update docs for recent changes
+/update-docs --staged           # Update docs for staged files only
+/update-docs --full             # Full documentation rebuild
+/update-docs fno-technicals     # Update specific module only
 ```
 
-Or use the skill directly:
-```
-Use the doc-maintainer skill to update documentation
-```
+### Documentation Agent
+
+**Agent:** `.claude/agents/fnosdk-doc-watcher.md`
+
+**Responsibilities:**
+- Detect public API changes in Java source files
+- Extract exact method signatures and parameters
+- Update corresponding module guides in `docs/module-guides/`
+- Validate documentation completeness and quality
+- Ensure downstream AI agents can generate correct code
+
+**Automatic triggers:**
+- After modifying files in `*/src/main/java/**`
+- Before committing changes
+- Before opening pull requests
+- On explicit user request
 
 ### Documentation Skill
 
-**Skill location:** `.claude/skills/doc-maintainer.md`
+**Skill:** `.claude/skills/doc-maintainer.md`
 
 **Purpose:**
-- Scan Java source files for public API changes
-- Extract exact method signatures
-- Update module guides with complete API documentation
-- Validate completeness and quality
-- Ensure AI agents in downstream projects (like OptionsAnalyzer) can generate correct code
+- Core documentation generation logic
+- Maps Java source files to module guides
+- Enforces documentation quality standards
+- Generates working code examples
+- Validates completeness
 
-**When it runs:**
-- Automatically after modifying public classes/methods
-- Before completing tasks that changed public APIs
-- On explicit user request (`/update-docs`)
+**Quality requirements:**
+- ✅ Exact method signatures (character-for-character match)
+- ✅ All parameters documented with types
+- ✅ Return values documented
+- ✅ Working, compilable code examples
+- ✅ Edge cases noted (null handling, thread safety)
+- ✅ Integration patterns for cross-module features
 
-### Quality Standards
+See `.claude/agent_policy.md` for complete automation rules and `.claude/SUGGESTED_AGENTS_AND_SKILLS.md` for additional automation capabilities.
 
-All documentation updates must include:
-- Exact method signatures (copy from source)
-- All parameters documented with types
-- Return values documented
-- Working code examples
-- Integration patterns for complex APIs
+---
 
-See `.claude/agent_policy.md` for complete behavioral rules.
+## Available Automation Tools
+
+### Current Agents
+
+**fnosdk-doc-watcher** (`.claude/agents/fnosdk-doc-watcher.md`)
+- **Purpose:** Automatic documentation maintenance
+- **Triggers:** Public API changes, commit preparation, PR creation
+- **Status:** ✅ Active
+- **Usage:** Automatic (triggered by agent policy)
+
+### Current Skills
+
+**doc-maintainer** (`.claude/skills/doc-maintainer.md`)
+- **Purpose:** Core documentation generation and validation
+- **Usage:** Invoked by fnosdk-doc-watcher agent
+- **Features:** API extraction, signature validation, example generation
+
+### Current Commands
+
+**Slash Commands:**
+- `/update-docs` - Manually trigger documentation update
+- `/update-docs --staged` - Update docs for staged files only
+- `/update-docs --full` - Rebuild all documentation
+- `/update-docs [module]` - Update specific module only
+
+### Suggested Future Agents
+
+See `.claude/SUGGESTED_AGENTS_AND_SKILLS.md` for recommended additional automation:
+
+**High Priority:**
+- **code-reviewer** - Automatic code quality and PMD checks
+- **test-runner** - Automated testing with smart test selection
+
+**Medium Priority:**
+- **build-verifier** - Complete Maven build validation
+- **dependency-updater** - Dependency management and updates
+- **release-preparer** - Release automation (versioning, changelog, tagging)
+
+**Lower Priority:**
+- **example-generator** - Generate realistic code examples
+- **migration-helper** - Assist with API migrations
+
+---
+
+## Documentation Organization
+
+### Production Documentation Structure
+
+```
+docs/
+├── SDK_USAGE.md                       # Main entry point for SDK users
+├── AI_AGENT_GUIDE.md                  # Guide for AI agents using the SDK
+├── DOCUMENTATION_MAINTENANCE.md       # Documentation maintenance strategy
+├── module-guides/                     # Module-specific API documentation
+│   ├── fno-models.md                 # Core data models
+│   ├── fno-utils.md                  # Utility functions
+│   ├── fno-technicals.md             # Technical indicators & Greeks
+│   └── fno-kite-reader.md            # Kite Connect integration
+└── work-progress/                     # Temporary work-in-progress docs
+    ├── DOCUMENTATION_AUDIT_REPORT.md
+    ├── DOCUMENTATION_FIX_SUMMARY.md
+    ├── PHASE_2A_COMPLETION_SUMMARY.md
+    ├── PHASE_2B_COMPLETION_SUMMARY.md
+    └── COMPLETE_DOCUMENTATION_OVERHAUL_SUMMARY.md
+```
+
+### Documentation Guidelines
+
+**Production Documentation** (commit to git):
+- `docs/SDK_USAGE.md` - Main SDK usage guide
+- `docs/AI_AGENT_GUIDE.md` - AI agent integration guide
+- `docs/module-guides/*.md` - Module API references
+- `docs/DOCUMENTATION_MAINTENANCE.md` - Documentation strategy
+
+**Work-Progress Documentation** (temporary, gitignored):
+- `docs/work-progress/*` - Session summaries, audit reports, completion notes
+- These files document the documentation improvement process
+- **Should be in `.gitignore`** - not committed to repository
+- Used for tracking progress during documentation overhauls
+
+**When to use `docs/work-progress/`:**
+- Creating audit reports of documentation gaps
+- Writing session summaries of documentation fixes
+- Tracking multi-phase documentation improvements
+- Recording completion status for documentation tasks
+- Any temporary markdown files that document the documentation process itself
+
+**File Naming Convention:**
+- Production: Descriptive names like `SDK_USAGE.md`, `fno-models.md`
+- Work-progress: Action-oriented names like `PHASE_2A_COMPLETION_SUMMARY.md`, `DOCUMENTATION_AUDIT_REPORT.md`
+
+### Code Example Standards
+
+When writing documentation examples:
+
+**Logging:**
+- ✅ **USE** Lombok @Slf4j with `log.info()`, `log.debug()`, etc.
+- ❌ **NEVER** use `System.out.println()`
+
+**Imports:**
+- ✅ **INCLUDE** SDK imports (com.vish.fno.*), Lombok imports, third-party imports
+- ✅ **INCLUDE** specialized Java imports (java.time.*, java.util.concurrent.*, etc.)
+- ❌ **OMIT** common Java utility imports (java.util.List, java.util.Map, java.util.Set, java.util.ArrayList, java.util.HashMap)
+
+**Example Structure:**
+- ✅ Wrap code in proper classes with @Slf4j annotation
+- ✅ Use parameterized logging: `log.info("Order: {}", orderId)`
+- ✅ Follow Java 17+ patterns (records, .toList(), etc.)
+
+See `.claude/skills/doc-maintainer.md` for complete code standards.
 
 ---
 

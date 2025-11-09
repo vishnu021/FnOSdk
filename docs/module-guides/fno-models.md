@@ -151,36 +151,136 @@ ActiveOrder activeOrder = ActiveOrderFactory.createActiveOrder(orderRequest, ord
 
 ### `com.vish.fno.model` - Market Data Models
 
-#### Candlestick - OHLCV Data
+#### Candle - OHLCV Data (Java Record)
 ```java
-@Data
-@Document
-public class Candlestick {
-    private LocalDateTime date;
-    private Double open;
-    private Double high;
-    private Double low;
-    private Double close;
-    private Long volume;
-    private Long oi;  // Open interest (optional)
+public record Candle(
+    String time,
+    double open,
+    double high,
+    double low,
+    double close,
+    Long volume,
+    Long oi
+)
+```
+
+**Parameters:**
+- `time`: Timestamp as String (e.g., "2024-09-28 09:15:00")
+- `open`: Opening price
+- `high`: Highest price in the period
+- `low`: Lowest price in the period
+- `close`: Closing price
+- `volume`: Total volume traded (can be null)
+- `oi`: Open interest (can be null)
+
+**Usage:**
+```java
+import com.vish.fno.model.Candle;
+
+// Creating candle data (Java record - immutable)
+Candle candle = new Candle(
+    "2024-09-28 09:15:00",
+    19500.0,
+    19550.0,
+    19480.0,
+    19520.0,
+    1000000L,
+    5000000L
+);
+
+// Accessing data
+double closePrice = candle.close();
+Long volume = candle.volume();
+
+// Using in a list
+List<Candle> candles = List.of(candle);
+```
+
+**Note:** `Candle` is a Java record (Java 17+), so it's immutable and has built-in equals(), hashCode(), and toString().
+
+#### Ticker - Real-time Market Data (Java Record)
+```java
+public record Ticker(
+    String mode,
+    boolean tradable,
+    long instrumentToken,
+    String instrumentSymbol,
+    double lastTradedPrice,
+    double highPrice,
+    double lowPrice,
+    double openPrice,
+    double closePrice,
+    double change,
+    double lastTradedQuantity,
+    double averageTradePrice,
+    long volumeTradedToday,
+    double totalBuyQuantity,
+    double totalSellQuantity,
+    Date lastTradedTime,
+    double oi,
+    double openInterestDayHigh,
+    double openInterestDayLow,
+    Date tickTimestamp,
+    Map<String, List<Depth>> depth
+) implements Comparable<Ticker>
+```
+
+**Key Fields:**
+- `instrumentToken`: Unique instrument identifier
+- `instrumentSymbol`: Trading symbol (e.g., "NIFTY24SEPFUT")
+- `lastTradedPrice`: Current LTP
+- `oi`: Open interest
+- `tickTimestamp`: Timestamp of the tick
+- `depth`: Market depth (bid/ask)
+
+**Usage:**
+```java
+import com.vish.fno.model.Ticker;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class TickerProcessor {
+    // Typically received from WebSocket or API
+    public void processTicker(Ticker ticker, double previousLTP) {
+        if (ticker.lastTradedPrice() > previousLTP) {
+            log.info("Price up: {}", ticker.lastTradedPrice());
+        }
+
+        // Sort tickers by time
+        List<Ticker> tickers = // ... list of tickers
+        tickers.sort(Ticker::compareTo); // Sorts by tickTimestamp
+    }
 }
+```
+
+#### SymbolData - Historical Data Storage (Java Record)
+```java
+@Document(collection = "minute_history_data")
+public record SymbolData(
+    @Id CandleMetaData record,
+    List<Candle> data
+)
 ```
 
 **Usage:**
 ```java
-// Creating candlestick data
-Candlestick candle = new Candlestick();
-candle.setDate(LocalDateTime.of(2024, 9, 28, 9, 15));
-candle.setOpen(19500.0);
-candle.setHigh(19550.0);
-candle.setLow(19480.0);
-candle.setClose(19520.0);
-candle.setVolume(1000000L);
-candle.setOi(5000000L);
+import com.vish.fno.model.SymbolData;
+import com.vish.fno.model.Candle;
+import com.vish.fno.model.CandleMetaData;
 
-// Using in a list
-List<Candlestick> candles = new ArrayList<>();
-candles.add(candle);
+// Create metadata
+CandleMetaData metadata = new CandleMetaData(
+    instrumentToken,
+    "NIFTY24SEPFUT",
+    "2024-09-28",
+    "minute"
+);
+
+// Create symbol data with candles
+SymbolData symbolData = new SymbolData(metadata, candles);
+
+// Store in MongoDB (Spring Data)
+symbolDataRepository.save(symbolData);
 ```
 
 #### Instrument - Trading Instrument Metadata
@@ -212,26 +312,260 @@ public class OptionsMetaData {
 }
 ```
 
-### Enums
+### `com.vish.fno.model.order` - Order Enums
 
-#### Strategy - Trading Strategies
+#### OrderSellReason - Order Exit Reasons
 ```java
-public enum Strategy {
-    SCALPING,
-    DAY_TRADING,
-    SWING_TRADING,
-    POSITIONAL,
-    HEDGING,
-    ARBITRAGE
+public enum OrderSellReason {
+    TARGET_HIT,
+    STOP_LOSS_HIT,
+    EXPIRY_TIME_REACHED
 }
 ```
 
-#### StrategyType - Strategy Categories
+**Usage:**
 ```java
-public enum StrategyType {
-    INDEX,          // Index futures based
-    OPTION,         // Options based
-    TICK_BASED      // Real-time tick based
+import com.vish.fno.model.order.OrderSellReason;
+
+// When exiting an order, specify the reason
+public void exitOrder(ActiveOrder order, double currentPrice) {
+    OrderSellReason reason;
+
+    if (currentPrice >= order.getTargetPrice()) {
+        reason = OrderSellReason.TARGET_HIT;
+    } else if (currentPrice <= order.getStopLoss()) {
+        reason = OrderSellReason.STOP_LOSS_HIT;
+    } else if (isExpiryTime()) {
+        reason = OrderSellReason.EXPIRY_TIME_REACHED;
+    }
+
+    sellOrder(order, reason);
+}
+```
+
+### `com.vish.fno.model.strategy` - Strategy Interfaces
+
+#### Strategy - Base Strategy Interface
+```java
+public interface Strategy {
+    void initialise(Task task);
+    Task getTask();
+    String getTag();
+}
+```
+
+**Implementing a Custom Strategy:**
+```java
+import com.vish.fno.model.strategy.Strategy;
+import com.vish.fno.model.Task;
+
+public class MyTradingStrategy implements Strategy {
+    private Task task;
+    private String tag;
+
+    @Override
+    public void initialise(Task task) {
+        this.task = task;
+        this.tag = "MY_CUSTOM_STRATEGY";
+        // Initialize strategy parameters
+        setupIndicators();
+        loadHistoricalData();
+    }
+
+    @Override
+    public Task getTask() {
+        return task;
+    }
+
+    @Override
+    public String getTag() {
+        return tag;
+    }
+
+    private void setupIndicators() {
+        // Setup technical indicators
+    }
+
+    private void loadHistoricalData() {
+        // Load required data
+    }
+}
+```
+
+#### MinuteStrategy - Minute-level Trading
+```java
+public interface MinuteStrategy extends Strategy {
+    // For strategies that execute on minute candles
+}
+```
+
+**Usage:**
+```java
+import com.vish.fno.model.strategy.MinuteStrategy;
+import com.vish.fno.model.Candle;
+
+public class MovingAverageCrossStrategy implements MinuteStrategy {
+    private Task task;
+
+    public void onCandle(Candle candle) {
+        // Execute strategy logic on each minute candle
+    }
+
+    @Override
+    public void initialise(Task task) {
+        this.task = task;
+    }
+
+    @Override
+    public Task getTask() {
+        return task;
+    }
+
+    @Override
+    public String getTag() {
+        return "MA_CROSS";
+    }
+}
+```
+
+#### IndexBasedStrategy - Index Futures Trading
+```java
+public interface IndexBasedStrategy extends MinuteStrategy {
+    // For NIFTY/BANKNIFTY futures strategies
+}
+```
+
+**Usage:**
+```java
+import com.vish.fno.model.strategy.IndexBasedStrategy;
+import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+
+public class IndexMomentumStrategy implements IndexBasedStrategy {
+    private Task task;
+
+    public IndexOrderRequest generateOrder(String symbol, double price) {
+        return IndexOrderRequest.builder()
+            .symbol(symbol)
+            .quantity(50)
+            .orderType("MARKET")
+            .transactionType("BUY")
+            .product("MIS")
+            .build();
+    }
+
+    @Override
+    public void initialise(Task task) {
+        this.task = task;
+    }
+
+    @Override
+    public Task getTask() {
+        return task;
+    }
+
+    @Override
+    public String getTag() {
+        return "INDEX_MOMENTUM";
+    }
+}
+```
+
+#### OptionBasedStrategy - Options Trading
+```java
+public interface OptionBasedStrategy extends MinuteStrategy {
+    // For options trading strategies
+}
+```
+
+**Usage:**
+```java
+import com.vish.fno.model.strategy.OptionBasedStrategy;
+import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
+
+public class StrangleStrategy implements OptionBasedStrategy {
+    private Task task;
+
+    public OptionBasedOrderRequest[] createStrangle(String underlying,
+                                                      double spot,
+                                                      double distance) {
+        OptionBasedOrderRequest call = OptionBasedOrderRequest.builder()
+            .symbol(underlying)
+            .strikePrice(spot + distance)
+            .optionType("CE")
+            .expiryDate(getNextExpiry())
+            .quantity(50)
+            .orderType("MARKET")
+            .transactionType("SELL")
+            .product("MIS")
+            .build();
+
+        OptionBasedOrderRequest put = OptionBasedOrderRequest.builder()
+            .symbol(underlying)
+            .strikePrice(spot - distance)
+            .optionType("PE")
+            .expiryDate(getNextExpiry())
+            .quantity(50)
+            .orderType("MARKET")
+            .transactionType("SELL")
+            .product("MIS")
+            .build();
+
+        return new OptionBasedOrderRequest[]{call, put};
+    }
+
+    @Override
+    public void initialise(Task task) {
+        this.task = task;
+    }
+
+    @Override
+    public Task getTask() {
+        return task;
+    }
+
+    @Override
+    public String getTag() {
+        return "STRANGLE";
+    }
+}
+```
+
+#### TickBasedStrategy - Real-time Tick Trading
+```java
+public interface TickBasedStrategy extends Strategy {
+    // For high-frequency tick-based strategies
+}
+```
+
+**Usage:**
+```java
+import com.vish.fno.model.strategy.TickBasedStrategy;
+import com.vish.fno.model.Ticker;
+
+public class ScalpingStrategy implements TickBasedStrategy {
+    private Task task;
+
+    public void onTick(Ticker ticker) {
+        // Execute logic on every tick
+        if (shouldEnter(ticker)) {
+            placeOrder(ticker);
+        }
+    }
+
+    @Override
+    public void initialise(Task task) {
+        this.task = task;
+    }
+
+    @Override
+    public Task getTask() {
+        return task;
+    }
+
+    @Override
+    public String getTag() {
+        return "SCALPING";
+    }
 }
 ```
 
@@ -259,14 +593,26 @@ public class OrderService {
 }
 ```
 
-### Pattern 2: Building Candlestick Data for Backtesting
+### Pattern 2: Building Candle Data for Backtesting
 ```java
+import com.vish.fno.model.Candle;
+
 public class DataLoader {
-    public List<Candlestick> loadHistoricalData(String filePath) {
-        List<Candlestick> candles = new ArrayList<>();
+    public List<Candle> loadHistoricalData(String filePath) {
+        List<Candle> candles = new ArrayList<>();
 
         // Read from CSV/JSON and populate
-        // ... file reading logic
+        // Example: parsing CSV row
+        Candle candle = new Candle(
+            "2024-09-28 09:15:00",
+            19500.0,
+            19550.0,
+            19480.0,
+            19520.0,
+            1000000L,
+            5000000L
+        );
+        candles.add(candle);
 
         return candles;
     }

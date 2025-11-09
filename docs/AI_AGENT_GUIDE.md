@@ -1,4 +1,4 @@
-# AI Agent Guide for FnOSdk
+I have # AI Agent Guide for FnOSdk
 
 ## Overview
 
@@ -6,46 +6,54 @@ FnOSdk provides comprehensive documentation designed specifically for AI coding 
 
 ## Documentation Structure
 
-### 1. Main Reference: `CLAUDE.md`
+### 1. Entry Point: `SDK_USAGE.md`
 
-Located at the root of the FnOSdk project, this 979-line document contains:
-
-- **Module architecture** and dependency relationships
-- **Complete API reference** for all public classes and methods
-- **Code examples** for every major feature
-- **Integration patterns** for common use cases (backtesting, live trading, technical analysis)
-- **Best practices** for AI-generated code
-
-**How to use it:**
-When an AI agent needs to:
-- Create order requests ’ Search for "IndexOrderRequest" or "OptionBasedOrderRequest" in CLAUDE.md
-- Calculate technical indicators ’ Search for "SimpleMovingAverage", "RSI", or "BollingerBands"
-- Integrate Kite API ’ Search for "KiteService" or "HistoricalDataService"
-- Use utilities ’ Search for "CandleUtils", "TimeUtils", or "OptionsMetaDataUtils"
-
-### 2. User Documentation: `README.md`
-
-High-level SDK overview for human developers:
+Located in `docs/`, this document provides:
+- Quick reference table for common use cases
+- Module dependency structure
 - Installation instructions
-- Module descriptions
-- Quick start examples
-- Build commands
+- Links to detailed module guides
 
-### 3. Project-Specific Integration
+### 2. Module-Specific Guides: `docs/module-guides/`
 
-For projects using FnOSdk (like OptionsAnalyzer), add a reference to FnOSdk documentation in their CLAUDE.md:
+Each module has a comprehensive guide with complete API documentation:
+- **fno-models.md** - Core data models (orders, candles, instruments)
+- **fno-utils.md** - Utility functions (candle ops, time utils, options utils)
+- **fno-technicals.md** - Technical indicators and Greeks
+- **fno-kite-reader.md** - Kite Connect API integration
+
+### 3. Developer Guide: `CLAUDE.md`
+
+Located at the root, this is for **FnOSdk development only** (not for SDK consumers):
+- Build commands and testing
+- Module architecture
+- Code quality standards (PMD rules)
+- Contribution guidelines
+
+**How AI agents should use documentation:**
+When an AI agent needs to:
+- Create order requests â†’ Read `docs/module-guides/fno-models.md`
+- Calculate technical indicators â†’ Read `docs/module-guides/fno-technicals.md`
+- Integrate Kite API â†’ Read `docs/module-guides/fno-kite-reader.md`
+- Use utilities â†’ Read `docs/module-guides/fno-utils.md`
+
+### 4. Project-Specific Integration
+
+For projects using FnOSdk (like OptionsAnalyzer), reference module guides directly:
 
 ```markdown
-## Related SDK: FnOSdk
+## SDK Dependencies: FnOSdk
 
 **SDK Location**: `/path/to/FnOSdk/`
-**SDK Documentation**: See `/path/to/FnOSdk/CLAUDE.md` for comprehensive API reference
+**Documentation**: `/path/to/FnOSdk/docs/`
 
-When working with:
-- Technical indicators ’ See FnOSdk/CLAUDE.md section on fno-technicals
-- Order models ’ See FnOSdk/CLAUDE.md section on fno-models
-- Utilities ’ See FnOSdk/CLAUDE.md section on fno-utils
-- Kite integration ’ See FnOSdk/CLAUDE.md section on fno-kite-reader
+**Module Guides** (for AI agents):
+- Technical indicators â†’ `/path/to/FnOSdk/docs/module-guides/fno-technicals.md`
+- Order models â†’ `/path/to/FnOSdk/docs/module-guides/fno-models.md`
+- Utilities â†’ `/path/to/FnOSdk/docs/module-guides/fno-utils.md`
+- Kite integration â†’ `/path/to/FnOSdk/docs/module-guides/fno-kite-reader.md`
+
+When generating code using FnOSdk, AI agents should read the specific module guide for exact API signatures and examples.
 ```
 
 ## How AI Agents Should Use This Documentation
@@ -53,30 +61,33 @@ When working with:
 ### Scenario 1: User asks to implement a moving average crossover strategy
 
 **AI Agent Action:**
-1. Read `/Users/vishnushankar/workspace/FnOSdk/CLAUDE.md`
-2. Search for "SimpleMovingAverage" to find API
-3. Look at "Integration Patterns" section for backtesting example
-4. Generate code using the documented API signatures
+1. Identify need for technical indicator â†’ requires `fno-technicals` module
+2. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-technicals.md`
+3. Find "Simple Moving Average (SMA)" section with API reference
+4. Copy exact API signature and review code example
+5. Generate code using the documented pattern
 
-**Result:** Code that correctly uses `SimpleMovingAverage(period)` with proper method signatures.
+**Result:** Code that correctly uses `new SimpleMovingAverage(period)` with proper method signatures.
 
 ### Scenario 2: User asks to place a futures order via Kite
 
 **AI Agent Action:**
-1. Read `/Users/vishnushankar/workspace/FnOSdk/CLAUDE.md`
-2. Search for "KiteService" and "IndexOrderRequest"
-3. Find the example showing order placement with error handling
-4. Generate code using Builder pattern as documented
+1. Identify needs: Order model + Kite API â†’ requires `fno-models` and `fno-kite-reader`
+2. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-models.md` for IndexOrderRequest
+3. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-kite-reader.md` for KiteService
+4. Review examples showing order placement with error handling
+5. Generate code using Builder pattern as documented
 
-**Result:** Code that uses `IndexOrderRequest.builder()` correctly with all required fields.
+**Result:** Code that uses `IndexOrderRequest.builder()` correctly with all required fields and proper exception handling.
 
 ### Scenario 3: User asks to calculate option Greeks
 
 **AI Agent Action:**
-1. Read `/Users/vishnushankar/workspace/FnOSdk/CLAUDE.md`
-2. Search for "Delta", "Gamma", "Theta", "Vega"
-3. Find the complete example with all Greeks
-4. Note the parameter order and meaning
+1. Identify need for Options Greeks â†’ requires `fno-technicals` module
+2. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-technicals.md`
+3. Find "Options Greeks" section with Delta, Gamma, Theta, Vega
+4. Note the common parameter structure across all Greeks
+5. Review interpretation guidelines and examples
 
 **Result:** Code that calls `Delta.calculate(spot, strike, tte, rfr, iv, "CE")` with correct parameter types and order.
 
@@ -140,19 +151,34 @@ When a user in OptionsAnalyzer asks:
 > "Add RSI indicator calculation to the candlestick service"
 
 Claude Code will:
-1. Check `/Users/vishnushankar/workspace/OptionsAnalyzer/CLAUDE.md`
-2. See reference to FnOSdk for technical indicators
-3. Read `/Users/vishnushankar/workspace/FnOSdk/CLAUDE.md`
-4. Find "RelativeStrengthIndex" section with complete API
+1. Check OptionsAnalyzer's CLAUDE.md or skill configuration
+2. Identify FnOSdk dependency for technical indicators
+3. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-technicals.md`
+4. Find "Relative Strength Index (RSI)" section with:
+   - Complete API: `new RelativeStrengthIndex(14)` and `.calculate(candles)`
+   - Parameter explanations (period = 14 typical)
+   - Interpretation guide (RSI < 30 = oversold, RSI > 70 = overbought)
+   - Working code example
 5. Generate code:
 
 ```java
 import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import java.util.List;
 
 public class CandlestickService {
+    private final RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
+
     public List<Double> calculateRSI(List<Candlestick> candles) {
-        RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
         return rsi14.calculate(candles);
+    }
+
+    public String getSignal(List<Candlestick> candles) {
+        List<Double> rsiValues = calculateRSI(candles);
+        double currentRSI = rsiValues.get(rsiValues.size() - 1);
+
+        if (currentRSI < 30) return "OVERSOLD";
+        if (currentRSI > 70) return "OVERBOUGHT";
+        return "NEUTRAL";
     }
 }
 ```
@@ -190,11 +216,19 @@ If AI agents consistently generate incorrect code:
 
 ## Summary
 
-The FnOSdk CLAUDE.md file serves as a **comprehensive knowledge base** that AI agents can query to generate correct, production-ready code without trial and error. It's designed to be:
+FnOSdk's **modular documentation** (`docs/module-guides/*.md`) serves as a comprehensive knowledge base that AI agents can query to generate correct, production-ready code without trial and error. The documentation is designed to be:
 
-- **Complete**: Every public API is documented
-- **Practical**: Every feature has working examples
-- **Contextual**: Integration patterns show real-world usage
-- **Maintainable**: Updates happen in one place
+- **Complete**: Every public API is documented in its module guide
+- **Practical**: Every feature has working, tested examples
+- **Contextual**: Integration patterns show real-world usage across modules
+- **Maintainable**: Automatically updated when code changes (via .claude/agents/fnosdk-doc-watcher)
+- **AI-Optimized**: Exact signatures, parameter types, and return values for code generation
 
-This approach turns AI coding assistants into **domain experts** for F&O trading applications using FnOSdk.
+**Key Documentation Files:**
+- `docs/SDK_USAGE.md` - Entry point with quick reference
+- `docs/module-guides/fno-models.md` - Order models and market data structures
+- `docs/module-guides/fno-utils.md` - Utility functions and helpers
+- `docs/module-guides/fno-technicals.md` - Technical indicators and Greeks
+- `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration
+
+This modular approach turns AI coding assistants into **domain experts** for F&O trading applications using FnOSdk, while keeping documentation maintainable and always in sync with the code.

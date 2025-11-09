@@ -65,3 +65,4 @@ spring.log
 *.bak
 *.swp
 *~.nib
+/docs/work-progress

@@ -20,17 +20,18 @@ This automatically includes `fno-models` and `fno-utils` as transitive dependenc
 
 ```java
 import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
+import com.vish.fno.model.Candle;
 
 SimpleMovingAverage sma20 = new SimpleMovingAverage(20);
 
 // From candlestick data
-List<Candlestick> candles = // ... your OHLC data
+List<Candle> candles = // ... your OHLC data
 List<Double> smaValues = sma20.calculate(candles);
 
 // From close prices only
 List<Double> closePrices = candles.stream()
-    .map(Candlestick::getClose)
-    .collect(Collectors.toList());
+    .map(Candle::close)
+    .toList();
 List<Double> smaValues = sma20.calculateFromClosedPrice(closePrices);
 
 // Get current SMA value
@@ -43,19 +44,26 @@ double currentSMA = smaValues.get(smaValues.size() - 1);
 
 ```java
 import com.vish.fno.technical.indicators.ma.ExponentialMovingAverage;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
 
-ExponentialMovingAverage ema12 = new ExponentialMovingAverage(12);
-ExponentialMovingAverage ema26 = new ExponentialMovingAverage(26);
+@Slf4j
+public class MACDCalculator {
+    public void calculateMACD(List<Candle> candles) {
+        ExponentialMovingAverage ema12 = new ExponentialMovingAverage(12);
+        ExponentialMovingAverage ema26 = new ExponentialMovingAverage(26);
 
-List<Double> ema12Values = ema12.calculate(candles);
-List<Double> ema26Values = ema26.calculate(candles);
+        List<Double> ema12Values = ema12.calculate(candles);
+        List<Double> ema26Values = ema26.calculate(candles);
 
-// MACD calculation (EMA12 - EMA26)
-int lastIdx = ema12Values.size() - 1;
-double macd = ema12Values.get(lastIdx) - ema26Values.get(lastIdx);
+        // MACD calculation (EMA12 - EMA26)
+        int lastIdx = ema12Values.size() - 1;
+        double macd = ema12Values.get(lastIdx) - ema26Values.get(lastIdx);
 
-if (macd > 0) {
-    System.out.println("Bullish MACD crossover");
+        if (macd > 0) {
+            log.info("Bullish MACD crossover");
+        }
+    }
 }
 ```
 
@@ -63,20 +71,71 @@ if (macd > 0) {
 
 **Common periods**: 12, 26 (for MACD), 9 (signal line)
 
+### Smoothed Moving Average (SMMA)
+
+```java
+import com.vish.fno.technical.indicators.ma.SmoothedMovingAverage;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class SMMAAnalyzer {
+    public void analyzeTrend(List<Candle> candles, double currentPrice) {
+        SmoothedMovingAverage smma20 = new SmoothedMovingAverage(20);
+
+        List<Double> smmaValues = smma20.calculate(candles);
+        double currentSMMA = smmaValues.get(smmaValues.size() - 1);
+
+        // SMMA is smoother than EMA, better for long-term trends
+        if (currentPrice > currentSMMA) {
+            log.info("Price above SMMA - bullish trend");
+        }
+    }
+}
+```
+
+**Formula**: SMMA = (lastSMMA × (period − 1) + closedPrice) / period
+
+**Characteristics**:
+- **Smoother** than EMA - slower to respond to price changes
+- **Less sensitive** to short-term fluctuations
+- **Better for long-term trends** - filters out noise effectively
+- **Calculation**: Uses 1/period as multiplier (vs EMA's 2/(period+1))
+
+**When to use**:
+- Long-term trend identification
+- Reducing false signals in choppy markets
+- Smoothing volatile price data
+
+**Differences from EMA**:
+- **Smoothing**: SMMA is smoother, EMA reacts faster
+- **Sensitivity**: EMA is more sensitive to recent prices
+- **Accuracy**: EMA generally more accurate for short-term analysis
+- **Usage**: SMMA for long-term, EMA for short-term
+
+**Common periods**: 20, 50, 200
+
 ### Relative Strength Index (RSI)
 
 ```java
 import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
 
-RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
-List<Double> rsiValues = rsi14.calculate(candles);
+@Slf4j
+public class RSIAnalyzer {
+    public void analyzeRSI(List<Candle> candles) {
+        RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
+        List<Double> rsiValues = rsi14.calculate(candles);
 
-double currentRSI = rsiValues.get(rsiValues.size() - 1);
+        double currentRSI = rsiValues.get(rsiValues.size() - 1);
 
-if (currentRSI < 30) {
-    System.out.println("Oversold - potential buy signal");
-} else if (currentRSI > 70) {
-    System.out.println("Overbought - potential sell signal");
+        if (currentRSI < 30) {
+            log.info("Oversold - potential buy signal");
+        } else if (currentRSI > 70) {
+            log.info("Overbought - potential sell signal");
+        }
+    }
 }
 ```
 
@@ -91,25 +150,32 @@ if (currentRSI < 30) {
 
 ```java
 import com.vish.fno.technical.indicators.BollingerBands;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
 
-BollingerBands bb = new BollingerBands(20, 2.0); // 20-period, 2 std dev
-Map<String, List<Double>> bands = bb.calculate(candles);
+@Slf4j
+public class BollingerAnalyzer {
+    public void analyzeBands(List<Candle> candles) {
+        BollingerBands bb = new BollingerBands(20, 2.0); // 20-period, 2 std dev
+        Map<String, List<Double>> bands = bb.calculate(candles);
 
-List<Double> upperBand = bands.get("upper");
-List<Double> middleBand = bands.get("middle");  // SMA
-List<Double> lowerBand = bands.get("lower");
+        List<Double> upperBand = bands.get("upper");
+        List<Double> middleBand = bands.get("middle");  // SMA
+        List<Double> lowerBand = bands.get("lower");
 
-int lastIdx = upperBand.size() - 1;
-double currentPrice = candles.get(candles.size() - 1).getClose();
+        int lastIdx = upperBand.size() - 1;
+        double currentPrice = candles.get(candles.size() - 1).close();
 
-if (currentPrice >= upperBand.get(lastIdx)) {
-    System.out.println("Price at upper band - overbought");
-} else if (currentPrice <= lowerBand.get(lastIdx)) {
-    System.out.println("Price at lower band - oversold");
+        if (currentPrice >= upperBand.get(lastIdx)) {
+            log.info("Price at upper band - overbought");
+        } else if (currentPrice <= lowerBand.get(lastIdx)) {
+            log.info("Price at lower band - oversold");
+        }
+
+        // Calculate bandwidth (volatility measure)
+        double bandwidth = (upperBand.get(lastIdx) - lowerBand.get(lastIdx)) / middleBand.get(lastIdx);
+    }
 }
-
-// Calculate bandwidth (volatility measure)
-double bandwidth = (upperBand.get(lastIdx) - lowerBand.get(lastIdx)) / middleBand.get(lastIdx);
 ```
 
 **Components:**
@@ -216,11 +282,14 @@ double rho = Rho.calculate(spot, strike, tte, rfr, iv, "CE");
 ### Strategy 1: Moving Average Crossover
 
 ```java
+import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
+import com.vish.fno.model.Candle;
+
 public class MACrossoverStrategy {
     private final SimpleMovingAverage sma50 = new SimpleMovingAverage(50);
     private final SimpleMovingAverage sma200 = new SimpleMovingAverage(200);
 
-    public String getSignal(List<Candlestick> candles) {
+    public String getSignal(List<Candle> candles) {
         List<Double> sma50Values = sma50.calculate(candles);
         List<Double> sma200Values = sma200.calculate(candles);
 
@@ -250,11 +319,15 @@ public class MACrossoverStrategy {
 ### Strategy 2: RSI with Bollinger Bands
 
 ```java
+import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import com.vish.fno.technical.indicators.BollingerBands;
+import com.vish.fno.model.Candle;
+
 public class RSIBollingerStrategy {
     private final RelativeStrengthIndex rsi = new RelativeStrengthIndex(14);
     private final BollingerBands bb = new BollingerBands(20, 2.0);
 
-    public boolean isOversold(List<Candlestick> candles) {
+    public boolean isOversold(List<Candle> candles) {
         List<Double> rsiValues = rsi.calculate(candles);
         Map<String, List<Double>> bands = bb.calculate(candles);
 
@@ -267,7 +340,7 @@ public class RSIBollingerStrategy {
         return currentRSI < 30 && currentPrice <= lowerBand;
     }
 
-    public boolean isOverbought(List<Candlestick> candles) {
+    public boolean isOverbought(List<Candle> candles) {
         List<Double> rsiValues = rsi.calculate(candles);
         Map<String, List<Double>> bands = bb.calculate(candles);
 
@@ -314,12 +387,16 @@ public class PremiumCollectionStrategy {
 ### Strategy 4: MACD with RSI Confirmation
 
 ```java
+import com.vish.fno.technical.indicators.ma.ExponentialMovingAverage;
+import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import com.vish.fno.model.Candle;
+
 public class MACDRSIStrategy {
     private final ExponentialMovingAverage ema12 = new ExponentialMovingAverage(12);
     private final ExponentialMovingAverage ema26 = new ExponentialMovingAverage(26);
     private final RelativeStrengthIndex rsi = new RelativeStrengthIndex(14);
 
-    public boolean isBuySignal(List<Candlestick> candles) {
+    public boolean isBuySignal(List<Candle> candles) {
         List<Double> ema12Values = ema12.calculate(candles);
         List<Double> ema26Values = ema26.calculate(candles);
         List<Double> rsiValues = rsi.calculate(candles);

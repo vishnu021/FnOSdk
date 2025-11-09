@@ -158,61 +158,87 @@ mvn test
 
 ## 📖 Documentation Automation
 
-FnOSdk integrates **Claude’s `doc-watch` subagent** to maintain and update documentation automatically whenever code changes.
+FnOSdk uses **Claude Code agents** to automatically maintain documentation whenever code changes.
 
-### 🔄 Automatic Trigger (via Subagent: `doc-watch`)
+### 🤖 .claude Folder - AI Automation Hub
 
-**Triggered When:**
+The `.claude/` directory contains all AI-powered automation for maintaining this repository:
 
-* Public Java APIs change in `src/main/java/**`
-* Module `pom.xml` files are modified
+```
+.claude/
+├── README.md                      # Overview and testing guide
+├── agent_policy.md                # When to trigger automation
+├── agents/
+│   └── fnosdk-doc-watcher.md     # Documentation maintenance agent
+├── skills/
+│   └── doc-maintainer.md         # Core documentation generation logic
+├── commands/
+│   └── update-docs.md            # Manual documentation update command
+└── SUGGESTED_AGENTS_AND_SKILLS.md # Future automation roadmap
+```
 
-**Performs:**
+### 📋 .claude File Purpose Guide
 
-* Executes `/update-docs` command automatically.
-* Updates corresponding `docs/module-guides/*.md` and project docs.
+| File | Purpose | How It Helps |
+|------|---------|--------------|
+| **agent_policy.md** | Defines WHEN to trigger automation | Automatically detects public API changes and triggers doc updates |
+| **agents/fnosdk-doc-watcher.md** | Documentation maintenance agent | Monitors code changes, extracts API signatures, updates docs |
+| **skills/doc-maintainer.md** | Core documentation skill | Maps Java files to docs, generates examples, validates quality |
+| **commands/update-docs.md** | Manual trigger command | Allows explicit documentation updates via `/update-docs` |
+| **README.md** | Setup and testing guide | Explains how to use and test the automation |
+| **SUGGESTED_AGENTS_AND_SKILLS.md** | Future automation ideas | Roadmap for code review, testing, build verification agents |
 
-**Files Auto-Updated:**
+### 🔄 How Automatic Documentation Works
+
+**When you modify a Java file with public API changes:**
+
+1. **Detection** - `agent_policy.md` automatically detects the change
+2. **Invocation** - `fnosdk-doc-watcher` agent is triggered
+3. **Analysis** - Agent reads Java source, extracts public API signatures
+4. **Generation** - `doc-maintainer` skill generates documentation with examples
+5. **Update** - Module guides in `docs/module-guides/` are updated
+6. **Notification** - You're notified: "✅ Documentation updated"
+7. **Commit** - You commit code + docs together
+
+**Zero manual work required!**
+
+### 📝 Files Auto-Updated
 
 * `docs/module-guides/fno-models.md`
 * `docs/module-guides/fno-utils.md`
 * `docs/module-guides/fno-technicals.md`
 * `docs/module-guides/fno-kite-reader.md`
-* `docs/SDK_USAGE.md`
-* `docs/DOCUMENTATION_MAINTENANCE.md`
-* `docs/AI_AGENT_GUIDE.md`
 
-**Auto Trigger YAML:**
+### 🎯 Quality Standards
 
-```yaml
-triggers:
-  paths_include:
-    - "**/src/main/java/**/*.java"
-    - "**/pom.xml"
-  paths_exclude:
-    - "**/src/test/**"
-    - "**/internal/**"
-```
+Every auto-generated documentation includes:
+- ✅ Exact method signatures (character-for-character match)
+- ✅ All parameters with types and descriptions
+- ✅ Return values documented
+- ✅ Working, compilable code examples
+- ✅ Edge cases (null handling, thread safety)
+- ✅ Integration patterns
 
----
+### 🧭 Manual Triggers
 
-## 🧭 Manual Triggers
-
-Run these anytime to manually refresh documentation:
+Run these commands in Claude Code to manually update documentation:
 
 ```bash
-/update-docs                 # Rebuild docs since last commit
-/update-docs fno-technicals  # Regenerate docs for a single module
-/update-docs --staged        # Only update staged changes
-/update-docs --since HEAD~2  # Compare with specific revision
-/update-docs --full          # Full reindex (slower)
+/update-docs                 # Update docs for recent changes
+/update-docs --staged        # Only staged files
+/update-docs --full          # Rebuild all documentation
+/update-docs fno-technicals  # Update specific module only
 ```
 
-**Run Subagent Directly:**
+### 🛡️ Multi-Layer Defense
 
-```bash
-claude run subagent doc-watch
-```
+Documentation maintenance has three layers:
+
+1. **Claude Code Agent** (Primary) - Auto-updates as you code
+2. **Git Pre-Commit Hook** (Backup) - Warns if docs missing (`.githooks/`)
+3. **GitHub Actions CI/CD** (Enforcement) - Fails build if docs incomplete (`.github/workflows/`)
+
+Together, these ensure **zero documentation drift**.
 
 ---
 
@@ -290,14 +316,19 @@ FnOSdk is compatible with trading platforms and frameworks like:
 
 ---
 
-## 🤖 AI Documentation Workflow
+## 🤖 AI Automation Details
 
-* **Subagent:** `doc-watch` (auto detection)
-* **Skill:** `doc-maintainer` (writes module guides)
-* **Command:** `/update-docs` (manual trigger)
-* **Hooks:** Optional pre-commit validation
+For comprehensive information about the automation system:
 
-This ensures documentation never goes stale as code evolves.
+* **Setup & Testing:** `.claude/README.md` - Complete setup guide and examples
+* **Agent Policy:** `.claude/agent_policy.md` - Trigger rules and behavior
+* **Agent Details:** `.claude/agents/fnosdk-doc-watcher.md` - Documentation agent implementation
+* **Skill Logic:** `.claude/skills/doc-maintainer.md` - Core documentation generation
+* **Future Plans:** `.claude/SUGGESTED_AGENTS_AND_SKILLS.md` - Roadmap for code review, testing, build agents
+* **Development Guide:** `CLAUDE.md` - For FnOSdk internal development
+* **Maintenance Guide:** `docs/DOCUMENTATION_MAINTENANCE.md` - Documentation strategy
+
+This automation ensures documentation never goes stale as code evolves.
 
 ---
 

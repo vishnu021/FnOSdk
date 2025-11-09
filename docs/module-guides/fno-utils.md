@@ -16,47 +16,60 @@ This automatically includes `fno-models` as a transitive dependency.
 
 ## Key Utilities
 
-### CandleUtils - Candlestick Operations
+### CandleUtils - Candle Operations
 
 **Timeframe Conversion:**
 ```java
 import com.vish.fno.util.CandleUtils;
+import com.vish.fno.model.Candle;
 
 // Convert 1-minute candles to 15-minute
-List<Candlestick> oneMinCandles = // ... your 1-min data
-List<Candlestick> fifteenMinCandles = CandleUtils.convertToTimeFrame(
+List<Candle> oneMinCandles = // ... your 1-min data
+List<Candle> fifteenMinCandles = CandleUtils.convertToTimeFrame(
     oneMinCandles,
     "15minute"  // Options: "5minute", "15minute", "30minute", "60minute", "day"
 );
 
 // Convert to daily candles
-List<Candlestick> dailyCandles = CandleUtils.convertToTimeFrame(oneMinCandles, "day");
+List<Candle> dailyCandles = CandleUtils.convertToTimeFrame(oneMinCandles, "day");
 ```
 
-**Candlestick Pattern Analysis:**
+**Candle Pattern Analysis:**
 ```java
-Candlestick candle = candles.get(candles.size() - 1);
+import com.vish.fno.util.CandleUtils;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
 
-// Check candle characteristics
-boolean isBullish = CandleUtils.isBullish(candle);
-boolean isBearish = CandleUtils.isBearish(candle);
+@Slf4j
+public class PatternDetector {
+    public void analyzePattern(List<Candle> candles) {
+        Candle candle = candles.get(candles.size() - 1);
 
-// Get candle measurements
-Double bodySize = CandleUtils.getCandleBody(candle);
-Double upperWick = CandleUtils.getUpperWick(candle);
-Double lowerWick = CandleUtils.getLowerWick(candle);
+        // Check candle characteristics
+        boolean isBullish = CandleUtils.isBullish(candle);
+        boolean isBearish = CandleUtils.isBearish(candle);
 
-// Pattern detection
-if (CandleUtils.isBullish(candle) && lowerWick > bodySize * 2) {
-    System.out.println("Potential hammer pattern");
+        // Get candle measurements
+        Double bodySize = CandleUtils.getCandleBody(candle);
+        Double upperWick = CandleUtils.getUpperWick(candle);
+        Double lowerWick = CandleUtils.getLowerWick(candle);
+
+        // Pattern detection
+        if (CandleUtils.isBullish(candle) && lowerWick > bodySize * 2) {
+            log.info("Potential hammer pattern detected");
+        }
+    }
 }
 ```
 
 **Merge Candles:**
 ```java
+import com.vish.fno.util.CandleUtils;
+import com.vish.fno.model.Candle;
+
 // Merge multiple candles into one
-List<Candlestick> candlesToMerge = candles.subList(0, 5);
-Candlestick merged = CandleUtils.mergeCandlesticks(candlesToMerge);
+List<Candle> candlesToMerge = candles.subList(0, 5);
+Candle merged = CandleUtils.mergeCandlesticks(candlesToMerge);
 ```
 
 ### TimeUtils - Trading Time Operations
@@ -130,16 +143,17 @@ String optionSymbol = OptionsMetaDataUtils.getOptionSymbol(
 
 ### FileUtils - File I/O Operations
 
-**Read/Write Candlestick Data:**
+**Read/Write Candle Data:**
 ```java
 import com.vish.fno.util.FileUtils;
+import com.vish.fno.model.Candle;
 
 // Write candles to JSON file
-List<Candlestick> candles = // ... your data
+List<Candle> candles = // ... your data
 FileUtils.writeCandlesToFile(candles, "/path/to/data.json");
 
 // Read candles from JSON file
-List<Candlestick> loadedCandles = FileUtils.readCandlesFromFile("/path/to/data.json");
+List<Candle> loadedCandles = FileUtils.readCandlesFromFile("/path/to/data.json");
 ```
 
 **Read Instruments from CSV:**
@@ -147,19 +161,26 @@ List<Candlestick> loadedCandles = FileUtils.readCandlesFromFile("/path/to/data.j
 List<Instrument> instruments = FileUtils.readInstrumentsFromCsv("/path/to/instruments.csv");
 ```
 
-### HeikinAshi - Smoothed Candlesticks
+### HeikinAshi - Smoothed Candles
 
 **Convert to Heikin-Ashi:**
 ```java
 import com.vish.fno.util.chart.HeikinAshi;
+import com.vish.fno.util.CandleUtils;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
 
-List<Candlestick> regularCandles = // ... your OHLC data
-List<Candlestick> heikinAshiCandles = HeikinAshi.convert(regularCandles);
+@Slf4j
+public class TrendAnalyzer {
+    public void analyzeTrend(List<Candle> regularCandles) {
+        List<Candle> heikinAshiCandles = HeikinAshi.convert(regularCandles);
 
-// Use HA candles for smoother trend identification
-Candlestick lastHA = heikinAshiCandles.get(heikinAshiCandles.size() - 1);
-if (CandleUtils.isBullish(lastHA)) {
-    System.out.println("Strong uptrend confirmed");
+        // Use HA candles for smoother trend identification
+        Candle lastHA = heikinAshiCandles.get(heikinAshiCandles.size() - 1);
+        if (CandleUtils.isBullish(lastHA)) {
+            log.info("Strong uptrend confirmed");
+        }
+    }
 }
 ```
 
@@ -251,16 +272,187 @@ byte[] compressed = CompressionUtils.compress(largeDataString);
 String original = CompressionUtils.decompress(compressed);
 ```
 
+### Trend - Market Trend Classification
+
+**Enum Values:**
+```java
+public enum Trend {
+    WEAK_UPTREND,
+    UPTREND,
+    STRONG_UPTREND,
+    WEAK_DOWNTREND,
+    DOWNTREND,
+    STRONG_DOWNTREND,
+    INDECISIVE,
+    SIDEWAYS,
+    ACCUMULATION,
+    DISTRIBUTION,
+    CONSOLIDATION,
+    BREAKOUT,
+    REVERSAL
+}
+```
+
+**Usage:**
+```java
+import com.vish.fno.util.Trend;
+import com.vish.fno.model.Candle;
+
+public class TrendAnalyzer {
+    public Trend identifyTrend(List<Candle> candles) {
+        // Analyze candles and determine trend
+        Candle latest = candles.get(candles.size() - 1);
+        Candle previous = candles.get(candles.size() - 2);
+
+        if (latest.close() > previous.close()) {
+            double change = ((latest.close() - previous.close()) / previous.close()) * 100;
+            if (change > 2.0) return Trend.STRONG_UPTREND;
+            if (change > 0.5) return Trend.UPTREND;
+            return Trend.WEAK_UPTREND;
+        } else if (latest.close() < previous.close()) {
+            double change = ((previous.close() - latest.close()) / previous.close()) * 100;
+            if (change > 2.0) return Trend.STRONG_DOWNTREND;
+            if (change > 0.5) return Trend.DOWNTREND;
+            return Trend.WEAK_DOWNTREND;
+        }
+
+        return Trend.SIDEWAYS;
+    }
+
+    public boolean isBullishTrend(Trend trend) {
+        return trend == Trend.WEAK_UPTREND ||
+               trend == Trend.UPTREND ||
+               trend == Trend.STRONG_UPTREND;
+    }
+
+    public boolean isBearishTrend(Trend trend) {
+        return trend == Trend.WEAK_DOWNTREND ||
+               trend == Trend.DOWNTREND ||
+               trend == Trend.STRONG_DOWNTREND;
+    }
+}
+```
+
+### JsonUtils - JSON Serialization
+
+**Convert Objects to JSON:**
+```java
+import com.vish.fno.util.JsonUtils;
+import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OrderLogger {
+    public void logOrder(IndexOrderRequest order) {
+        // Get formatted JSON (pretty-printed)
+        String formattedJson = JsonUtils.getFormattedObject(order);
+        log.info("Order: {}", formattedJson);
+        /*
+        {
+          "symbol" : "NIFTY24SEPFUT",
+          "quantity" : 50,
+          "orderType" : "MARKET",
+          "transactionType" : "BUY",
+          "product" : "MIS"
+        }
+        */
+
+        // Get non-formatted JSON (compact)
+        String compactJson = JsonUtils.getNonFormattedObject(order);
+        // {"symbol":"NIFTY24SEPFUT","quantity":50,...}
+
+        // Store in database or log file
+        saveToDatabase(compactJson);
+    }
+}
+```
+
+**Thread Safety:** Both methods are thread-safe and use static ObjectMapper.
+
+### TimeFrameUtils - Timeframe Conversion
+
+**Merge Candles by Timeframe:**
+```java
+import com.vish.fno.util.TimeFrameUtils;
+import com.vish.fno.model.Candle;
+
+public class DataProcessor {
+    public void convertTimeframes() {
+        List<Candle> oneMinCandles = // ... 1-minute candles
+
+        // Merge 5 one-minute candles into one 5-minute candle
+        List<Candle> fiveMinCandles = TimeFrameUtils.mergeCandle(oneMinCandles, 5);
+
+        // Merge 15 one-minute candles into one 15-minute candle
+        List<Candle> fifteenMinCandles = TimeFrameUtils.mergeCandle(oneMinCandles, 15);
+
+        // Each merged candle contains:
+        // - open: First candle's open
+        // - high: Highest of all candles
+        // - low: Lowest of all candles
+        // - close: Last candle's close
+        // - volume: Sum of all volumes
+        // - oi: Sum of all open interests
+    }
+}
+```
+
+**Intraday Complete Candles Only:**
+```java
+import com.vish.fno.util.TimeFrameUtils;
+import com.vish.fno.model.Candle;
+
+public class BacktestDataLoader {
+    public List<Candle> loadCompleteCandles(List<Candle> rawData, int n) {
+        // Only returns complete sets of 'n' candles
+        // Drops incomplete last group
+        List<Candle> completeCandles =
+            TimeFrameUtils.mergeIntradayCompleteCandle(rawData, n);
+
+        // Example: If rawData has 377 1-min candles
+        // mergeIntradayCompleteCandle(rawData, 15) returns 25 complete 15-min candles
+        // (375 candles used, 2 dropped)
+
+        return completeCandles;
+    }
+}
+```
+
+**Combine Multiple Candles:**
+```java
+import com.vish.fno.util.TimeFrameUtils;
+import com.vish.fno.model.Candle;
+
+public class CandleMerger {
+    public Candle mergeHourlyCandle(List<Candle> fifteenMinCandles) {
+        // Take 4 fifteen-minute candles
+        List<Candle> fourCandles = fifteenMinCandles.subList(0, 4);
+
+        // Combine into single hourly candle
+        Candle hourlyCandle = TimeFrameUtils.combine(fourCandles);
+
+        // Returns null if input is null or empty
+        // Returns single candle if input has only 1 candle
+        return hourlyCandle;
+    }
+}
+```
+
+**Thread Safety:** All TimeFrameUtils methods are stateless and thread-safe.
+
 ## Common Patterns
 
 ### Pattern 1: Multi-Timeframe Analysis
 ```java
+import com.vish.fno.util.CandleUtils;
+import com.vish.fno.model.Candle;
+
 public class MultiTimeframeAnalyzer {
-    public boolean isStrongTrend(List<Candlestick> oneMinData) {
+    public boolean isStrongTrend(List<Candle> oneMinData) {
         // Convert to multiple timeframes
-        List<Candlestick> fifteenMin = CandleUtils.convertToTimeFrame(oneMinData, "15minute");
-        List<Candlestick> thirtyMin = CandleUtils.convertToTimeFrame(oneMinData, "30minute");
-        List<Candlestick> hourly = CandleUtils.convertToTimeFrame(oneMinData, "60minute");
+        List<Candle> fifteenMin = CandleUtils.convertToTimeFrame(oneMinData, "15minute");
+        List<Candle> thirtyMin = CandleUtils.convertToTimeFrame(oneMinData, "30minute");
+        List<Candle> hourly = CandleUtils.convertToTimeFrame(oneMinData, "60minute");
 
         // Check all timeframes for bullish trend
         boolean bullish15 = CandleUtils.isBullish(fifteenMin.get(fifteenMin.size() - 1));
@@ -321,10 +513,15 @@ public class OptionsStrategyBuilder {
 
 ### Pattern 4: Data Preprocessing with Heikin-Ashi
 ```java
+import com.vish.fno.util.chart.HeikinAshi;
+import com.vish.fno.util.CandleUtils;
+import com.vish.fno.model.Candle;
+import java.util.stream.IntStream;
+
 public class TrendIdentifier {
-    public String identifyTrend(List<Candlestick> candles) {
+    public String identifyTrend(List<Candle> candles) {
         // Convert to Heikin-Ashi for smoother trend
-        List<Candlestick> haCandles = HeikinAshi.convert(candles);
+        List<Candle> haCandles = HeikinAshi.convert(candles);
 
         // Check last 3 HA candles
         int size = haCandles.size();
