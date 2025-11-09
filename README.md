@@ -116,6 +116,53 @@ List<HistoricalData> data = service.getHistoricalData(
     instrumentToken, startDate, endDate, "day");
 ```
 
+**Maven Dependency:**
+
+```xml
+<dependency>
+  <groupId>com.vish.fno</groupId>
+  <artifactId>fno-kite-reader</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+---
+
+### **fno-strategy-utils**
+
+Advanced strategy utilities for trend analysis, price action, and order flow management.
+
+**Key Features:**
+
+* Heikin-Ashi trend detection with weighted scoring
+* Central Pivot Range (CPR) calculations
+* Support/Resistance level detection
+* Price action analysis (maxima/minima, trendlines)
+* Partial profit booking with dynamic stop-loss
+
+**Example:**
+
+```java
+// Detect trend using Heikin-Ashi
+Trend currentTrend = HATrendUtils.getTrend(candles);
+
+// Calculate CPR levels
+Map<String, Float> pivots = CPRUtils.getFloorPivots(previousDayCandle);
+
+// Dynamic stop-loss management
+PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
+```
+
+**Maven Dependency:**
+
+```xml
+<dependency>
+  <groupId>com.vish.fno</groupId>
+  <artifactId>fno-strategy-utils</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
 ---
 
 ## ⚙️ Requirements
@@ -208,6 +255,7 @@ The `.claude/` directory contains all AI-powered automation for maintaining this
 * `docs/module-guides/fno-utils.md`
 * `docs/module-guides/fno-technicals.md`
 * `docs/module-guides/fno-kite-reader.md`
+* `docs/module-guides/fno-strategy-utils.md`
 
 ### 🎯 Quality Standards
 
@@ -250,7 +298,17 @@ Together, these ensure **zero documentation drift**.
 fno-kite-reader
   └── fno-utils
       └── fno-models
+
 fno-technicals
+  ├── fno-utils
+  │   └── fno-models
+  └── fno-models
+
+fno-strategy-utils
+  ├── fno-technicals
+  │   ├── fno-utils
+  │   │   └── fno-models
+  │   └── fno-models
   ├── fno-utils
   │   └── fno-models
   └── fno-models
@@ -258,12 +316,13 @@ fno-technicals
 
 ### Module Responsibilities
 
-| Module          | Role                                        |
-| --------------- | ------------------------------------------- |
-| fno-models      | Core domain entities for trading operations |
-| fno-utils       | Helper and strategy utilities               |
-| fno-technicals  | Indicators and Greeks computations          |
-| fno-kite-reader | API and market data integration             |
+| Module            | Role                                          |
+| ----------------- | --------------------------------------------- |
+| fno-models        | Core domain entities for trading operations   |
+| fno-utils         | Helper and strategy utilities                 |
+| fno-technicals    | Indicators and Greeks computations            |
+| fno-kite-reader   | API and market data integration               |
+| fno-strategy-utils| Advanced strategy utilities and order flow    |
 
 ### Coding Conventions
 
@@ -289,10 +348,13 @@ mvn verify -Pcode-quality
 
 ## 💼 Use Cases
 
-1. **Algorithmic Trading** – use Kite Reader + Technicals
-2. **Backtesting Engine** – use Models + Utils + Technicals
-3. **Market Analysis Tools** – integrate Technicals only
-4. **Risk Management Dashboards** – combine Models + Utils
+1. **Algorithmic Trading** – use Kite Reader + Technicals + Strategy Utils
+2. **Backtesting Engine** – use Models + Utils + Technicals + Strategy Utils
+3. **Market Analysis Tools** – integrate Technicals + Strategy Utils
+4. **Risk Management Dashboards** – combine Models + Utils + Strategy Utils
+5. **Trend Following Systems** – use Strategy Utils for HA trend analysis
+6. **CPR Breakout Trading** – use Strategy Utils for pivot calculations
+7. **Partial Profit Booking** – use Strategy Utils order flow management
 
 ---
 
@@ -316,7 +378,171 @@ FnOSdk is compatible with trading platforms and frameworks like:
 
 ---
 
-## 🤖 AI Automation Details
+## 🤖 Using FnOSdk Documentation with AI Agents
+
+FnOSdk documentation is **AI-optimized** and designed to be used by AI agents in downstream projects (like Claude Code, GitHub Copilot, or custom AI assistants).
+
+### 📚 For Projects Using FnOSdk
+
+If your project depends on FnOSdk, you can configure your AI agents to use our documentation for accurate code generation.
+
+#### Option 1: Direct Documentation Access
+
+Point your AI agent to the module guides:
+
+```
+docs/module-guides/fno-models.md        - Core data models
+docs/module-guides/fno-utils.md         - Utility functions
+docs/module-guides/fno-technicals.md    - Technical indicators
+docs/module-guides/fno-kite-reader.md   - Kite API integration
+docs/module-guides/fno-strategy-utils.md - Strategy utilities
+```
+
+#### Option 2: Claude Code Integration (Recommended)
+
+For projects using Claude Code, add this to your project's `CLAUDE.md` or `.claude/` configuration:
+
+```markdown
+## FnOSdk Integration
+
+This project uses FnOSdk for F&O trading operations. When generating code using FnOSdk:
+
+### Available Documentation
+- **Location:** `path/to/FnOSdk/docs/module-guides/`
+- **Entry Point:** `path/to/FnOSdk/docs/SDK_USAGE.md`
+
+### Module Guides
+- **fno-models:** Data models (Candle, Ticker, OrderRequest, Strategy interfaces)
+- **fno-utils:** Utilities (CandleUtils, TimeFrameUtils, JsonUtils, Trend enum)
+- **fno-technicals:** Indicators (SMA, EMA, RSI, Bollinger Bands) & Greeks (Delta, Gamma, Theta, Vega, Rho)
+- **fno-kite-reader:** Kite Connect integration (KiteService, HistoricalDataService, WebSocket)
+- **fno-strategy-utils:** Advanced strategies (HATrendUtils, CPRUtils, DataAnalyser, PartialRevisingStopLoss)
+
+### Important Notes
+- All examples use Lombok @Slf4j for logging (never System.out.println)
+- Common imports (java.util.List, java.util.Map) are omitted in docs
+- All class names are exact (e.g., "Candle" not "Candlestick")
+- All examples compile without modification
+```
+
+#### Option 3: Git Submodule Approach
+
+Add FnOSdk docs as a git submodule in your project:
+
+```bash
+# In your project root
+git submodule add <FnOSdk-repo-url> vendor/FnOSdk
+git submodule update --init --recursive
+
+# Create symbolic link to docs (optional)
+ln -s vendor/FnOSdk/docs docs/fnosdk
+```
+
+Then reference in your AI configuration:
+```markdown
+External SDK documentation available at: `vendor/FnOSdk/docs/module-guides/`
+```
+
+### 🎯 AI Prompt Examples
+
+When asking AI agents to generate code using FnOSdk:
+
+**✅ Good Prompts:**
+```
+"Generate code to calculate 20-period SMA using fno-technicals"
+"Create an IndexOrderRequest for buying NIFTY futures"
+"Fetch historical data using HistoricalDataService and convert to Candle objects"
+"Implement a strategy using the Strategy interface from fno-models"
+```
+
+**❌ Avoid These:**
+```
+"Calculate moving average" (too vague - agent might not know to use FnOSdk)
+"Get market data" (doesn't specify which FnOSdk service)
+```
+
+### 📖 Documentation Quality Guarantees
+
+FnOSdk documentation is maintained to ensure:
+
+- ✅ **100% Accuracy** - All class names, method signatures match source code exactly
+- ✅ **Complete Imports** - All necessary imports included (excluding common Java utils)
+- ✅ **Compilable Examples** - Every example can be copy-pasted and runs
+- ✅ **Professional Standards** - Uses Lombok @Slf4j logging, Java 17 patterns
+- ✅ **Thread Safety Notes** - Documented for all classes
+- ✅ **Real-world Examples** - Realistic use cases, not toy examples
+
+### 🔧 Setting Up AI Agent Context
+
+**For Claude Code Users:**
+
+Create a `.claude/context/fnosdk.md` file in your project:
+
+```markdown
+# FnOSdk Context
+
+## Module Dependencies
+<dependency>
+  <groupId>com.vish.fno</groupId>
+  <artifactId>fno-utils</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+</dependency>
+
+## Key Classes Reference
+- Candle: `com.vish.fno.model.Candle` (Java record with 7 fields)
+- Ticker: `com.vish.fno.model.Ticker` (21 fields, Comparable)
+- Strategy: `com.vish.fno.model.strategy.Strategy` (base interface)
+- CandleUtils: `com.vish.fno.util.CandleUtils` (static utilities)
+- TimeFrameUtils: `com.vish.fno.util.TimeFrameUtils` (candle merging)
+- SimpleMovingAverage: `com.vish.fno.technical.indicators.ma.SimpleMovingAverage`
+- KiteService: `com.vish.fno.reader.service.KiteService`
+- HATrendUtils: `com.vish.fno.strategy.HATrendUtils` (Heikin-Ashi trend analysis)
+- CPRUtils: `com.vish.fno.strategy.util.CPRUtils` (Central Pivot Range calculations)
+- DataAnalyser: `com.vish.fno.strategy.priceaction.DataAnalyser` (Price action analysis)
+- PartialRevisingStopLoss: `com.vish.fno.strategy.orderflow.PartialRevisingStopLoss` (Dynamic stop-loss)
+
+For complete API documentation, see: [path/to/FnOSdk/docs/module-guides/]
+```
+
+**For GitHub Copilot Users:**
+
+Add comments at the top of your Java files:
+
+```java
+/**
+ * This file uses FnOSdk for F&O trading operations.
+ *
+ * Documentation:
+ * - fno-models: Core data models (Candle, Ticker, OrderRequest)
+ * - fno-utils: Utilities (CandleUtils, TimeFrameUtils, JsonUtils)
+ * - fno-technicals: Indicators (SMA, EMA, RSI) and Greeks
+ * - fno-kite-reader: Kite Connect integration
+ * - fno-strategy-utils: Strategy utilities (HATrendUtils, CPRUtils, price action)
+ *
+ * See: docs/module-guides/ for complete API reference
+ */
+```
+
+### 🚀 Success Metrics
+
+Your AI agent is properly configured when it:
+- ✅ Uses correct class names (e.g., `Candle` not `Candlestick`)
+- ✅ Includes proper imports (`com.vish.fno.*`, Lombok)
+- ✅ Uses Lombok @Slf4j logging instead of System.out.println
+- ✅ Generates compilable code without manual fixes
+- ✅ Follows Java 17 patterns (records, .toList(), etc.)
+
+### 📞 Support
+
+If AI agents generate incorrect code:
+1. Check that class names match docs exactly
+2. Verify imports are complete
+3. Ensure you're referencing the latest module guides
+4. Report issues at: [repository-issues-url]
+
+---
+
+## 🤖 AI Automation Details (For FnOSdk Maintainers)
 
 For comprehensive information about the automation system:
 

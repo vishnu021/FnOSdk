@@ -15,6 +15,7 @@
 		<module>fno-utils</module>
 		<module>fno-technicals</module>
 		<module>fno-kite-reader</module>
+		<module>fno-strategy-utils</module>
 	</modules>
 
 	<groupId>com.vish.fno</groupId>

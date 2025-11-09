@@ -11,7 +11,8 @@ docs/module-guides/
 ├── fno-models.md          - Core data models (orders, candles, instruments)
 ├── fno-utils.md           - Utility functions (candle ops, time utils, options utils)
 ├── fno-technicals.md      - Technical indicators and Greeks
-└── fno-kite-reader.md     - Kite Connect API integration
+├── fno-kite-reader.md     - Kite Connect API integration
+└── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
 ```
 
 **For AI Coding Assistants**: Each module guide contains:
@@ -31,6 +32,9 @@ docs/module-guides/
 | **Technical Analysis Only** | fno-models, fno-technicals | [fno-technicals.md](module-guides/fno-technicals.md) |
 | **Data Processing** | fno-models, fno-utils | [fno-utils.md](module-guides/fno-utils.md) |
 | **Order Management** | fno-models, fno-kite-reader | [fno-models.md](module-guides/fno-models.md) |
+| **Trend Analysis & CPR** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
+| **Price Action Trading** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
+| **Partial Profit Booking** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 
 ## Module Dependencies
 
@@ -40,6 +44,15 @@ fno-kite-reader
         └── fno-models (foundation)
 
 fno-technicals
+    ├── fno-utils
+    │   └── fno-models
+    └── fno-models
+
+fno-strategy-utils
+    ├── fno-technicals
+    │   ├── fno-utils
+    │   │   └── fno-models
+    │   └── fno-models
     ├── fno-utils
     │   └── fno-models
     └── fno-models
@@ -62,6 +75,13 @@ fno-technicals
     <dependency>
         <groupId>com.vish.fno</groupId>
         <artifactId>fno-technicals</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- For advanced strategies (CPR, trend analysis, price action) -->
+    <dependency>
+        <groupId>com.vish.fno</groupId>
+        <artifactId>fno-strategy-utils</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
 
@@ -146,6 +166,50 @@ List<HistoricalData> data = histService.getHistoricalData(
 );
 ```
 
+### Scenario 6: Detect Heikin-Ashi Trend
+
+**Read**: [fno-strategy-utils.md - HATrendUtils](module-guides/fno-strategy-utils.md#hatrendutils---heikin-ashi-trend-analysis)
+
+```java
+import com.vish.fno.strategy.HATrendUtils;
+import com.vish.fno.util.Trend;
+
+Trend currentTrend = HATrendUtils.getTrend(candles);
+
+if (currentTrend == Trend.UPTREND) {
+    // Consider call entries
+}
+```
+
+### Scenario 7: Calculate CPR Levels
+
+**Read**: [fno-strategy-utils.md - CPRUtils](module-guides/fno-strategy-utils.md#cprutils---central-pivot-range-calculations)
+
+```java
+import com.vish.fno.strategy.util.CPRUtils;
+
+Map<String, Float> pivots = CPRUtils.getFloorPivots(previousDayCandle);
+
+float pivot = pivots.get("pivotPoint");
+float cprWidth = pivots.get("topCentralPivot") - pivots.get("bottomCentralPivot");
+```
+
+### Scenario 8: Partial Profit Booking with Dynamic Stop Loss
+
+**Read**: [fno-strategy-utils.md - PartialRevisingStopLoss](module-guides/fno-strategy-utils.md#partialrevisingstoploss---dynamic-stop-loss-strategy)
+
+```java
+import com.vish.fno.strategy.orderflow.PartialRevisingStopLoss;
+import com.vish.fno.model.order.OrderSellDetailModel;
+
+PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
+OrderSellDetailModel sellDecision = strategy.isTargetAchieved(order, currentPrice);
+
+if (sellDecision.isSell()) {
+    // Execute partial or full exit
+}
+```
+
 ## For Project Integration
 
 ### Add to your project's CLAUDE.md:
@@ -162,6 +226,7 @@ This project uses FnOSdk for trading operations.
 - Order models → [fno-models.md](../FnOSdk/docs/module-guides/fno-models.md)
 - Utility functions → [fno-utils.md](../FnOSdk/docs/module-guides/fno-utils.md)
 - Kite Connect API → [fno-kite-reader.md](../FnOSdk/docs/module-guides/fno-kite-reader.md)
+- Strategy utilities → [fno-strategy-utils.md](../FnOSdk/docs/module-guides/fno-strategy-utils.md)
 
 When generating code using FnOSdk modules, reference the appropriate guide above for:
 - Exact API signatures
