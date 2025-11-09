@@ -2,7 +2,6 @@ package com.vish.fno.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.*;
 
 import java.util.Date;
 import java.util.List;
@@ -10,57 +9,70 @@ import java.util.Map;
 
 import static com.vish.fno.model.util.ModelUtils.*;
 
-@Getter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class Ticker implements Comparable<Ticker> {
-    private String mode;
-    private boolean tradable;
-    private long instrumentToken;
-    private String instrumentSymbol;
-    private double lastTradedPrice;
-    private double highPrice;
-    private double lowPrice;
-    private double openPrice;
-    private double closePrice;
-    private double change;
-    private double lastTradedQuantity;
-    private double averageTradePrice;
-    private long volumeTradedToday;
-    private double totalBuyQuantity;
-    private double totalSellQuantity;
-    private Date lastTradedTime;
-    private double oi;
-    private double openInterestDayHigh;
-    private double openInterestDayLow;
-    private Date tickTimestamp;
-    private Map<String, List<Depth>> depth;
+public record Ticker(
+    String mode,
+    boolean tradable,
+    long instrumentToken,
+    String instrumentSymbol,
+    double lastTradedPrice,
+    double highPrice,
+    double lowPrice,
+    double openPrice,
+    double closePrice,
+    double change,
+    double lastTradedQuantity,
+    double averageTradePrice,
+    long volumeTradedToday,
+    double totalBuyQuantity,
+    double totalSellQuantity,
+    Date lastTradedTime,
+    double oi,
+    double openInterestDayHigh,
+    double openInterestDayLow,
+    Date tickTimestamp,
+    Map<String, List<Depth>> depth
+) implements Comparable<Ticker> {
 
-    @Builder
-    @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class Depth {
-        private int quantity;
-        private double price;
-        private int orders;
+    public record Depth(
+        int quantity,
+        double price,
+        int orders
+    ) {
+    }
+
+    // Copy constructor
+    public Ticker(Ticker t) {
+        this(
+            null,
+            false,
+            t.instrumentToken,
+            t.instrumentSymbol,
+            t.lastTradedPrice,
+            0,
+            0,
+            0,
+            0,
+            0,
+            t.lastTradedQuantity,
+            0,
+            0,
+            0,
+            0,
+            t.lastTradedTime,
+            t.oi,
+            0,
+            0,
+            t.tickTimestamp,
+            null
+        );
     }
 
     @Override
     public int compareTo(Ticker other) {
         return this.tickTimestamp.compareTo(other.tickTimestamp);
-    }
-
-    public Ticker(Ticker t) {
-        this.instrumentToken = t.instrumentToken;
-        this.instrumentSymbol = t.instrumentSymbol;
-        this.lastTradedPrice = t.lastTradedPrice;
-        this.lastTradedQuantity = t.lastTradedQuantity;
-        this.lastTradedTime = t.lastTradedTime;
-        this.oi = t.oi;
-        this.tickTimestamp = t.tickTimestamp;
     }
 
     @Override

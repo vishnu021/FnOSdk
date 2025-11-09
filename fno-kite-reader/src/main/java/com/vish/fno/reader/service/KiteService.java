@@ -247,19 +247,12 @@ public class KiteService {
             log.info("order placed successfully with id: {}", order.orderId);
         } catch (KiteException e) {
             log.error("KiteException occurred while placing order, code: {}, message: {}", e.code, e.message);
-            return Optional.of(KiteOpenOrder.builder()
-                    .exceptionCode(e.code)
-                    .exceptionMessage(e.message)
-                    .isOrderPlaced(false)
-                    .build());
+            return Optional.of(new KiteOpenOrder(null, false, e.code, e.message));
         } catch (JSONException | IOException e) {
             log.error("Error occurred while placing order", e);
             return Optional.of(buildUnsuccessfulKiteOrder());
         }
-        return Optional.of(KiteOpenOrder.builder()
-                .order(order)
-                .isOrderPlaced(true)
-                .build());
+        return Optional.of(new KiteOpenOrder(order, true, null, null));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -278,12 +271,12 @@ public class KiteService {
 
     @NotNull
     private KiteOpenOrder buildUnsuccessfulKiteOrder() {
-        return KiteOpenOrder.builder().isOrderPlaced(false).build();
+        return new KiteOpenOrder(null, false, null, null);
     }
 
     @NotNull
     private KiteOpenOrder buildSuccessfulKiteTestOrder() {
-        return KiteOpenOrder.builder().isOrderPlaced(true).build();
+        return new KiteOpenOrder(null, true, null, null);
     }
 
 

@@ -25,7 +25,7 @@ public class BollingerBands extends AbstractIndicator {
 
     @Override
     public List<Double> calculate(List<Candle> candles) {
-        List<Double> typicalPrices = candles.stream().map(Candle::getClose).toList();
+        List<Double> typicalPrices = candles.stream().map(Candle::close).toList();
         return calculateFromClosedPrice(typicalPrices);
     }
 

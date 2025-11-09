@@ -25,7 +25,7 @@ public final class OrderManagerUtils {
         }
 
         final OrderSellDetailModel orderSellDetailModel = targetAndStopLossStrategy.isStopLossHit(order, ltp);
-        if(orderSellDetailModel.isSellOrder()) {
+        if(orderSellDetailModel.sellOrder()) {
             return orderSellDetailModel;
         }
 

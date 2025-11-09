@@ -23,7 +23,7 @@ public class RelativeStrengthIndex extends AbstractIndicator {
     }
 
     public List<Double> getClosedPrices(List<Candle> candles) {
-        return candles.stream().map(Candle::getClose).collect(Collectors.toList());
+        return candles.stream().map(Candle::close).collect(Collectors.toList());
     }
 
     @Override

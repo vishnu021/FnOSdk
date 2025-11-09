@@ -7,7 +7,7 @@ import java.util.List;
 public abstract class AbstractIndicator implements Indicator {
 
     public List<Double> getClosedPrices(List<Candle> candles) {
-        return candles.stream().map(Candle::getClose).toList();
+        return candles.stream().map(Candle::close).toList();
     }
 
     public List<Double> calculate(List<Candle> candles) {

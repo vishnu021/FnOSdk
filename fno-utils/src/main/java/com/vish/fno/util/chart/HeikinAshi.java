@@ -37,18 +37,18 @@ public final class HeikinAshi {
             double haOpen, haClose;
 
             if (i == 0) {
-                haOpen = currentCandle.getOpen();
-                haClose = currentCandle.getClose();
+                haOpen = currentCandle.open();
+                haClose = currentCandle.close();
             } else {
                 Candle previousHA = heikinAshiCandles.get(i - 1);
-                haOpen = (previousHA.getOpen() + previousHA.getClose()) / 2;
-                haClose = (currentCandle.getOpen() + currentCandle.getHigh() + currentCandle.getLow() + currentCandle.getClose()) / 4;
+                haOpen = (previousHA.open() + previousHA.close()) / 2;
+                haClose = (currentCandle.open() + currentCandle.high() + currentCandle.low() + currentCandle.close()) / 4;
             }
 
-            double haHigh = Math.max(Math.max(currentCandle.getHigh(), haOpen), haClose);
-            double haLow = Math.min(Math.min(currentCandle.getLow(), haOpen), haClose);
+            double haHigh = Math.max(Math.max(currentCandle.high(), haOpen), haClose);
+            double haLow = Math.min(Math.min(currentCandle.low(), haOpen), haClose);
 
-            heikinAshiCandles.add(new Candle(currentCandle.getTime(), haOpen, haHigh, haLow, haClose, currentCandle.getVolume(), currentCandle.getOi()));
+            heikinAshiCandles.add(new Candle(currentCandle.time(), haOpen, haHigh, haLow, haClose, currentCandle.volume(), currentCandle.oi()));
         }
         return heikinAshiCandles;
     }

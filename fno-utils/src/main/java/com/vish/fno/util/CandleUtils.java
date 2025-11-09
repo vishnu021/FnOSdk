@@ -39,36 +39,36 @@ public final class CandleUtils {
     }
 
     public static boolean isBullish(Candle candle) {
-        return candle.getClose() > candle.getOpen();
+        return candle.close() > candle.open();
     }
 
     public static boolean isBearish(Candle candle) {
-        return candle.getClose() < candle.getOpen();
+        return candle.close() < candle.open();
     }
 
     public static double getBodyLength(Candle candle) {
         if(isBullish(candle)) {
-            return candle.getClose() - candle.getOpen();
+            return candle.close() - candle.open();
         }
-        return candle.getOpen() - candle.getClose();
+        return candle.open() - candle.close();
     }
 
     public static double getTotalLength(Candle candle) {
-        return candle.getHigh() - candle.getLow();
+        return candle.high() - candle.low();
     }
 
     public static double getUpperWick(Candle candle) {
         if(isBullish(candle)) {
-            return candle.getHigh() - candle.getClose();
+            return candle.high() - candle.close();
         }
-        return candle.getHigh() - candle.getOpen();
+        return candle.high() - candle.open();
     }
 
     public static double getLowerWick(Candle candle) {
         if(isBullish(candle)) {
-            return candle.getOpen() - candle.getLow();
+            return candle.open() - candle.low();
         }
-        return candle.getClose() - candle.getLow();
+        return candle.close() - candle.low();
     }
 
     private static String toTimeValue(int timeVal) {
@@ -129,6 +129,6 @@ public final class CandleUtils {
     }
 
     public static boolean contains(Candle candle, double value) {
-        return candle.getHigh() > value && candle.getLow() < value;
+        return candle.high() > value && candle.low() < value;
     }
 }

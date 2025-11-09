@@ -2,99 +2,133 @@
 
 A comprehensive Java SDK for Futures and Options (F&O) trading and simulation on the National Stock Exchange of India (NSE).
 
-## Overview
+---
 
-FnOSdk is a multi-module SDK that provides reusable components for building trading applications, backtesting engines, and simulation tools. It includes core data models, technical analysis indicators, options Greeks calculations, and integration with the Kite Connect API.
+## 📘 Overview
 
-## Modules
+FnOSdk is a modular, extensible SDK built to simplify development of **algorithmic trading systems**, **backtesting engines**, and **live simulation frameworks** for Indian markets. It provides ready-to-use models, utilities, and indicators that can integrate into trading or analytics pipelines.
 
-### fno-models
-Core data models and POJOs for trading operations.
+Each module is independently versioned and comes with its own automatically maintained documentation using **Claude subagents**.
 
-**Features:**
-- Order models (Index orders, Option orders, Tick-based orders)
-- Active order tracking
-- Market data structures
-- Trading instrument definitions
+---
+
+## 🧩 Modules
+
+### **fno-models**
+
+Contains all foundational data models and POJOs representing instruments, trades, and orders.
+
+**Key Features:**
+
+* Unified market data model (OHLCV, tick, candle)
+* Order and position tracking classes
+* Instrument metadata, symbol mappings
+* JSON-mappable data objects for easy serialization
 
 **Maven Dependency:**
+
 ```xml
 <dependency>
-    <groupId>com.vish.fno</groupId>
-    <artifactId>fno-models</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+  <groupId>com.vish.fno</groupId>
+  <artifactId>fno-models</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
 
-### fno-utils
-Utility classes and helper functions for trading operations.
+---
 
-**Features:**
-- Candlestick pattern utilities
-- Time and date utilities
-- File I/O utilities
-- Compression utilities
-- Order flow strategies (target/stop-loss)
-- Heikin-Ashi transformations
-- Options metadata utilities
+### **fno-utils**
+
+Provides essential helper utilities and reusable patterns for trading operations.
+
+**Key Features:**
+
+* Date/time handling, file utilities, and compression
+* Order management helpers (target/stop-loss strategies)
+* Heikin-Ashi transformations and candle conversions
+* Thread-safe caching utilities
+
+**Example Usage:**
+
+```java
+HeikinAshiTransformer ha = new HeikinAshiTransformer();
+List<Candle> haSeries = ha.transform(candles);
+```
 
 **Maven Dependency:**
+
 ```xml
 <dependency>
-    <groupId>com.vish.fno</groupId>
-    <artifactId>fno-utils</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+  <groupId>com.vish.fno</groupId>
+  <artifactId>fno-utils</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
 
-### fno-technicals
-Technical analysis indicators and options Greeks calculations.
+---
 
-**Features:**
-- Moving Averages (SMA, EMA, Smoothed MA)
-- Relative Strength Index (RSI)
-- Bollinger Bands
-- Options Greeks (Delta, Gamma, Theta, Vega, Rho)
-- Extensible indicator framework
+### **fno-technicals**
+
+A lightweight and extensible indicator library with Greeks computation support.
+
+**Key Features:**
+
+* Indicators: SMA, EMA, RSI, Bollinger Bands, ATR
+* Greeks: Delta, Gamma, Theta, Vega, Rho
+* Pluggable indicator architecture (add new metrics easily)
+* Thread-safe and backtest-friendly
+
+**Example:**
+
+```java
+RelativeStrengthIndex rsi = new RelativeStrengthIndex(14);
+double rsiValue = rsi.calculate(closePrices);
+```
 
 **Maven Dependency:**
+
 ```xml
 <dependency>
-    <groupId>com.vish.fno</groupId>
-    <artifactId>fno-technicals</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+  <groupId>com.vish.fno</groupId>
+  <artifactId>fno-technicals</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ```
 
-### fno-kite-reader
-Integration with Zerodha's Kite Connect API for market data and order execution.
+---
 
-**Features:**
-- Historical data retrieval
-- Real-time market data via WebSocket
-- Order placement and management
-- Instrument cache management
-- Position and holdings retrieval
-- PCR (Put-Call Ratio) utilities
+### **fno-kite-reader**
 
-**Maven Dependency:**
-```xml
-<dependency>
-    <groupId>com.vish.fno</groupId>
-    <artifactId>fno-kite-reader</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
+Handles data access and order management using the Zerodha Kite Connect API.
+
+**Key Features:**
+
+* WebSocket streaming for live data
+* Historical candle retrieval
+* Order placement, cancellation, modification
+* PCR and open interest utilities
+
+**Example:**
+
+```java
+HistoricalDataService service = new HistoricalDataService(kiteConnect);
+List<HistoricalData> data = service.getHistoricalData(
+    instrumentToken, startDate, endDate, "day");
 ```
 
-## Requirements
+---
 
-- Java 17 or higher
-- Maven 3.6 or higher
-- Spring Boot 3.2.2 (managed by parent POM)
+## ⚙️ Requirements
 
-## Installation
+* Java 17 or later
+* Maven 3.6+
+* Optional: Spring Boot 3.2+ for dependency management
 
-### Clone and Install Locally
+---
+
+## 🏗️ Installation & Build
+
+### Install Locally
 
 ```bash
 git clone <repository-url>
@@ -102,163 +136,141 @@ cd FnOSdk
 mvn clean install
 ```
 
-This will install all modules to your local Maven repository.
-
-### Use in Your Project
-
-Add the SDK modules as dependencies in your project's `pom.xml`:
-
-```xml
-<dependencies>
-    <!-- Add only the modules you need -->
-    <dependency>
-        <groupId>com.vish.fno</groupId>
-        <artifactId>fno-models</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </dependency>
-    <dependency>
-        <groupId>com.vish.fno</groupId>
-        <artifactId>fno-utils</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </dependency>
-    <dependency>
-        <groupId>com.vish.fno</groupId>
-        <artifactId>fno-technicals</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </dependency>
-    <dependency>
-        <groupId>com.vish.fno</groupId>
-        <artifactId>fno-kite-reader</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </dependency>
-</dependencies>
-```
-
-## Build Commands
-
 ### Build All Modules
+
 ```bash
 mvn clean install
 ```
 
-### Build Individual Module
+### Build Single Module
+
 ```bash
-cd fno-models
-mvn clean install
+cd fno-technicals && mvn clean install
 ```
 
 ### Run Tests
+
 ```bash
 mvn test
 ```
 
-### Run PMD Analysis
+---
+
+## 📖 Documentation Automation
+
+FnOSdk integrates **Claude’s `doc-watch` subagent** to maintain and update documentation automatically whenever code changes.
+
+### 🔄 Automatic Trigger (via Subagent: `doc-watch`)
+
+**Triggered When:**
+
+* Public Java APIs change in `src/main/java/**`
+* Module `pom.xml` files are modified
+
+**Performs:**
+
+* Executes `/update-docs` command automatically.
+* Updates corresponding `docs/module-guides/*.md` and project docs.
+
+**Files Auto-Updated:**
+
+* `docs/module-guides/fno-models.md`
+* `docs/module-guides/fno-utils.md`
+* `docs/module-guides/fno-technicals.md`
+* `docs/module-guides/fno-kite-reader.md`
+* `docs/SDK_USAGE.md`
+* `docs/DOCUMENTATION_MAINTENANCE.md`
+* `docs/AI_AGENT_GUIDE.md`
+
+**Auto Trigger YAML:**
+
+```yaml
+triggers:
+  paths_include:
+    - "**/src/main/java/**/*.java"
+    - "**/pom.xml"
+  paths_exclude:
+    - "**/src/test/**"
+    - "**/internal/**"
+```
+
+---
+
+## 🧭 Manual Triggers
+
+Run these anytime to manually refresh documentation:
+
 ```bash
-mvn clean package
+/update-docs                 # Rebuild docs since last commit
+/update-docs fno-technicals  # Regenerate docs for a single module
+/update-docs --staged        # Only update staged changes
+/update-docs --since HEAD~2  # Compare with specific revision
+/update-docs --full          # Full reindex (slower)
 ```
 
-## Usage Examples
+**Run Subagent Directly:**
 
-### Example 1: Using Technical Indicators
-
-```java
-import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
-import com.vish.fno.technical.indicators.RelativeStrengthIndex;
-
-// Calculate Simple Moving Average
-SimpleMovingAverage sma = new SimpleMovingAverage(20);
-double smaValue = sma.calculate(closePrices);
-
-// Calculate RSI
-RelativeStrengthIndex rsi = new RelativeStrengthIndex(14);
-double rsiValue = rsi.calculate(closePrices);
+```bash
+claude run subagent doc-watch
 ```
 
-### Example 2: Fetching Historical Data (Kite Connect)
+---
 
-```java
-import com.vish.fno.reader.service.HistoricalDataService;
+## 💡 Architecture & Design
 
-// Initialize service with Kite Connect credentials
-HistoricalDataService service = new HistoricalDataService(kiteConnect);
-
-// Fetch historical candlestick data
-List<HistoricalData> data = service.getHistoricalData(
-    instrumentToken,
-    startDate,
-    endDate,
-    "day"
-);
-```
-
-### Example 3: Real-time or Simulation Trading
-
-```java
-import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
-import com.vish.fno.util.orderflow.FixedTargetAndStopLossStrategy;
-
-// Create order request
-IndexOrderRequest orderRequest = IndexOrderRequest.builder()
-    .symbol("NIFTY24SEPFUT")
-    .quantity(50)
-    .orderType("MARKET")
-    .transactionType("BUY")
-    .build();
-
-// Apply target/stop-loss strategy
-TargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy(100, 50);
-```
-
-## Code Quality
-
-This SDK follows strict code quality standards:
-
-- PMD static analysis with custom rulesets
-- Clean code principles
-- Comprehensive unit tests
-- Spring Boot best practices
-- Java 17 modern features
-
-PMD rules are configured in `ruleset/pmd-custom-ruleset.xml` and run automatically during the build.
-
-## Architecture
-
-### Dependency Hierarchy
+### Dependency Graph
 
 ```
 fno-kite-reader
-    └── fno-utils
-        └── fno-models
-
+  └── fno-utils
+      └── fno-models
 fno-technicals
-    ├── fno-utils
-    │   └── fno-models
-    └── fno-models
+  ├── fno-utils
+  │   └── fno-models
+  └── fno-models
 ```
 
 ### Module Responsibilities
 
-- **fno-models**: Foundation layer with core data structures
-- **fno-utils**: Business logic utilities and helper functions
-- **fno-technicals**: Technical analysis and mathematical calculations
-- **fno-kite-reader**: External API integration for live trading
+| Module          | Role                                        |
+| --------------- | ------------------------------------------- |
+| fno-models      | Core domain entities for trading operations |
+| fno-utils       | Helper and strategy utilities               |
+| fno-technicals  | Indicators and Greeks computations          |
+| fno-kite-reader | API and market data integration             |
 
-## Use Cases
+### Coding Conventions
 
-1. **Live Trading Applications**: Use fno-kite-reader for real-time market data and order execution
-2. **Backtesting Engines**: Use fno-models, fno-utils, and fno-technicals for simulation
-3. **Technical Analysis Tools**: Use fno-technicals for indicator calculations
-4. **Portfolio Management**: Use fno-models and fno-utils for position tracking
-5. **Strategy Development**: Combine all modules for comprehensive trading strategies
+* **Clean Code & PMD enforcement**
+* **No circular dependencies**
+* **Module isolation** for testability
 
-## Configuration
+---
 
-### Kite Connect API Setup
+## 🧪 Code Quality & Testing
 
-To use the fno-kite-reader module, you need:
+* Static analysis: PMD, SpotBugs, Checkstyle
+* Unit and integration tests for all modules
+* 80%+ coverage goal for core classes
 
-1. Zerodha Kite Connect API credentials
-2. Application configuration with API key and access token
+### Run Quality Checks
+
+```bash
+mvn verify -Pcode-quality
+```
+
+---
+
+## 💼 Use Cases
+
+1. **Algorithmic Trading** – use Kite Reader + Technicals
+2. **Backtesting Engine** – use Models + Utils + Technicals
+3. **Market Analysis Tools** – integrate Technicals only
+4. **Risk Management Dashboards** – combine Models + Utils
+
+---
+
+## 🔧 Configuration Example (Kite Connect)
 
 ```yaml
 kite:
@@ -266,27 +278,41 @@ kite:
   access-token: your-access-token
 ```
 
-## Contributing
+---
 
-This SDK is designed to be extensible:
+## 🧩 Integration With Other Projects
 
-- Add new technical indicators by extending `AbstractIndicator`
-- Create custom order types by implementing `OrderRequest`
-- Build new utilities in fno-utils following existing patterns
+FnOSdk is compatible with trading platforms and frameworks like:
 
-## License
+* Spring Boot-based analytics services
+* Flink or Kafka pipelines for streaming data
+* Local Java Swing dashboards or React frontends
 
-[Specify your license here]
+---
 
-## Support
+## 🤖 AI Documentation Workflow
 
-For issues, questions, or contributions, please refer to the main project repository.
+* **Subagent:** `doc-watch` (auto detection)
+* **Skill:** `doc-maintainer` (writes module guides)
+* **Command:** `/update-docs` (manual trigger)
+* **Hooks:** Optional pre-commit validation
 
-## Version History
+This ensures documentation never goes stale as code evolves.
 
-- **1.0.0-SNAPSHOT**: Initial SDK release extracted from OptionsAnalyzer project
-  - Core models for orders and market data
-  - Technical indicators (MA, RSI, Bollinger Bands)
-  - Options Greeks calculations
-  - Kite Connect integration
-  - Utility classes for trading operations
+---
+
+## 📜 License
+
+Specify your license here.
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome. Always ensure docs are current by running:
+
+```bash
+/update-docs --full
+```
+
+For feature modules, include example snippets and update their corresponding module guide.

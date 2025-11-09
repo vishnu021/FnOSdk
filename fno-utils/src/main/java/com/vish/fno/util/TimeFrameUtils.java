@@ -34,7 +34,7 @@ public class TimeFrameUtils {
 
         Map<String, List<Candle>> groupedCandles = new TreeMap<>();
         for (Candle candle : allCandles) {
-            String date = TimeUtils.getStringDate(TimeUtils.getDateObject(candle.getTime()));
+            String date = TimeUtils.getStringDate(TimeUtils.getDateObject(candle.time()));
             groupedCandles.putIfAbsent(date, new ArrayList<>());
             groupedCandles.get(date).add(candle);
         }
@@ -87,13 +87,13 @@ public class TimeFrameUtils {
             return candleList.get(0);
         }
 
-        double open = candleList.get(0).getOpen();
-        double close = candleList.get(candleList.size() - 1).getClose();
-        double high = candleList.stream().mapToDouble(Candle::getHigh).max().orElse(0d);
-        double low = candleList.stream().mapToDouble(Candle::getLow).min().orElse(0d);
-        long volume = (long) candleList.stream().mapToDouble(Candle::getVolume).sum();
-        long oi = (long) candleList.stream().mapToDouble(Candle::getOi).sum();
-        String time = candleList.get(0).getTime();
+        double open = candleList.get(0).open();
+        double close = candleList.get(candleList.size() - 1).close();
+        double high = candleList.stream().mapToDouble(Candle::high).max().orElse(0d);
+        double low = candleList.stream().mapToDouble(Candle::low).min().orElse(0d);
+        long volume = (long) candleList.stream().mapToDouble(c -> c.volume() != null ? c.volume() : 0).sum();
+        long oi = (long) candleList.stream().mapToDouble(c -> c.oi() != null ? c.oi() : 0).sum();
+        String time = candleList.get(0).time();
 
         return new Candle(time, open, high, low, close, volume, oi);
     }

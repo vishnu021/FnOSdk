@@ -54,15 +54,15 @@ public class IndexEntryVerifier implements EntryVerifier {
     public Optional<OrderRequest> verifyBuyThreshold(Ticker tick, OrderRequest order) {
         if(order instanceof IndexOrderRequest orderRequest) {
             if (orderRequest.isCallOrder()) {
-                if (tick.getLastTradedPrice() > orderRequest.getBuyThreshold()) {
+                if (tick.lastTradedPrice() > orderRequest.getBuyThreshold()) {
                     log.info("tick ltp: {} is greater than buy threshold {}, placing order request({}) : {}",
-                            tick.getLastTradedPrice(), orderRequest.getBuyThreshold(), orderRequest.getOptionSymbol(), orderRequest);
+                            tick.lastTradedPrice(), orderRequest.getBuyThreshold(), orderRequest.getOptionSymbol(), orderRequest);
                     return Optional.of(orderRequest);
                 }
             } else {
-                if (tick.getLastTradedPrice() < orderRequest.getBuyThreshold()) {
+                if (tick.lastTradedPrice() < orderRequest.getBuyThreshold()) {
                     log.info("tick ltp: {} is lesser than buy threshold {}, placing order request({}) : {}",
-                            tick.getLastTradedPrice(), orderRequest.getBuyThreshold(), orderRequest.getOptionSymbol(), orderRequest);
+                            tick.lastTradedPrice(), orderRequest.getBuyThreshold(), orderRequest.getOptionSymbol(), orderRequest);
                     return Optional.of(orderRequest);
                 }
             }

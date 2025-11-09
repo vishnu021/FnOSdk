@@ -1,0 +1,140 @@
+name: Documentation Check
+
+on:
+  pull_request:
+    paths:
+      - 'fno-models/src/main/java/**'
+      - 'fno-utils/src/main/java/**'
+      - 'fno-technicals/src/main/java/**'
+      - 'fno-kite-reader/src/main/java/**'
+      - 'docs/module-guides/**'
+
+jobs:
+  check-documentation:
+    runs-on: ubuntu-latest
+    name: Verify documentation is updated
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Need full history to compare
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            fno-models/src/main/java/**
+            fno-utils/src/main/java/**
+            fno-technicals/src/main/java/**
+            fno-kite-reader/src/main/java/**
+
+      - name: Get changed documentation files
+        id: changed-docs
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            docs/module-guides/**
+
+      - name: Check documentation updates
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔍 Checking for documentation updates..."
+          echo ""
+
+          # Determine which modules were changed
+          MODULES_CHANGED=""
+
+          if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "fno-models/"; then
+            MODULES_CHANGED="$MODULES_CHANGED fno-models"
+          fi
+          if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "fno-utils/"; then
+            MODULES_CHANGED="$MODULES_CHANGED fno-utils"
+          fi
+          if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "fno-technicals/"; then
+            MODULES_CHANGED="$MODULES_CHANGED fno-technicals"
+          fi
+          if echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep -q "fno-kite-reader/"; then
+            MODULES_CHANGED="$MODULES_CHANGED fno-kite-reader"
+          fi
+
+          echo "Modules with Java changes:"
+          for module in $MODULES_CHANGED; do
+            echo "  - $module"
+          done
+          echo ""
+
+          # Check if public APIs were changed
+          PUBLIC_API_CHANGED=false
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            if git diff origin/${{ github.base_ref }}...HEAD -- "$file" | grep -E "^\+.*public (class|interface|enum|@interface)" > /dev/null 2>&1; then
+              echo "⚠️  Public API changes detected in: $file"
+              PUBLIC_API_CHANGED=true
+            fi
+            if git diff origin/${{ github.base_ref }}...HEAD -- "$file" | grep -E "^\+.*public .*(static )?(void|[A-Z][a-zA-Z0-9<>]*) [a-z][a-zA-Z0-9]*\(" > /dev/null 2>&1; then
+              echo "⚠️  Public method changes detected in: $file"
+              PUBLIC_API_CHANGED=true
+            fi
+          done
+          echo ""
+
+          # Check if documentation was updated
+          DOC_MISSING=""
+          for module in $MODULES_CHANGED; do
+            if ! echo "${{ steps.changed-docs.outputs.all_changed_files }}" | grep -q "docs/module-guides/$module.md"; then
+              DOC_MISSING="$DOC_MISSING $module"
+            fi
+          done
+
+          if [ -n "$DOC_MISSING" ] && [ "$PUBLIC_API_CHANGED" = true ]; then
+            echo "❌ DOCUMENTATION CHECK FAILED"
+            echo ""
+            echo "Public APIs were modified but documentation was not updated."
+            echo ""
+            echo "Missing documentation updates for:"
+            for module in $DOC_MISSING; do
+              echo "  - docs/module-guides/$module.md"
+            done
+            echo ""
+            echo "Please update the documentation to reflect API changes."
+            echo "See CONTRIBUTING.md for documentation guidelines."
+            exit 1
+          elif [ -n "$DOC_MISSING" ]; then
+            echo "⚠️  WARNING: Code changed but documentation not updated"
+            echo ""
+            echo "Modules changed without documentation updates:"
+            for module in $DOC_MISSING; do
+              echo "  - $module (docs/module-guides/$module.md)"
+            done
+            echo ""
+            echo "If you changed public APIs, please update documentation."
+            # Don't fail - just warn
+          else
+            echo "✅ Documentation appears to be updated"
+          fi
+
+      - name: Comment on PR
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📚 Documentation Update Required
+
+This PR modifies public APIs but doesn't include documentation updates.
+
+**FnOSdk documentation is consumed by AI agents** in downstream projects. Outdated documentation leads to incorrect code generation.
+
+**Please update:**
+- Module guides in \`docs/module-guides/\` corresponding to your changes
+- Include code examples showing the new/updated APIs
+- Update integration patterns if applicable
+
+See [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md) for documentation guidelines.
+
+**Need help?** Check existing module guides for examples of good documentation.`
+            })

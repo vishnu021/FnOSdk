@@ -53,9 +53,9 @@ public class OptionEntryVerifier implements EntryVerifier {
     @Override
     public Optional<OrderRequest> verifyBuyThreshold(Ticker tick, OrderRequest orderRequest) {
         if(orderRequest instanceof OptionBasedOrderRequest optionBasedOrderRequest) {
-            if (tick.getLastTradedPrice() > optionBasedOrderRequest.getBuyThreshold()) {
+            if (tick.lastTradedPrice() > optionBasedOrderRequest.getBuyThreshold()) {
                 log.info("tick ltp: {} is greater than buy threshold {}, placing order request({}) : {}",
-                        tick.getLastTradedPrice(), optionBasedOrderRequest.getBuyThreshold(), optionBasedOrderRequest.getIndex(), optionBasedOrderRequest);
+                        tick.lastTradedPrice(), optionBasedOrderRequest.getBuyThreshold(), optionBasedOrderRequest.getIndex(), optionBasedOrderRequest);
                 return Optional.of(optionBasedOrderRequest);
             }
         } else {

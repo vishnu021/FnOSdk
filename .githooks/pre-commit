@@ -1,0 +1,132 @@
+#!/bin/bash
+
+# FnOSdk Pre-Commit Hook
+# Ensures documentation is updated when public APIs change
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+echo "🔍 Checking for documentation updates..."
+
+# Get list of staged Java files in src/main/java
+STAGED_JAVA_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "src/main/java/.*\.java$" || true)
+
+if [ -z "$STAGED_JAVA_FILES" ]; then
+    echo -e "${GREEN}✓ No Java source files changed${NC}"
+    exit 0
+fi
+
+echo -e "${YELLOW}Java source files modified:${NC}"
+echo "$STAGED_JAVA_FILES" | while read -r file; do
+    echo "  - $file"
+done
+
+# Determine which modules were changed
+MODULES_CHANGED=""
+echo "$STAGED_JAVA_FILES" | while read -r file; do
+    if [[ $file == *"fno-models"* ]]; then
+        echo "fno-models"
+    elif [[ $file == *"fno-utils"* ]]; then
+        echo "fno-utils"
+    elif [[ $file == *"fno-technicals"* ]]; then
+        echo "fno-technicals"
+    elif [[ $file == *"fno-kite-reader"* ]]; then
+        echo "fno-kite-reader"
+    fi
+done | sort -u > /tmp/fnosdk-modules-changed.txt
+
+MODULES_CHANGED=$(cat /tmp/fnosdk-modules-changed.txt)
+
+if [ -z "$MODULES_CHANGED" ]; then
+    echo -e "${GREEN}✓ No module-specific changes detected${NC}"
+    exit 0
+fi
+
+echo -e "\n${YELLOW}Modules affected:${NC}"
+echo "$MODULES_CHANGED" | while read -r module; do
+    echo "  - $module"
+done
+
+# Check if corresponding documentation was updated
+DOC_UPDATED=false
+STAGED_DOC_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E "docs/module-guides/.*\.md$" || true)
+
+if [ -n "$STAGED_DOC_FILES" ]; then
+    echo -e "\n${GREEN}Documentation files updated:${NC}"
+    echo "$STAGED_DOC_FILES" | while read -r file; do
+        echo "  - $file"
+    done
+
+    # Check if the updated docs match the changed modules
+    echo "$MODULES_CHANGED" | while read -r module; do
+        if echo "$STAGED_DOC_FILES" | grep -q "docs/module-guides/$module.md"; then
+            DOC_UPDATED=true
+        fi
+    done
+else
+    echo -e "\n${RED}⚠ No documentation files updated${NC}"
+fi
+
+# Warning if documentation might be outdated
+NEEDS_DOC_UPDATE=false
+echo "$MODULES_CHANGED" | while read -r module; do
+    if ! echo "$STAGED_DOC_FILES" | grep -q "docs/module-guides/$module.md"; then
+        echo -e "${RED}⚠ Module '$module' changed but docs/module-guides/$module.md not updated${NC}"
+        NEEDS_DOC_UPDATE=true
+    fi
+done
+
+# Check if any public classes were added or modified
+PUBLIC_API_CHANGED=false
+echo "$STAGED_JAVA_FILES" | while read -r file; do
+    # Check if file contains public classes, interfaces, or enums
+    if git diff --cached "$file" | grep -E "^\+.*public (class|interface|enum|@interface)" > /dev/null 2>&1; then
+        PUBLIC_API_CHANGED=true
+        echo -e "${YELLOW}⚠ Public API changes detected in: $file${NC}"
+    fi
+
+    # Check if public methods were added or changed
+    if git diff --cached "$file" | grep -E "^\+.*public .*(static )?(void|[A-Z][a-zA-Z0-9<>]*) [a-z][a-zA-Z0-9]*\(" > /dev/null 2>&1; then
+        PUBLIC_API_CHANGED=true
+        echo -e "${YELLOW}⚠ Public method changes detected in: $file${NC}"
+    fi
+done
+
+# Final decision
+if [ "$PUBLIC_API_CHANGED" = true ] && [ -z "$STAGED_DOC_FILES" ]; then
+    echo -e "\n${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}⚠  WARNING: Public API changed but documentation not updated${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo "You've modified public APIs but haven't updated documentation."
+    echo ""
+    echo "Please update the following files:"
+    echo "$MODULES_CHANGED" | while read -r module; do
+        echo "  - docs/module-guides/$module.md"
+    done
+    echo ""
+    echo "Documentation is consumed by AI agents in downstream projects."
+    echo "Outdated documentation leads to incorrect code generation."
+    echo ""
+    echo "See CONTRIBUTING.md for documentation guidelines."
+    echo ""
+    echo -e "${YELLOW}To bypass this check (NOT recommended):${NC}"
+    echo "  git commit --no-verify"
+    echo ""
+
+    # Ask user to confirm
+    read -p "Commit anyway? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}✗ Commit aborted${NC}"
+        exit 1
+    fi
+fi
+
+echo -e "${GREEN}✓ Pre-commit checks passed${NC}"
+exit 0
