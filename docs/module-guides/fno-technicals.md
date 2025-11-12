@@ -1,6 +1,5 @@
 # fno-technicals - Technical Analysis
 
-## Purpose
 Technical analysis indicators and options Greeks calculations for strategy development and market analysis.
 
 ## Maven Dependency
@@ -12,43 +11,116 @@ Technical analysis indicators and options Greeks calculations for strategy devel
 </dependency>
 ```
 
-This automatically includes `fno-models` and `fno-utils` as transitive dependencies.
+**Transitive Dependencies:** fno-models, fno-utils
 
-## Technical Indicators
+---
+
+## Architecture
+
+### Base Indicator Interface
+
+```java
+public interface Indicator {
+    List<Double> calculate(List<Candle> candles);
+    List<Double> calculate(List<Candle> candles, List<Candle> prevCandles);
+    List<Double> calculateFromClosedPrice(List<Double> candles);
+    List<Double> calculateFromClosedPrice(List<Double> candles, List<Double> prevCandles);
+}
+```
+
+All indicators implement this interface for consistent calculation patterns.
+
+---
+
+### AbstractIndicator Base Class
+
+```java
+public abstract class AbstractIndicator implements Indicator {
+    public List<Double> getClosedPrices(List<Candle> candles);
+    public List<Double> calculate(List<Candle> candles);
+    public List<Double> calculate(List<Candle> candles, List<Candle> prevCandles);
+}
+```
+
+**Functionality:**
+- `getClosedPrices()`: Extracts close prices from candles
+- `calculate()`: Delegates to `calculateFromClosedPrice()` implementations
+
+**Subclass Contract:**
+- Implement `calculateFromClosedPrice(List<Double>)`
+- Implement `calculateFromClosedPrice(List<Double>, List<Double>)`
+
+---
+
+## Moving Averages
+
+### MovingAverage Abstract Class
+
+```java
+public abstract class MovingAverage extends AbstractIndicator {
+    protected final int period;
+    protected MovingAverage(int period);
+}
+```
+
+Base class for all moving average implementations.
+
+---
 
 ### Simple Moving Average (SMA)
 
 ```java
-import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
-import com.vish.fno.model.Candle;
-
-SimpleMovingAverage sma20 = new SimpleMovingAverage(20);
-
-// From candlestick data
-List<Candle> candles = // ... your OHLC data
-List<Double> smaValues = sma20.calculate(candles);
-
-// From close prices only
-List<Double> closePrices = candles.stream()
-    .map(Candle::close)
-    .toList();
-List<Double> smaValues = sma20.calculateFromClosedPrice(closePrices);
-
-// Get current SMA value
-double currentSMA = smaValues.get(smaValues.size() - 1);
+public class SimpleMovingAverage extends MovingAverage {
+    public SimpleMovingAverage(int period);
+}
 ```
 
-**Common periods**: 20, 50, 200
+**Common periods:** 20, 50, 200
+
+**Usage:**
+```java
+import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
+import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class SMAExample {
+    public void calculateSMA(List<Candle> candles) {
+        SimpleMovingAverage sma20 = new SimpleMovingAverage(20);
+        List<Double> smaValues = sma20.calculate(candles);
+
+        double currentSMA = smaValues.get(smaValues.size() - 1);
+        double currentPrice = candles.get(candles.size() - 1).close();
+
+        if (currentPrice > currentSMA) {
+            log.info("Price above SMA20 - bullish");
+        }
+    }
+}
+```
+
+---
 
 ### Exponential Moving Average (EMA)
 
+```java
+public class ExponentialMovingAverage extends MovingAverage {
+    public ExponentialMovingAverage(int period);
+}
+```
+
+**Formula:** EMA = Price(t) × k + EMA(y) × (1 − k), where k = 2 / (period + 1)
+
+**Common periods:** 12, 26 (MACD), 9 (signal line)
+
+**Usage:**
 ```java
 import com.vish.fno.technical.indicators.ma.ExponentialMovingAverage;
 import com.vish.fno.model.Candle;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class MACDCalculator {
+public class MACDExample {
     public void calculateMACD(List<Candle> candles) {
         ExponentialMovingAverage ema12 = new ExponentialMovingAverage(12);
         ExponentialMovingAverage ema26 = new ExponentialMovingAverage(26);
@@ -56,74 +128,60 @@ public class MACDCalculator {
         List<Double> ema12Values = ema12.calculate(candles);
         List<Double> ema26Values = ema26.calculate(candles);
 
-        // MACD calculation (EMA12 - EMA26)
         int lastIdx = ema12Values.size() - 1;
         double macd = ema12Values.get(lastIdx) - ema26Values.get(lastIdx);
 
-        if (macd > 0) {
-            log.info("Bullish MACD crossover");
-        }
+        log.info("MACD: {}", macd);
     }
 }
 ```
 
-**Formula**: EMA = Price(t) × k + EMA(y) × (1 − k), where k = 2 / (period + 1)
-
-**Common periods**: 12, 26 (for MACD), 9 (signal line)
+---
 
 ### Smoothed Moving Average (SMMA)
 
 ```java
-import com.vish.fno.technical.indicators.ma.SmoothedMovingAverage;
-import com.vish.fno.model.Candle;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
-public class SMMAAnalyzer {
-    public void analyzeTrend(List<Candle> candles, double currentPrice) {
-        SmoothedMovingAverage smma20 = new SmoothedMovingAverage(20);
-
-        List<Double> smmaValues = smma20.calculate(candles);
-        double currentSMMA = smmaValues.get(smmaValues.size() - 1);
-
-        // SMMA is smoother than EMA, better for long-term trends
-        if (currentPrice > currentSMMA) {
-            log.info("Price above SMMA - bullish trend");
-        }
-    }
+public class SmoothedMovingAverage extends MovingAverage {
+    public SmoothedMovingAverage(int period);
 }
 ```
 
-**Formula**: SMMA = (lastSMMA × (period − 1) + closedPrice) / period
+**Formula:** SMMA = (lastSMMA × (period − 1) + closedPrice) / period
 
-**Characteristics**:
-- **Smoother** than EMA - slower to respond to price changes
-- **Less sensitive** to short-term fluctuations
-- **Better for long-term trends** - filters out noise effectively
-- **Calculation**: Uses 1/period as multiplier (vs EMA's 2/(period+1))
+**Characteristics:**
+- Smoother than EMA (slower response to price changes)
+- Less sensitive to short-term fluctuations
+- Best for long-term trends and reducing false signals
 
-**When to use**:
-- Long-term trend identification
-- Reducing false signals in choppy markets
-- Smoothing volatile price data
+**Common periods:** 20, 50, 200
 
-**Differences from EMA**:
-- **Smoothing**: SMMA is smoother, EMA reacts faster
-- **Sensitivity**: EMA is more sensitive to recent prices
-- **Accuracy**: EMA generally more accurate for short-term analysis
-- **Usage**: SMMA for long-term, EMA for short-term
+---
 
-**Common periods**: 20, 50, 200
+## Technical Indicators
 
 ### Relative Strength Index (RSI)
 
+```java
+public class RelativeStrengthIndex extends AbstractIndicator {
+    public RelativeStrengthIndex(int period);
+}
+```
+
+**Interpretation:**
+- RSI < 30: Oversold (potential buy)
+- RSI > 70: Overbought (potential sell)
+- RSI = 50: Neutral
+
+**Standard period:** 14
+
+**Usage:**
 ```java
 import com.vish.fno.technical.indicators.RelativeStrengthIndex;
 import com.vish.fno.model.Candle;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class RSIAnalyzer {
+public class RSIExample {
     public void analyzeRSI(List<Candle> candles) {
         RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
         List<Double> rsiValues = rsi14.calculate(candles);
@@ -131,321 +189,397 @@ public class RSIAnalyzer {
         double currentRSI = rsiValues.get(rsiValues.size() - 1);
 
         if (currentRSI < 30) {
-            log.info("Oversold - potential buy signal");
+            log.info("Oversold (RSI: {}) - potential buy", currentRSI);
         } else if (currentRSI > 70) {
-            log.info("Overbought - potential sell signal");
+            log.info("Overbought (RSI: {}) - potential sell", currentRSI);
         }
     }
 }
 ```
 
-**Interpretation:**
-- **RSI < 30**: Oversold (potential buy)
-- **RSI > 70**: Overbought (potential sell)
-- **RSI = 50**: Neutral
-
-**Standard period**: 14
+---
 
 ### Bollinger Bands
 
+```java
+public class BollingerBands extends AbstractIndicator {
+    public BollingerBands();                          // Default: 20-period, 2.0 multiplier
+    public BollingerBands(int duration, double MULTIPLIER);
+}
+```
+
+**Returns:** `List<Double>` containing bandwidth values (upper band - lower band)
+
+**Internal Calculation:**
+- Upper Band = SMA + (multiplier × Standard Deviation)
+- Middle Band = SMA
+- Lower Band = SMA - (multiplier × Standard Deviation)
+- **Returned Value** = Upper Band - Lower Band
+
+**Standard parameters:** 20-period, 2.0 multiplier
+
+**Usage:**
 ```java
 import com.vish.fno.technical.indicators.BollingerBands;
 import com.vish.fno.model.Candle;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class BollingerAnalyzer {
-    public void analyzeBands(List<Candle> candles) {
-        BollingerBands bb = new BollingerBands(20, 2.0); // 20-period, 2 std dev
-        Map<String, List<Double>> bands = bb.calculate(candles);
+public class BBExample {
+    public void analyzeBandwidth(List<Candle> candles) {
+        BollingerBands bb = new BollingerBands(20, 2.0);
+        List<Double> bandwidths = bb.calculate(candles);
 
-        List<Double> upperBand = bands.get("upper");
-        List<Double> middleBand = bands.get("middle");  // SMA
-        List<Double> lowerBand = bands.get("lower");
+        int lastIdx = bandwidths.size() - 1;
+        double currentBandwidth = bandwidths.get(lastIdx);
+        double previousBandwidth = bandwidths.get(lastIdx - 1);
 
-        int lastIdx = upperBand.size() - 1;
-        double currentPrice = candles.get(candles.size() - 1).close();
-
-        if (currentPrice >= upperBand.get(lastIdx)) {
-            log.info("Price at upper band - overbought");
-        } else if (currentPrice <= lowerBand.get(lastIdx)) {
-            log.info("Price at lower band - oversold");
+        if (currentBandwidth < previousBandwidth * 0.7) {
+            log.info("Bollinger squeeze - potential breakout coming");
         }
-
-        // Calculate bandwidth (volatility measure)
-        double bandwidth = (upperBand.get(lastIdx) - lowerBand.get(lastIdx)) / middleBand.get(lastIdx);
     }
 }
 ```
 
-**Components:**
-- **Upper Band**: SMA + (2 × Standard Deviation)
-- **Middle Band**: 20-period SMA
-- **Lower Band**: SMA - (2 × Standard Deviation)
-
-**Standard parameters**: 20-period, 2 std dev
+---
 
 ## Options Greeks
 
-All Greeks use the Black-Scholes model with the same parameter structure:
+### OptionGreek Abstract Class
 
 ```java
-double calculate(
-    double spotPrice,      // Current price of underlying
-    double strikePrice,    // Option strike price
-    double timeToExpiry,   // Time in years (e.g., 7/365 for 7 days)
-    double riskFreeRate,   // Annual rate (e.g., 0.06 for 6%)
-    double volatility,     // Annual IV (e.g., 0.15 for 15%)
-    String optionType      // "CE" for Call, "PE" for Put
-)
+public abstract class OptionGreek {
+    protected static double getDensity(double d1);
+    protected static double cumulativeProbability(double d1);
+    protected static double calculateD1(double S, double K, double T, double r, double sigma);
+}
 ```
+
+Base class providing Black-Scholes utilities for all Greeks.
+
+---
+
+### BlackScholes
+
+```java
+public final class BlackScholes extends OptionGreek {
+    public static double calculateOptionPrice(
+        double strikePrice,
+        double spotPrice,
+        double timeToExpiryInYears,
+        double riskFreeRate,
+        double volatility,
+        boolean isCall
+    );
+
+    public static double getTimeToExpiryInMinutes(LocalDateTime now, LocalDateTime expiryTime);
+}
+```
+
+**Parameters:**
+- **strikePrice:** Option strike price
+- **spotPrice:** Current underlying price
+- **timeToExpiryInYears:** Time in years (e.g., 7/365.0 for 7 days)
+- **riskFreeRate:** Annual risk-free rate (e.g., 0.06 for 6%)
+- **volatility:** Annual implied volatility (e.g., 0.15 for 15%)
+- **isCall:** true for Call, false for Put
+
+**Usage:**
+```java
+import com.vish.fno.technical.greeks.BlackScholes;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OptionPricingExample {
+    public void priceOption() {
+        double callPrice = BlackScholes.calculateOptionPrice(
+            19500.0, 19550.0, 7.0 / 365.0, 0.06, 0.15, true
+        );
+        log.info("Call price: {}", callPrice);
+
+        double putPrice = BlackScholes.calculateOptionPrice(
+            19500.0, 19550.0, 7.0 / 365.0, 0.06, 0.15, false
+        );
+        log.info("Put price: {}", putPrice);
+    }
+}
+```
+
+---
 
 ### Delta - Price Sensitivity
 
 ```java
-import com.vish.fno.technical.greeks.Delta;
-
-double spot = 19500.0;
-double strike = 19500.0;
-double tte = 7.0 / 365.0;     // 7 days to expiry
-double rfr = 0.06;             // 6% risk-free rate
-double iv = 0.15;              // 15% implied volatility
-
-double delta = Delta.calculate(spot, strike, tte, rfr, iv, "CE");
-// ATM call delta ≈ 0.5
+public final class Delta extends OptionGreek {
+    public static double calculateDelta(
+        double stockPrice,
+        double strikePrice,
+        double timeToExpiryInYears,
+        double riskFreeRate,
+        double volatility,
+        boolean isCall
+    );
+}
 ```
 
+**CRITICAL:** Method name is `calculateDelta()`, parameter is `boolean isCall`.
+
 **Interpretation:**
-- **Call Delta**: 0 to 1 (ITM calls closer to 1, OTM closer to 0)
-- **Put Delta**: -1 to 0 (ITM puts closer to -1, OTM closer to 0)
-- **ATM Options**: Delta ≈ 0.5 for calls, -0.5 for puts
-- **Meaning**: If delta = 0.5 and spot moves ₹1, option price changes by ₹0.50
+- Call Delta: 0 to 1 (ITM closer to 1, OTM closer to 0)
+- Put Delta: -1 to 0 (ITM closer to -1, OTM closer to 0)
+- ATM Options: Delta ≈ ±0.5
+
+**Meaning:** If delta = 0.5 and spot moves ₹1, option price changes by ₹0.50
+
+**Usage:**
+```java
+import com.vish.fno.technical.greeks.Delta;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class DeltaExample {
+    public void calculateDelta() {
+        double callDelta = Delta.calculateDelta(19500.0, 19500.0, 7.0 / 365.0, 0.06, 0.15, true);
+        log.info("ATM Call Delta: {}", callDelta); // ≈ 0.5
+
+        int optionsHeld = 100;
+        int sharesToHedge = (int) Math.abs(callDelta * optionsHeld);
+        log.info("Hedge by shorting {} shares", sharesToHedge);
+    }
+}
+```
+
+---
 
 ### Gamma - Delta Sensitivity
 
 ```java
-import com.vish.fno.technical.greeks.Gamma;
-
-double gamma = Gamma.calculate(spot, strike, tte, rfr, iv, "CE");
+public final class Gamma extends OptionGreek {
+    public static double calculateGamma(
+        double stockPrice,
+        double strikePrice,
+        double timeToExpiryInYears,
+        double riskFreeRate,
+        double volatility
+    );
+}
 ```
 
+**CRITICAL:** Method name is `calculateGamma()`, does NOT require `isCall` (same for calls and puts).
+
 **Interpretation:**
-- **Range**: 0 to positive value
-- **Meaning**: Rate of change of delta
-- **Highest for**: ATM options with near expiry
-- **Usage**: Gamma risk management for option sellers
+- Range: 0 to positive value (same for calls and puts)
+- Meaning: Rate of change of delta per ₹1 move in underlying
+- Highest for: ATM options near expiry
+
+---
 
 ### Theta - Time Decay
 
 ```java
-import com.vish.fno.technical.greeks.Theta;
-
-double theta = Theta.calculate(spot, strike, tte, rfr, iv, "CE");
-// Typical value: -5.5 means loses ₹5.50 per day
+public class Theta extends OptionGreek {
+    public static double calculateTheta(
+        double stockPrice,
+        double strikePrice,
+        double timeToExpiryInYears,
+        double riskFreeRate,
+        double volatility,
+        boolean isCall
+    );
+}
 ```
 
+**CRITICAL:** Method name is `calculateTheta()`.
+
 **Interpretation:**
-- **Always negative** for long options
-- **Accelerates** as expiry approaches
-- **Highest for**: ATM options
-- **Usage**: Premium collection strategies (sell high theta options)
+- Always negative for long options (options lose value over time)
+- Accelerates as expiry approaches (non-linear decay)
+- Highest for: ATM options
+
+**Usage:**
+```java
+import com.vish.fno.technical.greeks.Theta;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class ThetaExample {
+    public void analyzeThetaDecay() {
+        double callTheta = Theta.calculateTheta(19500.0, 19500.0, 7.0 / 365.0, 0.06, 0.15, true);
+        log.info("Option loses ₹{} per day due to time decay", Math.abs(callTheta));
+    }
+}
+```
+
+---
 
 ### Vega - Volatility Sensitivity
 
 ```java
-import com.vish.fno.technical.greeks.Vega;
-
-double vega = Vega.calculate(spot, strike, tte, rfr, iv, "CE");
-// vega = 15.2 means ₹15.20 gain if IV increases by 1%
+public class Vega extends OptionGreek {
+    public static double calculateVega(
+        double stockPrice,
+        double strikePrice,
+        double timeToExpiryInYears,
+        double riskFreeRate,
+        double volatility
+    );
+}
 ```
 
+**CRITICAL:** Method name is `calculateVega()`, does NOT require `isCall` (same for calls and puts).
+
 **Interpretation:**
-- **Always positive** for long options
-- **Meaning**: Change in option price for 1% change in IV
-- **Highest for**: ATM options with more time to expiry
-- **Usage**: Volatility trading strategies
+- Always positive for long options (same for calls and puts)
+- Meaning: Change in option price for 1% change in IV
+- Highest for: ATM options with more time to expiry
+
+**Usage:**
+```java
+import com.vish.fno.technical.greeks.Vega;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class VegaExample {
+    public void analyzeVega() {
+        double vega = Vega.calculateVega(19500.0, 19500.0, 7.0 / 365.0, 0.06, 0.15);
+
+        double ivIncrease = 0.01; // 1% increase in IV
+        double expectedProfit = vega * ivIncrease;
+        log.info("If IV increases 1%, option gains ₹{}", expectedProfit);
+    }
+}
+```
+
+---
 
 ### Rho - Interest Rate Sensitivity
 
 ```java
-import com.vish.fno.technical.greeks.Rho;
-
-double rho = Rho.calculate(spot, strike, tte, rfr, iv, "CE");
+public final class Rho extends OptionGreek {
+    public static double calculateRho(
+        double stockPrice,
+        double strikePrice,
+        double timeToExpiryInYears,
+        double riskFreeRate,
+        double volatility,
+        boolean isCall
+    );
+}
 ```
 
+**CRITICAL:** Method name is `calculateRho()`.
+
 **Interpretation:**
-- **Least important** Greek for short-term options
-- **Relevant for**: Long-dated options (LEAPS)
+- Call Rho: Positive (calls benefit from higher rates)
+- Put Rho: Negative (puts lose from higher rates)
+- Least important Greek for short-term options
+- Relevant for: Long-dated options (LEAPS, 6+ months)
 
-## Common Trading Strategies
+---
 
-### Strategy 1: Moving Average Crossover
+## Complete Trading Example
 
 ```java
 import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
+import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import com.vish.fno.technical.greeks.*;
 import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 
-public class MACrossoverStrategy {
+@Slf4j
+public class CompleteTradingStrategy {
     private final SimpleMovingAverage sma50 = new SimpleMovingAverage(50);
-    private final SimpleMovingAverage sma200 = new SimpleMovingAverage(200);
-
-    public String getSignal(List<Candle> candles) {
-        List<Double> sma50Values = sma50.calculate(candles);
-        List<Double> sma200Values = sma200.calculate(candles);
-
-        int lastIdx = sma50Values.size() - 1;
-        int prevIdx = lastIdx - 1;
-
-        double sma50Current = sma50Values.get(lastIdx);
-        double sma200Current = sma200Values.get(lastIdx);
-        double sma50Previous = sma50Values.get(prevIdx);
-        double sma200Previous = sma200Values.get(prevIdx);
-
-        // Golden cross: SMA50 crosses above SMA200
-        if (sma50Current > sma200Current && sma50Previous <= sma200Previous) {
-            return "BUY";  // Bullish
-        }
-
-        // Death cross: SMA50 crosses below SMA200
-        if (sma50Current < sma200Current && sma50Previous >= sma200Previous) {
-            return "SELL";  // Bearish
-        }
-
-        return "HOLD";
-    }
-}
-```
-
-### Strategy 2: RSI with Bollinger Bands
-
-```java
-import com.vish.fno.technical.indicators.RelativeStrengthIndex;
-import com.vish.fno.technical.indicators.BollingerBands;
-import com.vish.fno.model.Candle;
-
-public class RSIBollingerStrategy {
-    private final RelativeStrengthIndex rsi = new RelativeStrengthIndex(14);
-    private final BollingerBands bb = new BollingerBands(20, 2.0);
-
-    public boolean isOversold(List<Candle> candles) {
-        List<Double> rsiValues = rsi.calculate(candles);
-        Map<String, List<Double>> bands = bb.calculate(candles);
-
-        int lastIdx = rsiValues.size() - 1;
-        double currentRSI = rsiValues.get(lastIdx);
-        double currentPrice = candles.get(candles.size() - 1).getClose();
-        double lowerBand = bands.get("lower").get(lastIdx);
-
-        // Strong oversold: RSI < 30 AND price at/below lower band
-        return currentRSI < 30 && currentPrice <= lowerBand;
-    }
-
-    public boolean isOverbought(List<Candle> candles) {
-        List<Double> rsiValues = rsi.calculate(candles);
-        Map<String, List<Double>> bands = bb.calculate(candles);
-
-        int lastIdx = rsiValues.size() - 1;
-        double currentRSI = rsiValues.get(lastIdx);
-        double currentPrice = candles.get(candles.size() - 1).getClose();
-        double upperBand = bands.get("upper").get(lastIdx);
-
-        // Strong overbought: RSI > 70 AND price at/above upper band
-        return currentRSI > 70 && currentPrice >= upperBand;
-    }
-}
-```
-
-### Strategy 3: Options Premium Collection
-
-```java
-public class PremiumCollectionStrategy {
-    public List<Double> findOptimalStrikes(double spot) {
-        List<Double> optimalStrikes = new ArrayList<>();
-        double rfr = 0.06;
-        double iv = 0.15;
-        double tte = 7.0 / 365.0;
-
-        // Scan OTM put strikes
-        for (double strike = spot - 500; strike < spot; strike += 50) {
-            double delta = Delta.calculate(spot, strike, tte, rfr, iv, "PE");
-            double theta = Theta.calculate(spot, strike, tte, rfr, iv, "PE");
-            double gamma = Gamma.calculate(spot, strike, tte, rfr, iv, "PE");
-
-            // Criteria: High theta decay, low gamma risk, delta < 0.30
-            if (Math.abs(theta) > 5 &&
-                Math.abs(gamma) < 0.001 &&
-                Math.abs(delta) < 0.30) {
-                optimalStrikes.add(strike);
-            }
-        }
-
-        return optimalStrikes;
-    }
-}
-```
-
-### Strategy 4: MACD with RSI Confirmation
-
-```java
-import com.vish.fno.technical.indicators.ma.ExponentialMovingAverage;
-import com.vish.fno.technical.indicators.RelativeStrengthIndex;
-import com.vish.fno.model.Candle;
-
-public class MACDRSIStrategy {
-    private final ExponentialMovingAverage ema12 = new ExponentialMovingAverage(12);
-    private final ExponentialMovingAverage ema26 = new ExponentialMovingAverage(26);
     private final RelativeStrengthIndex rsi = new RelativeStrengthIndex(14);
 
-    public boolean isBuySignal(List<Candle> candles) {
-        List<Double> ema12Values = ema12.calculate(candles);
-        List<Double> ema26Values = ema26.calculate(candles);
+    public void analyzeMarket(List<Candle> candles) {
+        // Technical indicators
+        List<Double> smaValues = sma50.calculate(candles);
         List<Double> rsiValues = rsi.calculate(candles);
 
-        int lastIdx = ema12Values.size() - 1;
+        double currentPrice = candles.get(candles.size() - 1).close();
+        double currentSMA = smaValues.get(smaValues.size() - 1);
+        double currentRSI = rsiValues.get(rsiValues.size() - 1);
 
-        // Calculate MACD
-        double macdCurrent = ema12Values.get(lastIdx) - ema26Values.get(lastIdx);
-        double macdPrevious = ema12Values.get(lastIdx - 1) - ema26Values.get(lastIdx - 1);
+        // Entry signal
+        if (currentPrice > currentSMA && currentRSI < 70) {
+            log.info("Entry signal - price above SMA, RSI not overbought");
 
-        // MACD crossed above zero AND RSI confirms (not overbought)
-        return macdCurrent > 0 &&
-               macdPrevious <= 0 &&
-               rsiValues.get(lastIdx) < 70;
+            // Options analysis
+            double strike = 19500.0;
+            double tte = 7.0 / 365.0;
+            double rfr = 0.06;
+            double iv = 0.15;
+
+            double callPrice = BlackScholes.calculateOptionPrice(currentPrice, strike, tte, rfr, iv, true);
+            double delta = Delta.calculateDelta(currentPrice, strike, tte, rfr, iv, true);
+            double gamma = Gamma.calculateGamma(currentPrice, strike, tte, rfr, iv);
+            double theta = Theta.calculateTheta(currentPrice, strike, tte, rfr, iv, true);
+            double vega = Vega.calculateVega(currentPrice, strike, tte, rfr, iv);
+
+            log.info("Call Price: {}, Delta: {}, Gamma: {}, Theta: {}, Vega: {}",
+                     callPrice, delta, gamma, theta, vega);
+        }
     }
 }
 ```
 
-## Best Practices
-
-1. **Validate data length**: Ensure sufficient data points (period + buffer)
-   ```java
-   if (candles.size() < period) {
-       throw new IllegalArgumentException("Insufficient data");
-   }
-   ```
-
-2. **Handle edge cases**: First N values will be null/NaN for N-period indicators
-
-3. **Combine indicators**: Use multiple indicators for confirmation (e.g., RSI + Bollinger Bands)
-
-4. **Backtesting**: Always backtest strategies before live trading
-
-5. **Greeks assumptions**:
-   - Risk-free rate: Use current repo rate (typically 5-7%)
-   - Implied volatility: Calculate from option chain or use historical volatility
-   - Time to expiry: Use exact days/365 or trading days/252
-
-## Performance Considerations
-
-- **Caching**: Store indicator values instead of recalculating
-- **Partial updates**: For real-time data, implement incremental calculation
-- **Memory**: Large datasets may require streaming calculation
+---
 
 ## Thread Safety
 
-All indicator classes are **not thread-safe**. Create separate instances per thread or use synchronization.
+All indicator and Greek classes use static methods or immutable state:
+- **Thread-safe:** All Greek calculations (Delta, Gamma, Theta, Vega, Rho, BlackScholes)
+- **Instance-based:** Indicators (create separate instances per thread if needed)
+- **No shared state:** Each indicator instance maintains only configuration (period, multiplier)
 
-```java
-// Thread-safe usage
-ThreadLocal<SimpleMovingAverage> sma = ThreadLocal.withInitial(() -> new SimpleMovingAverage(20));
+---
+
+## Performance Considerations
+
+1. **Indicator Calculation:** O(n) where n = number of candles
+2. **Greeks Calculation:** O(1) - constant time mathematical formulas
+3. **Memory:** Indicators return new List instances, not views
+4. **Reuse:** Create indicator instances once, reuse for multiple calculations
+
+---
+
+## Error Handling
+
+**Division by Zero:**
+- BollingerBands handles empty price lists gracefully
+- Greeks require non-zero volatility and time to expiry
+
+**Invalid Parameters:**
+- Negative periods cause undefined behavior
+- Negative volatility produces incorrect results
+- Zero time to expiry causes NaN in Greeks
+
+**Edge Cases:**
+- First N values of moving averages may be -1 or incomplete
+- RSI requires sufficient price history (at least period + 1 candles)
+- Bollinger Bands returns -1 for bandwidth when insufficient data
+
+---
+
+## Dependencies
+
+**Apache Commons Math3:**
+```xml
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-math3</artifactId>
+</dependency>
 ```
+
+Used for normal distribution calculations in OptionGreek base class.
+
+**Transitive Dependencies:** fno-models (Candle data structures), fno-utils
+
+---
+
+## See Also
+
+- **fno-models:** Core data models
+- **fno-utils:** Utility functions
+- **fno-strategy-utils:** Higher-level strategy utilities

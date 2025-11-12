@@ -1,1168 +1,859 @@
-# fno-utils - Utility Functions
+# fno-utils Module Guide
 
-## Purpose
-Utility classes and helper functions for trading operations, data processing, and strategy management.
+Utility functions for candlestick manipulation, time operations, file handling, order flow strategies, and data caching.
 
-## Maven Dependency
-```xml
-<dependency>
-    <groupId>com.vish.fno</groupId>
-    <artifactId>fno-utils</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-```
+**Module:** `com.vish.fno:fno-utils:1.0.0`
 
-This automatically includes `fno-models` as a transitive dependency.
+**Dependencies:** fno-models, Jackson, Lombok, Spring Boot Starter Data MongoDB
 
-## Key Utilities
+**Key Features:** Candlestick analysis, time utilities (IST), Heikin Ashi transformations, timeframe conversion, file operations, order flow strategies, data caching
 
-### CandleUtils - Candle Operations
+---
 
-**Timeframe Conversion:**
+## Core Utilities
+
+### CandleUtils
+
+**Package:** `com.vish.fno.util`
+
+Utility methods for candlestick analysis, data loading, and pattern recognition. All methods are static and thread-safe.
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `isBullish(Candle candle)` | `candle` | `boolean` | Determines if candle is bullish (close > open) |
+| `isBearish(Candle candle)` | `candle` | `boolean` | Determines if candle is bearish (close < open) |
+| `getBodyLength(Candle candle)` | `candle` | `double` | Absolute body length (distance between open and close) |
+| `getTotalLength(Candle candle)` | `candle` | `double` | Total length (high - low) |
+| `getUpperWick(Candle candle)` | `candle` | `double` | Upper wick length (high - max(open, close)) |
+| `getLowerWick(Candle candle)` | `candle` | `double` | Lower wick length (min(open, close) - low) |
+| `getBodySizePercentage(Candle candle)` | `candle` | `double` | Body size as % of total range (0.0-1.0) |
+| `getCandleData(String filePath)` | `filePath` | `List<Candle>` | Reads candles from JSON file |
+| `getPrevDayCandleData(String filePath)` | `filePath` | `List<Candle>` | Reads previous day's candles from JSON |
+| `getSmaData(String fileName)` | `fileName` | `List<Double>` | Reads SMA values from file |
+| `getEmaData(String fileName)` | `fileName` | `List<Double>` | Reads EMA values from file |
+| `getBBData(String fileName)` | `fileName` | `List<Double>` | Reads Bollinger Band values from file |
+| `readFile(String filename)` | `filename` | `String` | Reads complete file contents |
+| `contains(Candle candle, double value)` | `candle`, `value` | `boolean` | Checks if price level is within candle range |
+| `findLocalMinimum(List<Candle> candles, int startIndex, int window)` | `candles`, `startIndex`, `window` | `int` | Finds index of local minimum (-1 if not found) |
+| `findLocalMaximum(List<Candle> candles, int startIndex, int window)` | `candles`, `startIndex`, `window` | `int` | Finds index of local maximum (-1 if not found) |
+
+**Example:**
 ```java
-import com.vish.fno.util.CandleUtils;
 import com.vish.fno.model.Candle;
-
-// Convert 1-minute candles to 15-minute
-List<Candle> oneMinCandles = // ... your 1-min data
-List<Candle> fifteenMinCanles = CandleUtils.convertToTimeFrame(
-    oneMinCandles,
-    "15minute"  // Options: "5minute", "15minute", "30minute", "60minute", "day"
-);
-
-// Convert to daily candles
-List<Candle> dailyCandles = CandleUtils.convertToTimeFrame(oneMinCandles, "day");
-```
-
-**Candle Pattern Analysis:**
-```java
 import com.vish.fno.util.CandleUtils;
-import com.vish.fno.model.Candle;
 import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 
 @Slf4j
-public class PatternDetector {
-    public void analyzePattern(List<Candle> candles) {
-        Candle candle = candles.get(candles.size() - 1);
+public class CandleAnalysisExample {
+    public void analyzeCandleData() {
+        List<Candle> candles = CandleUtils.getCandleData("/data/NIFTY_2025-01-15.json");
 
-        // Check candle characteristics
-        boolean isBullish = CandleUtils.isBullish(candle);
-        boolean isBearish = CandleUtils.isBearish(candle);
-
-        // Get candle measurements
-        Double bodySize = CandleUtils.getCandleBody(candle);
-        Double upperWick = CandleUtils.getUpperWick(candle);
-        Double lowerWick = CandleUtils.getLowerWick(candle);
-
-        // Pattern detection
-        if (CandleUtils.isBullish(candle) && lowerWick > bodySize * 2) {
-            log.info("Potential hammer pattern detected");
+        for (Candle candle : candles) {
+            if (CandleUtils.isBullish(candle)) {
+                double bodyPct = CandleUtils.getBodySizePercentage(candle);
+                log.info("Bullish candle: body={}%", bodyPct * 100);
+            }
         }
-    }
-}
-```
 
-**Merge Candles:**
-```java
-import com.vish.fno.util.CandleUtils;
-import com.vish.fno.model.Candle;
-
-// Merge multiple candles into one
-List<Candle> candlesToMerge = candles.subList(0, 5);
-Candle merged = CandleUtils.mergeCandlesticks(candlesToMerge);
-```
-
-**Find Local Extremes:**
-```java
-import com.vish.fno.util.CandleUtils;
-import com.vish.fno.model.Candle;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
-public class SwingPointDetector {
-    public void findSwingPoints(List<Candle> candles) {
-        int window = 3; // Number of candles to check on each side
-        int startIndex = window; // Start search from valid position
-
-        // Find local minimum (support level)
-        int minIndex = CandleUtils.findLocalMinimum(candles, startIndex, window);
+        int minIndex = CandleUtils.findLocalMinimum(candles, 3, 3);
         if (minIndex != -1) {
             Candle supportCandle = candles.get(minIndex);
-            log.info("Support found at index {} with low: {}", minIndex, supportCandle.low());
-        }
-
-        // Find local maximum (resistance level)
-        int maxIndex = CandleUtils.findLocalMaximum(candles, startIndex, window);
-        if (maxIndex != -1) {
-            Candle resistanceCandle = candles.get(maxIndex);
-            log.info("Resistance found at index {} with high: {}", maxIndex, resistanceCandle.high());
+            log.info("Local minimum at index {}: low={}", minIndex, supportCandle.low());
         }
     }
 }
 ```
 
-**Signature:**
-```java
-public static int findLocalMinimum(List<Candle> candles, int startIndex, int window)
-```
-- **Parameters:**
-  - `candles` - List of candlesticks to search
-  - `startIndex` - Index to start searching from (must be >= window)
-  - `window` - Number of candles to check on each side for comparison
-- **Returns:** Index of local minimum or -1 if not found
-- **Description:** Finds the index of a local minimum (a low point surrounded by higher values). Useful for identifying support levels.
+---
 
-```java
-public static int findLocalMaximum(List<Candle> candles, int startIndex, int window)
-```
-- **Parameters:**
-  - `candles` - List of candlesticks to search
-  - `startIndex` - Index to start searching from (must be >= window)
-  - `window` - Number of candles to check on each side for comparison
-- **Returns:** Index of local maximum or -1 if not found
-- **Description:** Finds the index of a local maximum (a high point surrounded by lower values). Useful for identifying resistance levels.
+### TimeUtils
 
-**Calculate Body Size Percentage:**
+**Package:** `com.vish.fno.util`
+
+Comprehensive time utilities for trading hours, date conversions, and IST timezone operations. Most methods are static and thread-safe.
+
+**Default Timezone:** Asia/Kolkata (IST)
+
+**Trading Hours:** 9:15 AM to 3:30 PM IST (index 0-375)
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getTimeStringForZonedDateString(String date)` | `date` | `String` | Extracts time from zoned datetime ("HH:mm") |
+| `getDateTimeStringForZonedDateString(String date)` | `date` | `String` | Converts zoned datetime to local ("yyyy-MM-dd HH:mm") |
+| `getDateTimeForZonedDateString(String date)` | `date` | `Date` | Converts zoned datetime to Date object |
+| `getTime(Date timeStamp)` | `timeStamp` | `String` | Extracts time from Date ("HH:mm") |
+| `getTime()` | - | `String` | Current time ("HH:mm") |
+| `getDateTimeObjectMinute(String date)` | `date` | `Date` | Parses datetime ("yyyy-MM-dd HH:mm") |
+| `getDateObject(String date)` | `date` | `Date` | Parses date ("yyyy-MM-dd") |
+| `getTodayDate()` | - | `String` | Today's date ("yyyy-MM-dd") |
+| `getStringDate(Date date)` | `date` | `String` | Formats date ("yyyy-MM-dd") |
+| `getStringDateTime(Date timeStamp)` | `timeStamp` | `String` | Formats datetime with ms ("yyyy-MM-dd HH:mm:ss.SSS") |
+| `getStringYear(Date date)` | `date` | `String` | Two-digit year ("yy") |
+| `getIndexOfTimeStamp(Date timeStamp)` | `timeStamp` | `int` | Minute index within trading hours (0-375, -1 if outside) |
+| `getTimeByIndex(int index)` | `index` | `String` | Time string for minute index ("HH:mm") |
+| `currentTime()` | - | `Date` | Current system time |
+| `appendOpeningTimeToDate(Date day)` | `day` | `Date` | Sets time to 9:15 AM |
+| `appendClosingTimeToDate(Date day)` | `day` | `Date` | Sets time to 3:30 PM |
+| `getOpeningTime()` | - | `Date` | Today at 9:15 AM |
+| `getClosingTime()` | - | `Date` | Today at 3:30 PM |
+| `getPreviousWorkDay(Date date)` | `date` | `Date` | Previous working day (handles weekends, not holidays) |
+| `getDatesBetween(Date startDate, Date endDate)` | `startDate`, `endDate` | `List<Date>` | All weekdays in range (excludes weekends) |
+| `getNDaysBefore(long n)` | `n` | `Date` | Date N days before today |
+| `getNDaysBefore(Date date, long n)` | `date`, `n` | `Date` | Date N days before reference date |
+| `getTimeElapsed(long milliseconds)` | `milliseconds` | `String` | Human-readable elapsed time format |
+| `parseCandlestickTimestamp(String timeStr)` | `timeStr` | `long` | Parses timestamp (ms or ISO-8601) |
+| `isWithinTradingHours(long timestamp)` | `timestamp` | `boolean` | Checks if timestamp is 9:15 AM - 3:30 PM IST |
+| `fromEpochMilli(long epochMilli)` | `epochMilli` | `LocalDateTime` | Converts epoch ms to LocalDateTime (IST) |
+| `parseDateTimeToEpoch(String dateTimeStr)` | `dateTimeStr` | `long` | Parses various datetime formats to epoch ms |
+| `formatDateTime(long timestamp)` | `timestamp` | `String` | Formats epoch ms to "yyyy-MM-dd HH:mm:ss" |
+
+**Example:**
 ```java
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.TimeUtils;
+import lombok.extern.slf4j.Slf4j;
+import java.util.Date;
+
+@Slf4j
+public class TimeUtilsExample {
+    public void useTimeUtils() {
+        Date now = TimeUtils.currentTime();
+        int timeIndex = TimeUtils.getIndexOfTimeStamp(now);
+
+        if (timeIndex >= 0 && timeIndex <= 375) {
+            log.info("Trading minute index: {}", timeIndex);
+            String timeStr = TimeUtils.getTimeByIndex(timeIndex);
+            log.info("Time: {}", timeStr);
+        }
+
+        Date marketOpen = TimeUtils.getOpeningTime();
+        Date marketClose = TimeUtils.getClosingTime();
+        log.info("Market hours: {} to {}", TimeUtils.getTime(marketOpen), TimeUtils.getTime(marketClose));
+
+        String zonedDate = "2025-01-15T09:15:00+0530";
+        String timeStr = TimeUtils.getTimeStringForZonedDateString(zonedDate);
+        log.info("Extracted time: {}", timeStr);
+    }
+}
+```
+
+---
+
+### CandlePatternUtils
+
+**Package:** `com.vish.fno.util`
+
+Identifies candlestick patterns for Wyckoff phase trading and technical analysis. All methods are static and thread-safe.
+
+**Pattern Categories:** Single-candle (Hammer, Doji), Two-candle (Engulfing, Piercing), Three-candle (Morning Star, Three White Soldiers)
+
+**Methods:**
+
+| Method | Parameters | Returns | Pattern Type | Criteria |
+|--------|------------|---------|--------------|----------|
+| `isHammer(Candle candle)` | `candle` | `boolean` | Single | Lower shadow > 2× body, upper shadow < 0.3× body |
+| `isInvertedHammer(Candle candle)` | `candle` | `boolean` | Single | Upper shadow > 2× body, lower shadow < 0.3× body |
+| `isShootingStar(Candle candle)` | `candle` | `boolean` | Single | Inverted hammer with bearish close |
+| `isDoji(Candle candle)` | `candle` | `boolean` | Single | Body size < 10% of total range |
+| `isStrongBullish(Candle candle)` | `candle` | `boolean` | Single | Body > 60% of range, close in upper half |
+| `isStrongBearish(Candle candle)` | `candle` | `boolean` | Single | Body > 60% of range, close in lower half |
+| `isBullishEngulfing(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Current bullish body engulfs previous bearish body |
+| `isBearishEngulfing(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Current bearish body engulfs previous bullish body |
+| `isDarkCloudCover(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Bearish reversal pattern |
+| `isPiercingPattern(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Bullish reversal pattern |
+| `isTweezerBottom(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Matching lows (within 1% tolerance) |
+| `isTweezerTop(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Matching highs (within 1% tolerance) |
+| `isBullishHarami(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Small bullish candle contained within large bearish |
+| `isBearishHarami(Candle prev, Candle current)` | `prev`, `current` | `boolean` | Two | Small bearish candle contained within large bullish |
+| `isMorningStar(List<Candle> candles, int index)` | `candles`, `index` | `boolean` | Three | Bullish reversal (large bearish + small star + large bullish) |
+| `isEveningStar(List<Candle> candles, int index)` | `candles`, `index` | `boolean` | Three | Bearish reversal (large bullish + small star + large bearish) |
+| `isThreeWhiteSoldiers(List<Candle> candles, int index)` | `candles`, `index` | `boolean` | Three | Three consecutive bullish candles |
+| `isThreeBlackCrows(List<Candle> candles, int index)` | `candles`, `index` | `boolean` | Three | Three consecutive bearish candles |
+
+**Example:**
+```java
 import com.vish.fno.model.Candle;
-
-public class CandleStrengthAnalyzer {
-    public void analyzeStrength(Candle candle) {
-        // Get body size as percentage of total range (0.0 to 1.0)
-        double bodySizePercentage = CandleUtils.getBodySizePercentage(candle);
-
-        if (bodySizePercentage > 0.6) {
-            System.out.println("Strong candle with large body");
-        } else if (bodySizePercentage < 0.1) {
-            System.out.println("Doji-like candle with very small body");
-        } else {
-            System.out.println("Normal candle");
-        }
-    }
-}
-```
-
-**Signature:**
-```java
-public static double getBodySizePercentage(Candle candle)
-```
-- **Parameters:**
-  - `candle` - The candlestick to analyze
-- **Returns:** Body size as a percentage of total range (0.0 to 1.0). Returns 0 if range is 0.
-- **Description:** Calculates the body size of a candlestick as a percentage of the total range (high - low). Useful for identifying candle strength and patterns like doji.
-
-### TimeUtils - Trading Time Operations
-
-**Market Hours:**
-```java
-import com.vish.fno.util.TimeUtils;
-
-// Check if market is currently open
-if (TimeUtils.isMarketOpen(LocalDateTime.now())) {
-    executeStrategy();
-}
-
-// Check if specific time is within trading hours (9:15 AM - 3:30 PM IST)
-LocalDateTime checkTime = LocalDateTime.of(2024, 9, 28, 10, 30);
-boolean isTradingHour = TimeUtils.isTradingHour(checkTime);
-```
-
-**Trading Days:**
-```java
-// Get next trading day (skips weekends and holidays)
-LocalDate today = LocalDate.now();
-LocalDate nextTradingDay = TimeUtils.getNextTradingDay(today);
-
-// Check if a specific date is a holiday
-boolean isHoliday = TimeUtils.isHoliday(LocalDate.of(2024, 10, 2)); // Gandhi Jayanti
-```
-
-**Market Timings:**
-```java
-LocalDate date = LocalDate.of(2024, 9, 28);
-LocalDateTime marketOpen = TimeUtils.getMarketOpenTime(date);   // 9:15 AM
-LocalDateTime marketClose = TimeUtils.getMarketCloseTime(date); // 3:30 PM
-```
-
-**Parse Candlestick Timestamps:**
-```java
-import com.vish.fno.util.TimeUtils;
-
-public class CandleDataParser {
-    public void parseTimestamps() {
-        // Parse millisecond timestamp
-        String msTimestamp = "1693387020000";
-        long epochMs1 = TimeUtils.parseCandlestickTimestamp(msTimestamp);
-        // Returns: 1693387020000
-
-        // Parse ISO-8601 datetime string
-        String isoTimestamp = "2025-08-20T09:57:00+0530";
-        long epochMs2 = TimeUtils.parseCandlestickTimestamp(isoTimestamp);
-        // Returns: equivalent milliseconds
-
-        // Empty or invalid strings default to current time
-        long fallback = TimeUtils.parseCandlestickTimestamp("");
-        // Returns: System.currentTimeMillis()
-    }
-}
-```
-
-**Signature:**
-```java
-public static long parseCandlestickTimestamp(String timeStr)
-```
-- **Parameters:**
-  - `timeStr` - The time string to parse (either milliseconds or ISO-8601 format like "2025-08-20T09:57:00+0530")
-- **Returns:** The timestamp in milliseconds
-- **Description:** Parses timestamp from candlestick time string. Handles both millisecond timestamps and ISO-8601 datetime strings. Falls back to current time if parsing fails.
-- **Thread Safety:** Uses synchronized block for SimpleDateFormat access
-
-**Check Trading Hours:**
-```java
-import com.vish.fno.util.TimeUtils;
-
-public class TradingHoursValidator {
-    public boolean canTrade(long timestamp) {
-        // Check if timestamp falls within market hours (9:15 AM to 3:30 PM IST)
-        boolean withinHours = TimeUtils.isWithinTradingHours(timestamp);
-
-        if (!withinHours) {
-            System.out.println("Outside trading hours - cannot execute");
-            return false;
-        }
-
-        return true;
-    }
-
-    public void filterTradingHoursData(List<Candle> candles) {
-        // Filter candles to only include those within trading hours
-        List<Candle> tradingHoursCandles = candles.stream()
-            .filter(c -> TimeUtils.isWithinTradingHours(
-                TimeUtils.parseCandlestickTimestamp(c.timestamp())
-            ))
-            .collect(Collectors.toList());
-    }
-}
-```
-
-**Signature:**
-```java
-public static boolean isWithinTradingHours(long timestamp)
-```
-- **Parameters:**
-  - `timestamp` - The timestamp in milliseconds
-- **Returns:** true if within trading hours (9:15 AM to 3:30 PM IST), false otherwise
-- **Description:** Validates if a timestamp falls within NSE trading hours. Uses Asia/Kolkata timezone.
-
-**Convert Epoch to LocalDateTime:**
-```java
-import com.vish.fno.util.TimeUtils;
-import java.time.LocalDateTime;
-
-public class TimestampConverter {
-    public void convertTimestamps() {
-        long epochMilli = 1693387020000L;
-
-        // Convert to LocalDateTime in IST timezone
-        LocalDateTime istDateTime = TimeUtils.fromEpochMilli(epochMilli);
-        System.out.println("IST time: " + istDateTime);
-        // Output: IST time: 2023-08-30T09:57:00
-
-        // Access components
-        int hour = istDateTime.getHour();
-        int minute = istDateTime.getMinute();
-        int second = istDateTime.getSecond();
-    }
-}
-```
-
-**Signature:**
-```java
-public static LocalDateTime fromEpochMilli(long epochMilli)
-```
-- **Parameters:**
-  - `epochMilli` - The timestamp in milliseconds
-- **Returns:** LocalDateTime representation in Asia/Kolkata timezone
-- **Description:** Converts epoch milliseconds to LocalDateTime in IST (Asia/Kolkata) timezone. Useful for extracting time components and performing time arithmetic.
-
-**Parse DateTime to Epoch:**
-```java
-import com.vish.fno.util.TimeUtils;
-
-public class DateTimeParser {
-    public void parseVariousFormats() {
-        // Parse ISO-8601 format
-        long epoch1 = TimeUtils.parseDateTimeToEpoch("2025-08-20T09:57:00+0530");
-
-        // Parse standard datetime format
-        long epoch2 = TimeUtils.parseDateTimeToEpoch("2025-08-20 09:57:00");
-
-        // Parse date only
-        long epoch3 = TimeUtils.parseDateTimeToEpoch("2025-08-20");
-
-        // Parse Indian date format
-        long epoch4 = TimeUtils.parseDateTimeToEpoch("20-08-2025 09:57:00");
-        long epoch5 = TimeUtils.parseDateTimeToEpoch("20-08-2025");
-
-        // Invalid format falls back to current time
-        long fallback = TimeUtils.parseDateTimeToEpoch("invalid-date");
-    }
-}
-```
-
-**Signature:**
-```java
-public static long parseDateTimeToEpoch(String dateTimeStr)
-```
-- **Parameters:**
-  - `dateTimeStr` - The datetime string to parse
-- **Returns:** The timestamp in milliseconds
-- **Description:** Parses a datetime string to epoch milliseconds. Supports multiple formats: ISO-8601, "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd", "dd-MM-yyyy HH:mm:ss", "dd-MM-yyyy". Falls back to current time if parsing fails.
-- **Thread Safety:** Uses synchronized block for SimpleDateFormat access
-
-**Format Timestamp:**
-```java
-import com.vish.fno.util.TimeUtils;
-
-public class TimestampFormatter {
-    public void formatTimestamps() {
-        long timestamp = 1693387020000L;
-
-        // Format to human-readable datetime
-        String formatted = TimeUtils.formatDateTime(timestamp);
-        System.out.println(formatted);
-        // Output: 2023-08-30 09:57:00
-
-        // Use in logs
-        log.info("Trade executed at: {}", TimeUtils.formatDateTime(System.currentTimeMillis()));
-    }
-}
-```
-
-**Signature:**
-```java
-public static String formatDateTime(long timestamp)
-```
-- **Parameters:**
-  - `timestamp` - The timestamp in milliseconds
-- **Returns:** Formatted datetime string in "yyyy-MM-dd HH:mm:ss" format
-- **Description:** Formats a timestamp to human-readable datetime string. Useful for logging and display purposes.
-
-### CandlePatternUtils - Candlestick Pattern Detection
-
-**Purpose:** Utility class for identifying candlestick patterns used in technical analysis and Wyckoff phase trading. Provides methods to detect reversal and continuation patterns.
-
-**Single-Candle Patterns:**
-```java
 import com.vish.fno.util.CandlePatternUtils;
-import com.vish.fno.model.Candle;
-
-public class SingleCandlePatternDetector {
-    public void detectPatterns(Candle candle) {
-        // Reversal patterns
-        if (CandlePatternUtils.isHammer(candle)) {
-            System.out.println("Hammer detected - potential bullish reversal");
-        }
-
-        if (CandlePatternUtils.isInvertedHammer(candle)) {
-            System.out.println("Inverted Hammer detected");
-        }
-
-        if (CandlePatternUtils.isShootingStar(candle)) {
-            System.out.println("Shooting Star detected - potential bearish reversal");
-        }
-
-        if (CandlePatternUtils.isDoji(candle)) {
-            System.out.println("Doji detected - market indecision");
-        }
-
-        // Strength indicators
-        if (CandlePatternUtils.isStrongBullish(candle)) {
-            System.out.println("Strong bullish candle");
-        }
-
-        if (CandlePatternUtils.isStrongBearish(candle)) {
-            System.out.println("Strong bearish candle");
-        }
-    }
-}
-```
-
-**Single-Candle Pattern Signatures:**
-
-```java
-public static boolean isHammer(Candle candle)
-```
-- **Parameters:** `candle` - Candle to analyze
-- **Returns:** true if candle is a Hammer pattern (bullish reversal)
-- **Description:** Detects Hammer pattern: long lower shadow (>2x body), small upper shadow (<0.3x body), small body (<40% of range)
-
-```java
-public static boolean isInvertedHammer(Candle candle)
-```
-- **Parameters:** `candle` - Candle to analyze
-- **Returns:** true if candle is an Inverted Hammer pattern
-- **Description:** Detects Inverted Hammer: long upper shadow (>2x body), small lower shadow (<0.3x body), small body (<40% of range)
-
-```java
-public static boolean isShootingStar(Candle candle)
-```
-- **Parameters:** `candle` - Candle to analyze
-- **Returns:** true if candle is a Shooting Star pattern (bearish reversal)
-- **Description:** Shooting Star is an Inverted Hammer with bearish close (close < open)
-
-```java
-public static boolean isDoji(Candle candle)
-```
-- **Parameters:** `candle` - Candle to analyze
-- **Returns:** true if candle is a Doji pattern
-- **Description:** Detects Doji: very small body (<10% of range), indicating market indecision
-
-```java
-public static boolean isStrongBullish(Candle candle)
-```
-- **Parameters:** `candle` - Candle to analyze
-- **Returns:** true if candle is a strong bullish candle
-- **Description:** Strong bullish: large body (>60% of range), close in upper half of range
-
-```java
-public static boolean isStrongBearish(Candle candle)
-```
-- **Parameters:** `candle` - Candle to analyze
-- **Returns:** true if candle is a strong bearish candle
-- **Description:** Strong bearish: large body (>60% of range), close in lower half of range
-
-**Two-Candle Patterns:**
-```java
-import com.vish.fno.util.CandlePatternUtils;
-import com.vish.fno.model.Candle;
+import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 
-public class TwoCandlePatternDetector {
-    public void detectPatterns(List<Candle> candles) {
-        if (candles.size() < 2) return;
-
-        Candle prev = candles.get(candles.size() - 2);
-        Candle current = candles.get(candles.size() - 1);
-
-        // Engulfing patterns
-        if (CandlePatternUtils.isBullishEngulfing(prev, current)) {
-            System.out.println("Bullish Engulfing - strong reversal signal");
-        }
-
-        if (CandlePatternUtils.isBearishEngulfing(prev, current)) {
-            System.out.println("Bearish Engulfing - strong reversal signal");
-        }
-
-        // Cloud cover patterns
-        if (CandlePatternUtils.isDarkCloudCover(prev, current)) {
-            System.out.println("Dark Cloud Cover - bearish reversal");
-        }
-
-        if (CandlePatternUtils.isPiercingPattern(prev, current)) {
-            System.out.println("Piercing Pattern - bullish reversal");
-        }
-
-        // Tweezer patterns
-        if (CandlePatternUtils.isTweezerBottom(prev, current)) {
-            System.out.println("Tweezer Bottom - potential bullish reversal");
-        }
-
-        if (CandlePatternUtils.isTweezerTop(prev, current)) {
-            System.out.println("Tweezer Top - potential bearish reversal");
-        }
-
-        // Harami patterns
-        if (CandlePatternUtils.isBullishHarami(prev, current)) {
-            System.out.println("Bullish Harami - potential reversal");
-        }
-
-        if (CandlePatternUtils.isBearishHarami(prev, current)) {
-            System.out.println("Bearish Harami - potential reversal");
-        }
-    }
-}
-```
-
-**Two-Candle Pattern Signatures:**
-
-```java
-public static boolean isBullishEngulfing(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if current candle forms a Bullish Engulfing pattern with previous
-- **Description:** Prev is bearish, current is bullish and completely engulfs prev body (current body >1.2x prev body). Strong bullish reversal signal.
-
-```java
-public static boolean isBearishEngulfing(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if current candle forms a Bearish Engulfing pattern with previous
-- **Description:** Prev is bullish, current is bearish and completely engulfs prev body (current body >1.2x prev body). Strong bearish reversal signal.
-
-```java
-public static boolean isDarkCloudCover(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if pattern is a Dark Cloud Cover (bearish reversal)
-- **Description:** Prev is bullish, current opens above prev high and closes below midpoint of prev body. Bearish reversal signal.
-
-```java
-public static boolean isPiercingPattern(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if pattern is a Piercing Pattern (bullish reversal)
-- **Description:** Prev is bearish, current opens below prev low and closes above midpoint of prev body. Bullish reversal signal.
-
-```java
-public static boolean isTweezerBottom(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if pattern is a Tweezer Bottom
-- **Description:** Both candles have nearly identical lows (within 1% tolerance), prev is bearish, current is bullish. Potential bullish reversal.
-
-```java
-public static boolean isTweezerTop(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if pattern is a Tweezer Top
-- **Description:** Both candles have nearly identical highs (within 1% tolerance), prev is bullish, current is bearish. Potential bearish reversal.
-
-```java
-public static boolean isBullishHarami(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if pattern is a Bullish Harami
-- **Description:** Prev is bearish, current is bullish and body is contained within prev body (current body <50% of prev body). Potential reversal.
-
-```java
-public static boolean isBearishHarami(Candle prev, Candle current)
-```
-- **Parameters:**
-  - `prev` - Previous candle
-  - `current` - Current candle
-- **Returns:** true if pattern is a Bearish Harami
-- **Description:** Prev is bullish, current is bearish and body is contained within prev body (current body <50% of prev body). Potential reversal.
-
-**Three-Candle Patterns:**
-```java
-import com.vish.fno.util.CandlePatternUtils;
-import com.vish.fno.model.Candle;
-import java.util.List;
-
-public class ThreeCandlePatternDetector {
-    public void scanForPatterns(List<Candle> candles) {
-        // Need at least 3 candles for these patterns
-        if (candles.size() < 3) return;
-
-        // Scan from index 2 onwards (need 2 previous candles)
+@Slf4j
+public class PatternRecognitionExample {
+    public void identifyPatterns(List<Candle> candles) {
         for (int i = 2; i < candles.size(); i++) {
-            // Star patterns
+            Candle current = candles.get(i);
+            Candle prev = candles.get(i - 1);
+
+            if (CandlePatternUtils.isHammer(current)) {
+                log.info("Hammer at index {} - potential bullish reversal", i);
+            }
+
+            if (CandlePatternUtils.isBullishEngulfing(prev, current)) {
+                log.info("Bullish Engulfing at index {}", i);
+            }
+
             if (CandlePatternUtils.isMorningStar(candles, i)) {
-                System.out.println("Morning Star at index " + i + " - strong bullish reversal");
-            }
-
-            if (CandlePatternUtils.isEveningStar(candles, i)) {
-                System.out.println("Evening Star at index " + i + " - strong bearish reversal");
-            }
-
-            // Soldier/Crow patterns
-            if (CandlePatternUtils.isThreeWhiteSoldiers(candles, i)) {
-                System.out.println("Three White Soldiers at index " + i + " - bullish continuation");
-            }
-
-            if (CandlePatternUtils.isThreeBlackCrows(candles, i)) {
-                System.out.println("Three Black Crows at index " + i + " - bearish continuation");
+                log.info("Morning Star at index {} - strong bullish reversal", i);
             }
         }
     }
 }
 ```
 
-**Three-Candle Pattern Signatures:**
+---
 
+### OptionsMetaDataUtils
+
+**Package:** `com.vish.fno.util`
+
+Provides lot size information for various trading instruments. All methods are static and thread-safe.
+
+**Method:**
 ```java
-public static boolean isMorningStar(List<Candle> candles, int index)
-```
-- **Parameters:**
-  - `candles` - List of candles
-  - `index` - Index to check (must be >= 2)
-- **Returns:** true if Morning Star pattern (3-candle bullish reversal) is detected
-- **Description:** Pattern: (1) Large bearish candle, (2) Small-bodied star gapped down, (3) Large bullish candle closing above midpoint of first. Strong bullish reversal.
-
-```java
-public static boolean isEveningStar(List<Candle> candles, int index)
-```
-- **Parameters:**
-  - `candles` - List of candles
-  - `index` - Index to check (must be >= 2)
-- **Returns:** true if Evening Star pattern (3-candle bearish reversal) is detected
-- **Description:** Pattern: (1) Large bullish candle, (2) Small-bodied star gapped up, (3) Large bearish candle closing below midpoint of first. Strong bearish reversal.
-
-```java
-public static boolean isThreeWhiteSoldiers(List<Candle> candles, int index)
-```
-- **Parameters:**
-  - `candles` - List of candles
-  - `index` - Index to check (must be >= 2)
-- **Returns:** true if Three White Soldiers pattern (bullish continuation) is detected
-- **Description:** Three consecutive bullish candles with substantial bodies (>50% of range), each opening within previous body and closing higher. Strong bullish continuation.
-
-```java
-public static boolean isThreeBlackCrows(List<Candle> candles, int index)
-```
-- **Parameters:**
-  - `candles` - List of candles
-  - `index` - Index to check (must be >= 2)
-- **Returns:** true if Three Black Crows pattern (bearish continuation) is detected
-- **Description:** Three consecutive bearish candles with substantial bodies (>50% of range), each opening within previous body and closing lower. Strong bearish continuation.
-
-**Pattern Constants:**
-The utility class uses these internal thresholds:
-- `BODY_TO_RANGE_RATIO = 0.6` - Minimum body size for pattern validity (60%)
-- `DOJI_BODY_RATIO = 0.1` - Maximum body size for doji (10%)
-- `ENGULFING_SIZE_FACTOR = 1.2` - Minimum size factor for engulfing patterns (120%)
-
-**Comprehensive Pattern Scanner Example:**
-```java
-import com.vish.fno.util.CandlePatternUtils;
-import com.vish.fno.model.Candle;
-import java.util.List;
-import java.util.ArrayList;
-
-public class ComprehensivePatternScanner {
-    public List<String> scanAllPatterns(List<Candle> candles) {
-        List<String> patterns = new ArrayList<>();
-
-        if (candles.isEmpty()) return patterns;
-
-        // Check latest candle for single-candle patterns
-        Candle latest = candles.get(candles.size() - 1);
-        if (CandlePatternUtils.isHammer(latest)) patterns.add("Hammer");
-        if (CandlePatternUtils.isShootingStar(latest)) patterns.add("Shooting Star");
-        if (CandlePatternUtils.isDoji(latest)) patterns.add("Doji");
-        if (CandlePatternUtils.isStrongBullish(latest)) patterns.add("Strong Bullish");
-        if (CandlePatternUtils.isStrongBearish(latest)) patterns.add("Strong Bearish");
-
-        // Check two-candle patterns
-        if (candles.size() >= 2) {
-            Candle prev = candles.get(candles.size() - 2);
-            if (CandlePatternUtils.isBullishEngulfing(prev, latest))
-                patterns.add("Bullish Engulfing");
-            if (CandlePatternUtils.isBearishEngulfing(prev, latest))
-                patterns.add("Bearish Engulfing");
-            if (CandlePatternUtils.isDarkCloudCover(prev, latest))
-                patterns.add("Dark Cloud Cover");
-            if (CandlePatternUtils.isPiercingPattern(prev, latest))
-                patterns.add("Piercing Pattern");
-            if (CandlePatternUtils.isTweezerBottom(prev, latest))
-                patterns.add("Tweezer Bottom");
-            if (CandlePatternUtils.isTweezerTop(prev, latest))
-                patterns.add("Tweezer Top");
-            if (CandlePatternUtils.isBullishHarami(prev, latest))
-                patterns.add("Bullish Harami");
-            if (CandlePatternUtils.isBearishHarami(prev, latest))
-                patterns.add("Bearish Harami");
-        }
-
-        // Check three-candle patterns
-        if (candles.size() >= 3) {
-            int index = candles.size() - 1;
-            if (CandlePatternUtils.isMorningStar(candles, index))
-                patterns.add("Morning Star");
-            if (CandlePatternUtils.isEveningStar(candles, index))
-                patterns.add("Evening Star");
-            if (CandlePatternUtils.isThreeWhiteSoldiers(candles, index))
-                patterns.add("Three White Soldiers");
-            if (CandlePatternUtils.isThreeBlackCrows(candles, index))
-                patterns.add("Three Black Crows");
-        }
-
-        return patterns;
-    }
-
-    public boolean hasReversalSignal(List<Candle> candles) {
-        List<String> patterns = scanAllPatterns(candles);
-        return patterns.stream().anyMatch(p ->
-            p.contains("Engulfing") ||
-            p.contains("Star") ||
-            p.contains("Hammer") ||
-            p.contains("Shooting Star")
-        );
-    }
-}
+public static int getLotSize(String symbol)
 ```
 
-**Thread Safety:** All CandlePatternUtils methods are static, stateless, and thread-safe.
+**Supported Symbols:**
+- "NIFTY BANK" → 15
+- "NIFTY 50" → 25
+- "BAJFINANCE" → 125
+- "HDFCBANK" → 550
+- "HINDUNILVR" → 300
+- "RELIANCE" → 250
+- All others → 1 (default)
 
-**Null Handling:** Two-candle and three-candle pattern methods return false if null candles are provided.
-
-### OptionsMetaDataUtils - Options Calculations
-
-**ATM Strike Calculation:**
+**Example:**
 ```java
 import com.vish.fno.util.OptionsMetaDataUtils;
-
-// Get At-The-Money strike for NIFTY (strike interval = 50)
-double spotPrice = 19537.25;
-Double atmStrike = OptionsMetaDataUtils.getATMStrike(spotPrice, 50);
-// Returns: 19550.0
-
-// For BANKNIFTY (strike interval = 100)
-Double bnfAtmStrike = OptionsMetaDataUtils.getATMStrike(43257.80, 100);
-// Returns: 43300.0
-```
-
-**Expiry Calculation:**
-```java
-// Get next weekly expiry (Thursday)
-LocalDate nextWeekly = OptionsMetaDataUtils.getNextWeeklyExpiry(LocalDate.now());
-
-// Get next monthly expiry (last Thursday)
-LocalDate nextMonthly = OptionsMetaDataUtils.getNextMonthlyExpiry(LocalDate.now());
-```
-
-**Option Symbol Generation:**
-```java
-String optionSymbol = OptionsMetaDataUtils.getOptionSymbol(
-    "NIFTY",                        // underlying
-    LocalDate.of(2024, 9, 26),      // expiry
-    19500.0,                         // strike
-    "CE"                             // option type
-);
-// Returns: "NIFTY24SEP19500CE"
-```
-
-### FileUtils - File I/O Operations
-
-**Read/Write Candle Data:**
-```java
-import com.vish.fno.util.FileUtils;
-import com.vish.fno.model.Candle;
-
-// Write candles to JSON file
-List<Candle> candles = // ... your data
-FileUtils.writeCandlesToFile(candles, "/path/to/data.json");
-
-// Read candles from JSON file
-List<Candle> loadedCandles = FileUtils.readCandlesFromFile("/path/to/data.json");
-```
-
-**Read Instruments from CSV:**
-```java
-List<Instrument> instruments = FileUtils.readInstrumentsFromCsv("/path/to/instruments.csv");
-```
-
-### HeikinAshi - Smoothed Candles
-
-**Convert to Heikin-Ashi:**
-```java
-import com.vish.fno.util.chart.HeikinAshi;
-import com.vish.fno.util.CandleUtils;
-import com.vish.fno.model.Candle;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class TrendAnalyzer {
-    public void analyzeTrend(List<Candle> regularCandles) {
-        List<Candle> heikinAshiCandles = HeikinAshi.convert(regularCandles);
-
-        // Use HA candles for smoother trend identification
-        Candle lastHA = heikinAshiCandles.get(heikinAshiCandles.size() - 1);
-        if (CandleUtils.isBullish(lastHA)) {
-            log.info("Strong uptrend confirmed");
-        }
+public class LotSizeExample {
+    public void calculateOrderValue() {
+        String symbol = "NIFTY BANK";
+        int lotSize = OptionsMetaDataUtils.getLotSize(symbol);
+        double premium = 150.50;
+        double orderValue = lotSize * premium;
+        log.info("Order value: {}", orderValue); // 2257.5
     }
 }
 ```
 
-**Heikin-Ashi Formula:**
+---
+
+### FileUtils
+
+**Package:** `com.vish.fno.util`
+
+Handles file operations for candlestick data, tick data, and order logging. Instance-based class, not thread-safe.
+
+**Constructor:**
+```java
+public FileUtils()
+```
+Initializes with default Jackson ObjectMapper configuration (indented JSON, default directories).
+
+**Methods:**
+
+| Method | Parameters | Description |
+|--------|------------|-------------|
+| `saveCandlestickData(List<Candle> candles, String symbol, String date)` | `candles`, `symbol`, `date` | Saves candles to `data/{symbol}_{date}.json` |
+| `createDirectoryIfNotExist(String path)` | `path` | Creates directory if not exists |
+| `saveTickData(String symbol, Object tick)` | `symbol`, `tick` | Saves tick data (overwrites) |
+| `appendTickToFile(String symbol, Object tick)` | `symbol`, `tick` | Appends tick data to file |
+| `logCompletedOrder(ActiveOrder order)` | `order` | Logs completed order to `orderLog/{tag}-{index}-{date}-{timestamp}.json` |
+
+**Example:**
+```java
+import com.vish.fno.model.Candle;
+import com.vish.fno.util.FileUtils;
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+
+@Slf4j
+public class FilePersistenceExample {
+    public void saveTradingData() {
+        FileUtils fileUtils = new FileUtils();
+        List<Candle> candles = List.of(
+            new Candle("2025-01-15 09:15", 19500.0, 19550.0, 19480.0, 19540.0, 1000L, 500L)
+        );
+
+        fileUtils.saveCandlestickData(candles, "NIFTY50", "2025-01-15");
+        log.info("Candlestick data saved successfully");
+    }
+}
+```
+
+---
+
+### Utils
+
+**Package:** `com.vish.fno.util`
+
+General utility methods for price formatting, rounding, and error formatting. All methods are static and thread-safe.
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getStringRoundedPrice(final double price)` | `price` | `String` | Formats with K/M suffixes (e.g., "1.5K", "2.5M") |
+| `format(double price)` | `price` | `String` | Formats to 2 decimal places |
+| `round(double price)` | `price` | `double` | Rounds to nearest 0.05 (5 paise) |
+| `roundTo5Paise(double price)` | `price` | `BigDecimal` | BigDecimal rounded to 5 paise |
+| `roundToNearest(final BigDecimal value, final BigDecimal increment)` | `value`, `increment` | `BigDecimal` | Rounds to nearest increment |
+| `getTopNLines(Throwable throwable, int n)` | `throwable`, `n` | `String` | Extracts top N stack trace lines |
+
+**Example:**
+```java
+import com.vish.fno.util.Utils;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class PriceFormattingExample {
+    public void formatPrices() {
+        double orderValue = 2500000.0;
+        String formatted = Utils.getStringRoundedPrice(orderValue);
+        log.info("Order value: {}", formatted); // "2.50M"
+
+        double price = 19547.33;
+        double rounded = Utils.round(price);
+        log.info("Rounded to 5 paise: {}", rounded); // 19547.35
+    }
+}
+```
+
+---
+
+### Constants
+
+**Package:** `com.vish.fno.util`
+
+Interface defining constants for trading symbols, directory paths, and date/time formats.
+
+**Trading Symbols:**
+```java
+String NIFTY_BANK = "NIFTY BANK";
+String NIFTY_50 = "NIFTY 50";
+String NIFTY_FIN_SERVICE = "NIFTY FIN SERVICE";
+String BANKEX = "BANKEX";
+String SENSEX = "SENSEX";
+String BAJFINANCE = "BAJFINANCE";
+String HDFCBANK = "HDFCBANK";
+String HINDUNILVR = "HINDUNILVR";
+String RELIANCE = "RELIANCE";
+```
+
+**Date/Time Formats:**
+```java
+String DATE_TIME_SEC_T_FORMAT = "yyyy-MM-dd'T'HH:mm:ssX";
+String DATE_TIME_MS_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";
+String DATE_TIME_SEC_FORMAT = "yyyy-MM-dd HH:mm:ss";
+String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm";
+String DATE_FORMAT = "yyyy-MM-dd";
+String TIME_FORMAT = "HH:mm";
+String YEAR_FORMAT = "yy";
+```
+
+**Chart Types:** `MINUTE`, `CANDLESTICK`, `VOLUME`, `LINE`, `BAR`
+
+**Directory Names:** `directory = "instrument_cache"`, `tick_directory = "tick"`
+
+---
+
+## Chart Utilities
+
+### HeikinAshi
+
+**Package:** `com.vish.fno.util.chart`
+
+Converts regular candlestick data to Heikin Ashi candles for smoothed trend visualization. All methods are static and thread-safe.
+
+**Formula:**
 - HA Close = (Open + High + Low + Close) / 4
 - HA Open = (Previous HA Open + Previous HA Close) / 2
 - HA High = Max(High, HA Open, HA Close)
 - HA Low = Min(Low, HA Open, HA Close)
 
-### FixedTargetAndStopLossStrategy - Risk Management
+**Methods:**
 
-**Basic Usage:**
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getCandles(List<Candle> allCandles)` | `allCandles` | `List<Candle>` | Converts to HA candles (1-minute) |
+| `getCandles(List<Candle> allCandles, int timeFrame)` | `allCandles`, `timeFrame` | `List<Candle>` | Converts to HA candles (N-minute) |
+| `getIntradayCompleteCandle(List<Candle> allCandles, int timeFrame)` | `allCandles`, `timeFrame` | `List<Candle>` | HA candles excluding partial last candle |
+
+**Example:**
 ```java
-import com.vish.fno.util.orderflow.FixedTargetAndStopLossStrategy;
-
-// Create strategy: Target=100 points, Stop-loss=50 points
-FixedTargetAndStopLossStrategy riskStrategy =
-    new FixedTargetAndStopLossStrategy(100.0, 50.0);
-
-double entryPrice = 19500.0;
-
-// For BUY orders
-double targetBuy = riskStrategy.calculateTarget(entryPrice, "BUY");      // 19600.0
-double stopLossBuy = riskStrategy.calculateStopLoss(entryPrice, "BUY");  // 19450.0
-
-// For SELL orders (reverses)
-double targetSell = riskStrategy.calculateTarget(entryPrice, "SELL");      // 19400.0
-double stopLossSell = riskStrategy.calculateStopLoss(entryPrice, "SELL");  // 19550.0
-```
-
-**Integration with Orders:**
-```java
-public class TradingService {
-    private final FixedTargetAndStopLossStrategy tsl =
-        new FixedTargetAndStopLossStrategy(100.0, 50.0);
-
-    public void placeOrderWithExits(double entryPrice, String transactionType) {
-        // Place entry order
-        IndexOrderRequest entry = IndexOrderRequest.builder()
-            .symbol("NIFTY24SEPFUT")
-            .quantity(50)
-            .orderType("MARKET")
-            .transactionType(transactionType)
-            .product("MIS")
-            .build();
-
-        String orderId = broker.placeOrder(entry);
-
-        // Calculate exit levels
-        double target = tsl.calculateTarget(entryPrice, transactionType);
-        double stopLoss = tsl.calculateStopLoss(entryPrice, transactionType);
-
-        // Place target order
-        IndexOrderRequest targetOrder = IndexOrderRequest.builder()
-            .symbol("NIFTY24SEPFUT")
-            .quantity(50)
-            .orderType("LIMIT")
-            .price(target)
-            .transactionType(transactionType.equals("BUY") ? "SELL" : "BUY")
-            .product("MIS")
-            .build();
-
-        // Place stop-loss order
-        IndexOrderRequest slOrder = IndexOrderRequest.builder()
-            .symbol("NIFTY24SEPFUT")
-            .quantity(50)
-            .orderType("SL-M")
-            .triggerPrice(stopLoss)
-            .transactionType(transactionType.equals("BUY") ? "SELL" : "BUY")
-            .product("MIS")
-            .build();
-
-        broker.placeOrder(targetOrder);
-        broker.placeOrder(slOrder);
-    }
-}
-```
-
-### CompressionUtils - Data Compression
-
-**Compress/Decompress Market Data:**
-```java
-import com.vish.fno.util.CompressionUtils;
-
-// Compress data for storage
-byte[] compressed = CompressionUtils.compress(largeDataString);
-
-// Decompress for processing
-String original = CompressionUtils.decompress(compressed);
-```
-
-### Trend - Market Trend Classification
-
-**Enum Values:**
-```java
-public enum Trend {
-    WEAK_UPTREND,
-    UPTREND,
-    STRONG_UPTREND,
-    WEAK_DOWNTREND,
-    DOWNTREND,
-    STRONG_DOWNTREND,
-    INDECISIVE,
-    SIDEWAYS,
-    ACCUMULATION,
-    DISTRIBUTION,
-    CONSOLIDATION,
-    BREAKOUT,
-    REVERSAL
-}
-```
-
-**Usage:**
-```java
-import com.vish.fno.util.Trend;
 import com.vish.fno.model.Candle;
+import com.vish.fno.util.chart.HeikinAshi;
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 
-public class TrendAnalyzer {
-    public Trend identifyTrend(List<Candle> candles) {
-        // Analyze candles and determine trend
-        Candle latest = candles.get(candles.size() - 1);
-        Candle previous = candles.get(candles.size() - 2);
+@Slf4j
+public class HeikinAshiExample {
+    public void convertToHeikinAshi(List<Candle> regularCandles) {
+        List<Candle> ha5Min = HeikinAshi.getCandles(regularCandles, 5);
+        log.info("Created {} 5-minute HA candles", ha5Min.size());
 
-        if (latest.close() > previous.close()) {
-            double change = ((latest.close() - previous.close()) / previous.close()) * 100;
-            if (change > 2.0) return Trend.STRONG_UPTREND;
-            if (change > 0.5) return Trend.UPTREND;
-            return Trend.WEAK_UPTREND;
-        } else if (latest.close() < previous.close()) {
-            double change = ((previous.close() - latest.close()) / previous.close()) * 100;
-            if (change > 2.0) return Trend.STRONG_DOWNTREND;
-            if (change > 0.5) return Trend.DOWNTREND;
-            return Trend.WEAK_DOWNTREND;
-        }
-
-        return Trend.SIDEWAYS;
-    }
-
-    public boolean isBullishTrend(Trend trend) {
-        return trend == Trend.WEAK_UPTREND ||
-               trend == Trend.UPTREND ||
-               trend == Trend.STRONG_UPTREND;
-    }
-
-    public boolean isBearishTrend(Trend trend) {
-        return trend == Trend.WEAK_DOWNTREND ||
-               trend == Trend.DOWNTREND ||
-               trend == Trend.STRONG_DOWNTREND;
+        List<Candle> haComplete = HeikinAshi.getIntradayCompleteCandle(regularCandles, 5);
+        log.info("Complete intraday HA candles: {}", haComplete.size());
     }
 }
 ```
 
-### JsonUtils - JSON Serialization
+---
 
-**Convert Objects to JSON:**
+### TimeFrameUtils
+
+**Package:** `com.vish.fno.util`
+
+Converts candlestick data between different timeframes. All methods are static and thread-safe.
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `mergeCandle(List<Candle> allCandles, int n)` | `allCandles`, `n` | `List<Candle>` | Merges N candles into one, grouping by date |
+| `mergeIntradayCompleteCandle(List<Candle> allCandles, int n)` | `allCandles`, `n` | `List<Candle>` | Merges without date grouping, excludes partial last group |
+| `combine(List<Candle> candleList)` | `candleList` | `Candle` | Combines multiple candles into single candle |
+
+**Combination Logic:**
+- Open: First candle's open
+- Close: Last candle's close
+- High: Maximum high
+- Low: Minimum low
+- Volume: Sum of volumes
+- OI: Sum of open interest
+
+**Example:**
+```java
+import com.vish.fno.model.Candle;
+import com.vish.fno.util.TimeFrameUtils;
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+
+@Slf4j
+public class TimeFrameConversionExample {
+    public void convertTimeFrames(List<Candle> minuteCandles) {
+        List<Candle> fiveMinCandles = TimeFrameUtils.mergeCandle(minuteCandles, 5);
+        log.info("Converted {} 1-min to {} 5-min candles", minuteCandles.size(), fiveMinCandles.size());
+
+        List<Candle> completeCandles = TimeFrameUtils.mergeIntradayCompleteCandle(minuteCandles, 5);
+        log.info("Complete intraday candles: {}", completeCandles.size());
+    }
+}
+```
+
+---
+
+## Data Utilities
+
+### JsonUtils
+
+**Package:** `com.vish.fno.util`
+
+JSON serialization utilities. All methods are static and thread-safe.
+
+**Methods:**
+- `getNonFormattedObject(Object order)`: Compact JSON (single line)
+- `getFormattedObject(Object order)`: Pretty-printed JSON (indented, multi-line)
+
+**Example:**
 ```java
 import com.vish.fno.util.JsonUtils;
-import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class OrderLogger {
-    public void logOrder(IndexOrderRequest order) {
-        // Get formatted JSON (pretty-printed)
-        String formattedJson = JsonUtils.getFormattedObject(order);
-        log.info("Order: {}", formattedJson);
-        /*
-        {
-          "symbol" : "NIFTY24SEPFUT",
-          "quantity" : 50,
-          "orderType" : "MARKET",
-          "transactionType" : "BUY",
-          "product" : "MIS"
-        }
-        */
-
-        // Get non-formatted JSON (compact)
+public class JsonSerializationExample {
+    public void serializeOrders(Object order) {
         String compactJson = JsonUtils.getNonFormattedObject(order);
-        // {"symbol":"NIFTY24SEPFUT","quantity":50,...}
+        log.info("Compact: {}", compactJson);
 
-        // Store in database or log file
-        saveToDatabase(compactJson);
+        String formattedJson = JsonUtils.getFormattedObject(order);
+        log.info("Formatted:\n{}", formattedJson);
     }
 }
 ```
 
-**Thread Safety:** Both methods are thread-safe and use static ObjectMapper.
+---
 
-### TimeFrameUtils - Timeframe Conversion
+### CompressionUtils
 
-**Merge Candles by Timeframe:**
+**Package:** `com.vish.fno.util`
+
+GZIP compression/decompression for tick data storage optimization. All methods are static and thread-safe.
+
+**Methods:**
+- `compressTickers(List<Ticker> tickers)`: Compresses tickers to GZIP byte array
+- `decompressTickers(byte[] compressedData)`: Decompresses GZIP data to ticker list
+
+**Example:**
 ```java
-import com.vish.fno.util.TimeFrameUtils;
+import com.vish.fno.model.Ticker;
+import com.vish.fno.util.CompressionUtils;
+import lombok.extern.slf4j.Slf4j;
+import java.io.IOException;
+import java.util.List;
+
+@Slf4j
+public class CompressionExample {
+    public void compressTickData(List<Ticker> tickers) {
+        try {
+            byte[] compressed = CompressionUtils.compressTickers(tickers);
+            log.info("Compressed {} tickers to {} bytes", tickers.size(), compressed.length);
+
+            List<Ticker> decompressed = CompressionUtils.decompressTickers(compressed);
+            log.info("Decompressed {} tickers", decompressed.size());
+        } catch (IOException e) {
+            log.error("Compression failed", e);
+        }
+    }
+}
+```
+
+---
+
+## Helper Package
+
+### CandleStickCache
+
+**Package:** `com.vish.fno.util.helper`
+
+In-memory cache for intraday candlestick data by symbol. Not thread-safe.
+
+**Methods:**
+- `get(String symbol)`: Retrieves cached candles
+- `getLatestCandle(String symbol)`: Gets most recent candle
+- `update(String symbol, List<Candle> data)`: Updates cached candles
+- `clear(String symbol)`: Removes cached data
+
+**Example:**
+```java
 import com.vish.fno.model.Candle;
+import com.vish.fno.util.helper.CandleStickCache;
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 
-public class DataProcessor {
-    public void convertTimeframes() {
-        List<Candle> oneMinCandles = // ... 1-minute candles
+@Slf4j
+public class CandleCachingExample {
+    private final CandleStickCache cache = new CandleStickCache();
 
-        // Merge 5 one-minute candles into one 5-minute candle
-        List<Candle> fiveMinCandles = TimeFrameUtils.mergeCandle(oneMinCandles, 5);
+    public void cacheCandles() {
+        String symbol = "NIFTY50";
+        List<Candle> candles = List.of(/* ... */);
 
-        // Merge 15 one-minute candles into one 15-minute candle
-        List<Candle> fifteenMinCandles = TimeFrameUtils.mergeCandle(oneMinCandles, 15);
+        cache.update(symbol, candles);
+        Candle latest = cache.getLatestCandle(symbol);
+        if (latest != null) {
+            log.info("Latest candle: close={}", latest.close());
+        }
 
-        // Each merged candle contains:
-        // - open: First candle's open
-        // - high: Highest of all candles
-        // - low: Lowest of all candles
-        // - close: Last candle's close
-        // - volume: Sum of all volumes
-        // - oi: Sum of all open interests
+        cache.clear(symbol);
     }
 }
 ```
 
-**Intraday Complete Candles Only:**
+---
+
+### AbstractDataCache
+
+**Package:** `com.vish.fno.util.helper`
+
+Abstract base class for implementing tick data caching strategies. Not thread-safe.
+
+**Protected Fields:**
 ```java
-import com.vish.fno.util.TimeFrameUtils;
+protected final Map<String, Ticker> latestTicks;
+protected final Map<String, List<Ticker>> ticksCache;
+```
+
+**Public Methods (from DataCache):**
+- `appendTick(String symbol, Ticker tick)`: Appends tick to cache
+- `getLatestTick(String symbol)`: Gets most recent tick
+- `getTicks(String symbol)`: Gets all cached ticks
+
+**Subclasses must implement:** `updateAndGetMinuteData()`, `updateAndGetHistoryMinuteData()`, `getNCandles()`
+
+---
+
+### TimeProvider
+
+**Package:** `com.vish.fno.util.helper`
+
+Testable time operations for trading applications. Thread-safe.
+
+**Methods:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `now()` | `LocalDateTime` | Current LocalDateTime |
+| `todayDate()` | `Date` | Today's date |
+| `currentTimeStampIndex()` | `int` | Current time index (0-375) |
+| `getTodaysDateString()` | `String` | Today's date ("yyyy-MM-dd") |
+| `getCurrentStringDateTime()` | `String` | Current datetime ("yyyy-MM-dd HH:mm:ss") |
+
+**Example:**
+```java
+import com.vish.fno.util.helper.TimeProvider;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class TimeProviderExample {
+    private final TimeProvider timeProvider;
+
+    public TimeProviderExample(TimeProvider timeProvider) {
+        this.timeProvider = timeProvider;
+    }
+
+    public void logCurrentTime() {
+        int timeIndex = timeProvider.currentTimeStampIndex();
+        log.info("Current time index: {}", timeIndex);
+
+        String dateStr = timeProvider.getTodaysDateString();
+        log.info("Today: {}", dateStr);
+    }
+}
+```
+
+---
+
+### DataCache
+
+**Package:** `com.vish.fno.util.helper`
+
+Interface defining contract for data caching implementations.
+
+**Methods:**
+- `updateAndGetMinuteData(String symbol)`: Updates and retrieves minute data
+- `updateAndGetHistoryMinuteData(String date, String symbol)`: Retrieves historical minute data
+- `getNCandles(final String symbol, final Date date, final int n)`: Gets N most recent candles
+- `getNCandles(final String symbol, final Date date, final int n, List<Candle> todaysCandles)`: Gets N candles with optional today's candles
+- `appendTick(String tickSymbol, Ticker ticker)`: Appends tick
+- `getLatestTick(String symbol)`: Gets latest tick
+- `getTicks(String symbol)`: Gets all cached ticks
+
+---
+
+### HistoricDataCache
+
+**Package:** `com.vish.fno.util.helper`
+
+Spring-managed cache for historical candlestick data (date → symbol → candles). Not thread-safe. Annotated with `@Component`.
+
+**Methods:**
+- `getDataCache()`: Gets entire cache (nested map)
+- `getData(String date, String symbol)`: Retrieves cached data
+- `update(String date, String symbol, List<Candle> candleStickData)`: Updates cached data
+
+**Example:**
+```java
 import com.vish.fno.model.Candle;
+import com.vish.fno.util.helper.HistoricDataCache;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import java.util.List;
 
-public class BacktestDataLoader {
-    public List<Candle> loadCompleteCandles(List<Candle> rawData, int n) {
-        // Only returns complete sets of 'n' candles
-        // Drops incomplete last group
-        List<Candle> completeCandles =
-            TimeFrameUtils.mergeIntradayCompleteCandle(rawData, n);
-
-        // Example: If rawData has 377 1-min candles
-        // mergeIntradayCompleteCandle(rawData, 15) returns 25 complete 15-min candles
-        // (375 candles used, 2 dropped)
-
-        return completeCandles;
-    }
-}
-```
-
-**Combine Multiple Candles:**
-```java
-import com.vish.fno.util.TimeFrameUtils;
-import com.vish.fno.model.Candle;
-
-public class CandleMerger {
-    public Candle mergeHourlyCandle(List<Candle> fifteenMinCandles) {
-        // Take 4 fifteen-minute candles
-        List<Candle> fourCandles = fifteenMinCandles.subList(0, 4);
-
-        // Combine into single hourly candle
-        Candle hourlyCandle = TimeFrameUtils.combine(fourCandles);
-
-        // Returns null if input is null or empty
-        // Returns single candle if input has only 1 candle
-        return hourlyCandle;
-    }
-}
-```
-
-**Thread Safety:** All TimeFrameUtils methods are stateless and thread-safe.
-
-## Common Patterns
-
-### Pattern 1: Multi-Timeframe Analysis
-```java
-import com.vish.fno.util.CandleUtils;
-import com.vish.fno.model.Candle;
-
-public class MultiTimeframeAnalyzer {
-    public boolean isStrongTrend(List<Candle> oneMinData) {
-        // Convert to multiple timeframes
-        List<Candle> fifteenMin = CandleUtils.convertToTimeFrame(oneMinData, "15minute");
-        List<Candle> thirtyMin = CandleUtils.convertToTimeFrame(oneMinData, "30minute");
-        List<Candle> hourly = CandleUtils.convertToTimeFrame(oneMinData, "60minute");
-
-        // Check all timeframes for bullish trend
-        boolean bullish15 = CandleUtils.isBullish(fifteenMin.get(fifteenMin.size() - 1));
-        boolean bullish30 = CandleUtils.isBullish(thirtyMin.get(thirtyMin.size() - 1));
-        boolean bullish60 = CandleUtils.isBullish(hourly.get(hourly.size() - 1));
-
-        return bullish15 && bullish30 && bullish60;
-    }
-}
-```
-
-### Pattern 2: Market Hours Validation
-```java
+@Slf4j
 @Service
-public class StrategyExecutor {
-    public void execute() {
-        if (!TimeUtils.isMarketOpen(LocalDateTime.now())) {
-            logger.info("Market is closed. Skipping execution.");
+@RequiredArgsConstructor
+public class HistoricalDataService {
+    private final HistoricDataCache historicCache;
+
+    public void cacheHistoricalData() {
+        String date = "2025-01-15";
+        String symbol = "NIFTY50";
+        List<Candle> candles = List.of(/* ... */);
+
+        historicCache.update(date, symbol, candles);
+        List<Candle> cached = historicCache.getData(date, symbol);
+        log.info("Retrieved {} cached candles", cached.size());
+    }
+}
+```
+
+---
+
+### OrderManagerUtils
+
+**Package:** `com.vish.fno.util.helper`
+
+Utilities for managing order exits. All methods are static and thread-safe.
+
+**Exit Time:** 3:28 PM (time index 368)
+
+**Method:**
+```java
+public static OrderSellDetailModel isExitCondition(
+    final TargetAndStopLossStrategy targetAndStopLossStrategy,
+    final double ltp,
+    final int timestampIndex,
+    final ActiveOrder order)
+```
+
+**Exit Priority:**
+1. Time-based exit (after 3:28 PM)
+2. Stop-loss hit
+3. Target achieved
+
+**Example:**
+```java
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.vish.fno.model.order.OrderSellDetailModel;
+import com.vish.fno.util.helper.OrderManagerUtils;
+import com.vish.fno.util.orderflow.FixedTargetAndStopLossStrategy;
+import com.vish.fno.util.orderflow.TargetAndStopLossStrategy;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OrderExitExample {
+    private final TargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
+
+    public void checkOrderExit(ActiveOrder order, double ltp, int timeIndex) {
+        OrderSellDetailModel sellDetail = OrderManagerUtils.isExitCondition(strategy, ltp, timeIndex, order);
+
+        if (sellDetail.sellOrder()) {
+            log.info("Exit: reason={}, quantity={}", sellDetail.sellReason(), sellDetail.quantity());
+        }
+    }
+}
+```
+
+---
+
+## Order Flow Strategies
+
+### TargetAndStopLossStrategy
+
+**Package:** `com.vish.fno.util.orderflow`
+
+Interface defining contract for target/stop-loss evaluation.
+
+**Methods:**
+- `OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)`
+- `OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)`
+
+---
+
+### FixedTargetAndStopLossStrategy
+
+**Package:** `com.vish.fno.util.orderflow`
+
+Concrete implementation of fixed target and stop-loss strategy. Stateless, thread-safe.
+
+**Methods:**
+- `isTargetAchieved(ActiveOrder order, double ltp)`: Checks if target achieved using `order.isTargetAchieved(ltp)`
+- `isStopLossHit(ActiveOrder order, double ltp)`: Checks if stop-loss hit using `order.isStopLossHit(ltp)`
+
+**Example:**
+```java
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.vish.fno.model.order.OrderSellDetailModel;
+import com.vish.fno.util.orderflow.FixedTargetAndStopLossStrategy;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OrderManagementExample {
+    private final FixedTargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
+
+    public void manageOrder(ActiveOrder order, double currentPrice) {
+        OrderSellDetailModel targetCheck = strategy.isTargetAchieved(order, currentPrice);
+        if (targetCheck.sellOrder()) {
+            log.info("Target hit! Selling {} units", targetCheck.quantity());
             return;
         }
 
-        if (TimeUtils.isHoliday(LocalDate.now())) {
-            logger.info("Today is a holiday. Skipping execution.");
+        OrderSellDetailModel slCheck = strategy.isStopLossHit(order, currentPrice);
+        if (slCheck.sellOrder()) {
+            log.info("Stop-loss hit! Selling {} units", slCheck.quantity());
             return;
         }
-
-        // Execute strategy
-        runTradingLogic();
     }
 }
 ```
 
-### Pattern 3: Options Strategy Builder
+---
+
+## Enums
+
+### Trend
+
+**Package:** `com.vish.fno.util`
+
+Enumeration of market trend states.
+
+**Values:**
+- `WEAK_UPTREND`, `UPTREND`, `STRONG_UPTREND`
+- `WEAK_DOWNTREND`, `DOWNTREND`, `STRONG_DOWNTREND`
+- `INDECISIVE`, `SIDEWAYS`, `ACCUMULATION`, `DISTRIBUTION`, `CONSOLIDATION`, `BREAKOUT`, `REVERSAL`
+
+**Example:**
 ```java
-public class OptionsStrategyBuilder {
-    public OptionBasedOrderRequest buildStraddleOrder(String underlying, double spot) {
-        // Get ATM strike
-        int strikeInterval = underlying.equals("NIFTY") ? 50 : 100;
-        Double atmStrike = OptionsMetaDataUtils.getATMStrike(spot, strikeInterval);
+import com.vish.fno.util.Trend;
+import lombok.extern.slf4j.Slf4j;
 
-        // Get next weekly expiry
-        LocalDate expiry = OptionsMetaDataUtils.getNextWeeklyExpiry(LocalDate.now());
-
-        // Build call order
-        return OptionBasedOrderRequest.builder()
-            .symbol(underlying)
-            .strikePrice(atmStrike)
-            .optionType("CE")
-            .expiryDate(expiry)
-            .quantity(underlying.equals("NIFTY") ? 50 : 15)
-            .orderType("MARKET")
-            .transactionType("SELL")
-            .product("NRML")
-            .build();
+@Slf4j
+public class TrendAnalysisExample {
+    public void analyzeTrend(Trend currentTrend) {
+        switch (currentTrend) {
+            case STRONG_UPTREND -> log.info("Strong bullish momentum");
+            case STRONG_DOWNTREND -> log.info("Strong bearish momentum");
+            case ACCUMULATION -> log.info("Accumulation phase");
+            case BREAKOUT -> log.info("Breakout detected");
+            default -> log.info("Trend: {}", currentTrend);
+        }
     }
 }
 ```
 
-### Pattern 4: Data Preprocessing with Heikin-Ashi
-```java
-import com.vish.fno.util.chart.HeikinAshi;
-import com.vish.fno.util.CandleUtils;
-import com.vish.fno.model.Candle;
-import java.util.stream.IntStream;
-
-public class TrendIdentifier {
-    public String identifyTrend(List<Candle> candles) {
-        // Convert to Heikin-Ashi for smoother trend
-        List<Candle> haCandles = HeikinAshi.convert(candles);
-
-        // Check last 3 HA candles
-        int size = haCandles.size();
-        boolean allBullish = IntStream.range(size - 3, size)
-            .mapToObj(haCandles::get)
-            .allMatch(CandleUtils::isBullish);
-
-        boolean allBearish = IntStream.range(size - 3, size)
-            .mapToObj(haCandles::get)
-            .allMatch(CandleUtils::isBearish);
-
-        if (allBullish) return "STRONG_UPTREND";
-        if (allBearish) return "STRONG_DOWNTREND";
-        return "SIDEWAYS";
-    }
-}
-```
-
-## Best Practices
-
-1. **Cache converted timeframes** instead of recalculating
-2. **Always check market hours** before placing orders
-3. **Use Heikin-Ashi** for trend identification, not exact entry/exit
-4. **Validate file paths** before reading/writing
-5. **Use proper strike intervals** (NIFTY=50, BANKNIFTY=100)
+---
 
 ## Thread Safety
 
-- All utility methods are **static** and thread-safe
-- **CandleUtils, TimeUtils, OptionsMetaDataUtils**: Safe for concurrent use
-- **FileUtils**: Use synchronization if multiple threads write to same file
+**Thread-safe (static methods):** CandleUtils, TimeUtils, CandlePatternUtils, OptionsMetaDataUtils, Utils, CompressionUtils, JsonUtils, OrderManagerUtils
+
+**Instance-based (not thread-safe):** FileUtils, CandleStickCache, AbstractDataCache, HistoricDataCache
+
+**Thread-safe (instance methods):** TimeProvider
+
+**Note:** Create separate instances for concurrent use if class is not thread-safe.
+
+---
 
 ## Performance Considerations
 
-- **Timeframe conversion**: O(n) complexity, cache results
-- **Heikin-Ashi conversion**: O(n), processes sequentially
-- **File operations**: I/O bound, consider async for large files
+- Use `TimeFrameUtils.mergeIntradayCompleteCandle()` for real-time to avoid partial candles
+- Cache historical data using `HistoricDataCache` to reduce file I/O
+- Use `CompressionUtils` for large tick datasets
+- Prefer `CandleUtils.getBodySizePercentage()` over manual calculations
+
+---
+
+## Error Handling
+
+**File operations:** May throw `IOException` or `RuntimeException`
+
+**Time parsing:** Returns null on failure; always check for null
+
+**Edge cases:**
+- `TimeUtils.parseCandlestickTimestamp()` returns current time on failure (graceful degradation)
+- `CandleUtils.findLocalMinimum/Maximum()` returns -1 if not found
+- `LimitedCache` returns empty list for non-existent keys
+
+---
+
+## Maven Dependency
+
+```xml
+<dependency>
+    <groupId>com.vish.fno</groupId>
+    <artifactId>fno-utils</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+**Note:** fno-utils automatically includes fno-models as a transitive dependency.

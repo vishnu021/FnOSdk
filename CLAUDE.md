@@ -426,7 +426,17 @@ docs/
 
 ### Code Example Standards
 
-When writing documentation examples:
+**CRITICAL: Documentation must be CONCISE and AI-agent optimized**
+
+**Documentation Style:**
+- ❌ NO verbose explanations - use direct technical language
+- ❌ NO repetitive examples - one example per class showing 2-3 methods
+- ❌ NO redundant descriptions - if method name is clear, minimal description needed
+- ❌ NO marketing language - pure technical documentation
+- ✅ USE tables for listing >5 methods in a class
+- ✅ Group related methods, document collectively
+- ✅ Maximum 30-50 lines per class (exceptions: complex service classes)
+- ✅ Remove "Introduction", "Overview", "Best Practices" unless essential
 
 **Logging:**
 - ✅ **USE** Lombok @Slf4j with `log.info()`, `log.debug()`, etc.
@@ -438,11 +448,13 @@ When writing documentation examples:
 - ❌ **OMIT** common Java utility imports (java.util.List, java.util.Map, java.util.Set, java.util.ArrayList, java.util.HashMap)
 
 **Example Structure:**
-- ✅ Wrap code in proper classes with @Slf4j annotation
+- ✅ Keep under 20 lines - show USAGE, not implementation
+- ✅ ONE example per class demonstrating 2-3 key methods together
 - ✅ Use parameterized logging: `log.info("Order: {}", orderId)`
 - ✅ Follow Java 17+ patterns (records, .toList(), etc.)
+- ✅ Avoid repetitive setup code - show variations inline
 
-See `.claude/skills/doc-maintainer.md` for complete code standards.
+See `.claude/agents/fnosdk-doc-watcher.md` for complete standards.
 
 ---
 
