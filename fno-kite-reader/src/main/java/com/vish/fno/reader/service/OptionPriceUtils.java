@@ -77,7 +77,7 @@ final class OptionPriceUtils {
 
         String itmSymbolValue = itmSymbol.get();
 
-        if (itmSymbolValue == null || itmSymbolValue.strip().length() == 0) {
+        if (itmSymbolValue == null || itmSymbolValue.isBlank()) {
             log.error("Unable to find itmSymbol for index: {}, price: {}, call: {}", indexSymbol, price, isCall);
         }
         return itmSymbolValue;
@@ -127,7 +127,7 @@ final class OptionPriceUtils {
 
         String otmSymbolValue = otmSymbol.get();
 
-        if (otmSymbolValue == null || otmSymbolValue.strip().length() == 0) {
+        if (otmSymbolValue == null || otmSymbolValue.isBlank()) {
             log.error("Unable to find otmSymbol for index: {}, price: {}, call: {}", indexSymbol, price, isCall);
         }
         return otmSymbolValue;
