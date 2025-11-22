@@ -5,9 +5,9 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -20,8 +20,25 @@ public final class TimeUtils {
 
     public static final List<String> timeArray = new ArrayList<>();
 
-    // SimpleDateFormat for ISO-8601 format with timezone like "2025-08-20T09:57:00+0530"
-    private static final SimpleDateFormat ISO_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.ENGLISH);
+    // Thread-safe DateTimeFormatter instances (immutable and thread-safe)
+    private static final DateTimeFormatter ISO_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ", Locale.ENGLISH);
+    private static final DateTimeFormatter TIME_FORMATTER =
+        DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
+    private static final DateTimeFormatter DATE_TIME_MINUTE_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ENGLISH);
+    private static final DateTimeFormatter DATE_FORMATTER =
+        DateTimeFormatter.ofPattern(DATE_FORMAT, Locale.ENGLISH);
+    private static final DateTimeFormatter DATE_TIME_MS_FORMATTER =
+        DateTimeFormatter.ofPattern(DATE_TIME_MS_FORMAT, Locale.ENGLISH);
+    private static final DateTimeFormatter YEAR_FORMATTER =
+        DateTimeFormatter.ofPattern(YEAR_FORMAT, Locale.ENGLISH);
+    private static final DateTimeFormatter DATE_TIME_SEC_FORMATTER =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
+
+    // Default timezone for IST
+    private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
+    private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
 
     static {
         int hour = 9;
@@ -105,53 +122,84 @@ public final class TimeUtils {
         return new Date(System.currentTimeMillis());
     }
 
+    /**
+     * Formats a Date to HH:mm time string (thread-safe).
+     *
+     * @param timeStamp the date to format
+     * @return formatted time string or null if input is null
+     */
     public static String getTime(Date timeStamp) {
         if (timeStamp == null) {
             return null;
         }
-        SimpleDateFormat timeFormatter = new SimpleDateFormat("HH:mm", Locale.ENGLISH);
-        return timeFormatter.format(timeStamp);
+        return TIME_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE));
     }
 
+    /**
+     * Parses a date-time string in format "yyyy-MM-dd HH:mm" (thread-safe).
+     *
+     * @param date the date string to parse
+     * @return parsed Date object or null on error
+     */
     public static Date getDateTimeObjectMinute(String date) {
-        SimpleDateFormat formatterMilliSecond = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ENGLISH);
         try {
-            return formatterMilliSecond.parse(date);
-        } catch (ParseException e) {
-            log.error("Failed to parse date",e);
+            LocalDateTime ldt = LocalDateTime.parse(date, DATE_TIME_MINUTE_FORMATTER);
+            return Date.from(ldt.atZone(SYSTEM_ZONE).toInstant());
+        } catch (DateTimeParseException e) {
+            log.error("Failed to parse date: {}", date, e);
         }
         return null;
     }
 
+    /**
+     * Parses a date string in DATE_FORMAT (thread-safe).
+     *
+     * @param date the date string to parse
+     * @return parsed Date object or null on error
+     */
     public static Date getDateObject(String date) {
-        SimpleDateFormat formatterMilliSecond = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
         try {
-            return formatterMilliSecond.parse(date);
-        } catch (ParseException e) {
-            log.error("Failed to parse to date of format yyyy-MM-dd",e);
+            LocalDate ld = LocalDate.parse(date, DATE_FORMATTER);
+            return Date.from(ld.atStartOfDay(SYSTEM_ZONE).toInstant());
+        } catch (DateTimeParseException e) {
+            log.error("Failed to parse to date of format yyyy-MM-dd: {}", date, e);
         }
         return null;
     }
 
+    /**
+     * Gets today's date in DATE_FORMAT (thread-safe).
+     *
+     * @return formatted date string
+     */
     public static String getTodayDate() {
-        SimpleDateFormat dateFormatter = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
-        return dateFormatter.format(currentTime());
+        return DATE_FORMATTER.format(LocalDate.now());
     }
 
+    /**
+     * Converts Date to string in DATE_FORMAT (thread-safe).
+     *
+     * @param date the date to format
+     * @return formatted date string or empty string if null
+     */
     public static String getStringDate(Date date) {
-        if(date==null) {
+        if (date == null) {
             return "";
         }
-        SimpleDateFormat dateFormatter = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
-        return dateFormatter.format(date);
+        return DATE_FORMATTER.format(date.toInstant().atZone(SYSTEM_ZONE));
     }
 
+    /**
+     * Converts Date to string in DATE_TIME_MS_FORMAT (thread-safe).
+     *
+     * @param timeStamp the timestamp to format
+     * @return formatted date-time string or null if input is null
+     */
     public static String getStringDateTime(Date timeStamp) {
         if (timeStamp == null) {
             return null;
         }
-        SimpleDateFormat formatterMilliSecond = new SimpleDateFormat(DATE_TIME_MS_FORMAT, Locale.ENGLISH);
-        return formatterMilliSecond.format(timeStamp);
+        return DATE_TIME_MS_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE));
     }
 
     private static int getIndexOfTime(String time) {
@@ -184,7 +232,7 @@ public final class TimeUtils {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(date);
 
-        if(calendar.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY) {
+        if (calendar.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY) {
             calendar.add(Calendar.DATE, -3);
         } else {
             calendar.add(Calendar.DATE, -1);
@@ -198,8 +246,8 @@ public final class TimeUtils {
         calendar.setTime(startDate);
 
         while (!calendar.getTime().after(endDate)) {
-            if(calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY
-                    && calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SATURDAY){
+            if (calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SUNDAY
+                    && calendar.get(Calendar.DAY_OF_WEEK) != Calendar.SATURDAY) {
                 dates.add(calendar.getTime());
             }
             calendar.add(Calendar.DATE, 1);
@@ -209,18 +257,23 @@ public final class TimeUtils {
         return dates;
     }
 
+    /**
+     * Formats a Date to year string (thread-safe).
+     *
+     * @param date the date to format
+     * @return formatted year string or empty string if null
+     */
     public static String getStringYear(Date date) {
-        if(date==null) {
+        if (date == null) {
             return "";
         }
-        SimpleDateFormat dateFormatter = new SimpleDateFormat(YEAR_FORMAT, Locale.ENGLISH);
-        return dateFormatter.format(date);
+        return YEAR_FORMATTER.format(date.toInstant().atZone(SYSTEM_ZONE));
     }
 
     public static String getTimeElapsed(long milliseconds) {
         long millis = milliseconds % 1000;
-        long seconds = (milliseconds/1000) % 60;
-        long minutes = (milliseconds/(60 * 1000));
+        long seconds = (milliseconds / 1000) % 60;
+        long minutes = (milliseconds / (60 * 1000));
         return String.format("%s minutes, %s seconds, %s milliseconds", minutes, seconds, millis);
     }
 
@@ -232,9 +285,13 @@ public final class TimeUtils {
         return new Date(date.getTime() - TimeUnit.DAYS.toMillis(n));
     }
 
+    /**
+     * Gets current time in HH:mm format (thread-safe).
+     *
+     * @return formatted time string
+     */
     public static String getTime() {
-        SimpleDateFormat timeFormatter = new SimpleDateFormat("HH:mm", Locale.ENGLISH);
-        return timeFormatter.format(currentTime());
+        return TIME_FORMATTER.format(LocalTime.now());
     }
 
     private static String toTimeValue(int timeVal) {
@@ -245,7 +302,7 @@ public final class TimeUtils {
     }
 
     /**
-     * Parse timestamp from candlestick time string.
+     * Parse timestamp from candlestick time string (thread-safe).
      * Handles both millisecond timestamps and ISO-8601 datetime strings.
      *
      * @param timeStr The time string to parse (either milliseconds or ISO-8601 format)
@@ -263,12 +320,9 @@ public final class TimeUtils {
         } catch (NumberFormatException e) {
             // If not a number, parse as ISO-8601 datetime string
             try {
-                synchronized (ISO_FORMAT) {
-                    // SimpleDateFormat is not thread-safe, so we synchronize
-                    Date date = ISO_FORMAT.parse(timeStr);
-                    return date.getTime();
-                }
-            } catch (Exception e2) {
+                ZonedDateTime zdt = ZonedDateTime.parse(timeStr, ISO_FORMATTER);
+                return zdt.toInstant().toEpochMilli();
+            } catch (DateTimeParseException e2) {
                 log.warn("Failed to parse timestamp: '{}', using current time", timeStr);
                 return System.currentTimeMillis();
             }
@@ -303,13 +357,13 @@ public final class TimeUtils {
     public static LocalDateTime fromEpochMilli(long epochMilli) {
         return LocalDateTime.ofInstant(
             Instant.ofEpochMilli(epochMilli),
-            ZoneId.of("Asia/Kolkata")
+            IST_ZONE
         );
     }
 
     /**
-     * Parse a datetime string to epoch milliseconds
-     * Supports multiple date formats
+     * Parse a datetime string to epoch milliseconds (thread-safe).
+     * Supports multiple date formats.
      *
      * @param dateTimeStr The datetime string to parse
      * @return The timestamp in milliseconds
@@ -321,25 +375,29 @@ public final class TimeUtils {
 
         // Try ISO format first
         try {
-            synchronized (ISO_FORMAT) {
-                Date date = ISO_FORMAT.parse(dateTimeStr);
-                return date.getTime();
-            }
-        } catch (Exception e) {
+            ZonedDateTime zdt = ZonedDateTime.parse(dateTimeStr, ISO_FORMATTER);
+            return zdt.toInstant().toEpochMilli();
+        } catch (DateTimeParseException e) {
             // Try other formats
-            String[] formats = {
-                "yyyy-MM-dd HH:mm:ss",
-                "yyyy-MM-dd",
-                "dd-MM-yyyy HH:mm:ss",
-                "dd-MM-yyyy"
+            DateTimeFormatter[] formatters = {
+                DATE_TIME_SEC_FORMATTER,
+                DATE_FORMATTER,
+                DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH)
             };
 
-            for (String format : formats) {
+            for (DateTimeFormatter formatter : formatters) {
                 try {
-                    SimpleDateFormat sdf = new SimpleDateFormat(format, Locale.ENGLISH);
-                    Date date = sdf.parse(dateTimeStr);
-                    return date.getTime();
-                } catch (Exception ex) {
+                    // Try parsing as LocalDateTime first
+                    try {
+                        LocalDateTime ldt = LocalDateTime.parse(dateTimeStr, formatter);
+                        return ldt.atZone(SYSTEM_ZONE).toInstant().toEpochMilli();
+                    } catch (DateTimeParseException ex) {
+                        // Try parsing as LocalDate
+                        LocalDate ld = LocalDate.parse(dateTimeStr, formatter);
+                        return ld.atStartOfDay(SYSTEM_ZONE).toInstant().toEpochMilli();
+                    }
+                } catch (DateTimeParseException ex) {
                     // Try next format
                 }
             }
@@ -350,13 +408,14 @@ public final class TimeUtils {
     }
 
     /**
-     * Format a timestamp to human-readable datetime string
+     * Format a timestamp to human-readable datetime string (thread-safe).
      *
      * @param timestamp The timestamp in milliseconds
      * @return Formatted datetime string in "yyyy-MM-dd HH:mm:ss" format
      */
     public static String formatDateTime(long timestamp) {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
-        return dateFormat.format(new Date(timestamp));
+        return DATE_TIME_SEC_FORMATTER.format(
+            Instant.ofEpochMilli(timestamp).atZone(SYSTEM_ZONE)
+        );
     }
 }

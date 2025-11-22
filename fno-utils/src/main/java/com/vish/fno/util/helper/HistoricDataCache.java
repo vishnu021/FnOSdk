@@ -5,17 +5,17 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @RequiredArgsConstructor
 public class HistoricDataCache {
     // date // symbol //  data
     @Getter
-    private final Map<String, Map<String, List<Candle>>> dataCache = new HashMap<>();
+    private final Map<String, Map<String, List<Candle>>> dataCache = new ConcurrentHashMap<>();
 
     public List<Candle> getData(String date, String symbol) {
         return Optional.of(dataCache)
@@ -25,9 +25,6 @@ public class HistoricDataCache {
     }
 
     public void update(String date, String symbol, List<Candle> candleStickData) {
-        if(!dataCache.containsKey(date)) {
-            dataCache.put(date, new HashMap<>());
-        }
-        dataCache.get(date).put(symbol, candleStickData);
+        dataCache.computeIfAbsent(date, k -> new ConcurrentHashMap<>()).put(symbol, candleStickData);
     }
 }

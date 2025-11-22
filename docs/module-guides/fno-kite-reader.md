@@ -392,11 +392,14 @@ OrderParams params = OrderUtils.createMarketOrderWithParameters(
 
 ### InstrumentFileUtils - Instrument Cache Persistence
 
+**Thread-Safety:** All methods are thread-safe. Uses `DateTimeFormatter` instead of `SimpleDateFormat` and platform-independent `Path` API.
+
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `saveInstrumentCache(...)` | instruments | `void` | Saves to `instrument_cache/instruments_<date>.json` |
-| `saveFilteredInstrumentCache(...)` | instruments | `void` | Saves with pretty-print to `filtered_instruments_<date>.json` |
-| `loadInstrumentCache(int)` | days | `List<Instrument>` | Loads from N days ago (0=today, 1=yesterday), returns null if not found |
+| `saveInstrumentCache(List<Instrument>)` | `instruments` | `void` | Saves to `instrument_cache/instruments_<date>.json` (thread-safe) |
+| `saveFilteredInstrumentCache(Object)` | `instruments` | `void` | Saves with pretty-print to `filtered_instruments_<date>.json` (thread-safe) |
+| `loadInstrumentCache(int)` | `days` | `List<Instrument>` | Loads from N days ago (0=today, 1=yesterday), returns null if not found |
+| `getNDaysBefore(long)` | `n` | `Date` | Date N days before today |
 
 **Example:**
 ```java
@@ -411,6 +414,67 @@ if (instruments == null) {
     InstrumentFileUtils.saveInstrumentCache(instruments);
 }
 ```
+
+---
+
+### InstrumentCache - Thread-Safe Lazy Initialization
+
+Internal cache class used by `KiteService` for managing instrument data. Thread-safe with double-checked locking pattern.
+
+**Package:** `com.vish.fno.reader.service` (package-private)
+
+```java
+class InstrumentCache
+```
+
+**Constructor:**
+```java
+public InstrumentCache(List<String> nifty100Symbols, KiteService kiteService)
+```
+
+**Thread-Safety Implementation:**
+- Double-checked locking for lazy initialization
+- `volatile` fields ensure safe publication across threads
+- Returns defensive copies from `get()` methods
+- Returns unmodifiable collections from `keySet()`
+- Read-heavy workload optimized with minimal synchronization
+
+**Key Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getInstruments()` | - | `List<Instrument>` | Returns unmodifiable list (thread-safe lazy init) |
+| `getInstrument(String)` | `script` | `Long` | Returns instrument token for symbol |
+| `getSymbol(long)` | `instrument` | `String` | Returns symbol for instrument token |
+| `getAllSymbols()` | - | `Set<String>` | Returns all symbol names |
+| `getFilteredSymbols()` | - | `Map<String, String>` | Returns symbol to name mapping |
+| `getInstrumentForSymbol(String)` | `symbol` | `List<Instrument>` | Returns all instruments for symbol |
+| `isExpiryDayForOption(String, Date)` | `optionSymbol`, `currentDate` | `boolean` | Checks if option expires today |
+
+**Initialization Behavior:**
+- First call to `getInstruments()` fetches from Kite API (network I/O)
+- Subsequent calls return cached data (no locking)
+- Filters instruments for configured Nifty 100 symbols
+- Saves to disk via `InstrumentFileUtils`
+
+**Example (Internal Usage):**
+```java
+// Used internally by KiteService
+InstrumentCache cache = new InstrumentCache(nifty100Symbols, kiteService);
+
+// Thread-safe access (multiple threads can call simultaneously)
+List<Instrument> instruments = cache.getInstruments(); // Unmodifiable list
+Long token = cache.getInstrument("NIFTY 50");
+String symbol = cache.getSymbol(256265L);
+```
+
+**Concurrency Notes:**
+- Multiple threads can safely call `getInstruments()` concurrently
+- Only one thread will perform initialization (synchronized block)
+- Other threads wait for initialization to complete
+- After initialization, no locking overhead
+
+---
 
 ## Error Handling
 
@@ -489,10 +553,10 @@ if (order.order() == null) {
 ## Thread Safety
 
 - **KiteService**: Not thread-safe, use synchronization or separate instances per thread
-- **InstrumentCache**: Thread-safe after initialization (synchronized methods)
+- **InstrumentCache**: Thread-safe with double-checked locking for lazy initialization, returns defensive copies and unmodifiable collections
 - **KiteWebSocket**: Single instance only, callbacks execute on ticker thread
 - **OrderUtils**: Thread-safe (static methods, no shared state)
-- **InstrumentFileUtils**: Not thread-safe for concurrent writes
+- **InstrumentFileUtils**: Thread-safe for all operations (uses DateTimeFormatter and Path API)
 
 ## Common Pitfalls
 

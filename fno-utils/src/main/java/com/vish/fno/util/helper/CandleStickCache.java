@@ -2,16 +2,16 @@ package com.vish.fno.util.helper;
 
 import com.vish.fno.model.Candle;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Class for caching intraday candlestick data for symbols.
  */
 public class CandleStickCache {
 
-    private final Map<String, List<Candle>> candlesCache = new HashMap<>();
+    private final Map<String, List<Candle>> candlesCache = new ConcurrentHashMap<>();
 
     public List<Candle> get(String symbol) {
         return candlesCache.get(symbol);

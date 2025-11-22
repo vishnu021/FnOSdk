@@ -506,7 +506,7 @@ public interface OrderFlowHandler
 
 ### LimitedCache
 
-Generic cache with limited entries per key (FIFO eviction).
+Generic cache with limited entries per key (FIFO eviction). Thread-safe implementation using `ConcurrentHashMap` and `ReentrantReadWriteLock`.
 
 ```java
 @Slf4j
@@ -519,11 +519,16 @@ public class LimitedCache<K, V>
 public LimitedCache(int maxEntriesPerKey)
 ```
 
+**Thread-Safety:** All public methods are thread-safe for concurrent access.
+
 **Methods:**
-- `put(K key, V value)`: Adds value to key's list, removes oldest if limit reached
-- `get(K key)`: Returns all values for the key
-- `keySet()`: Returns all keys in cache
-- `size(K key)`: Returns number of entries for the key
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `put(K key, V value)` | `key`, `value` | `void` | Thread-safe add with FIFO eviction (uses write lock) |
+| `get(K key)` | `key` | `List<V>` | Returns defensive copy of values (uses read lock) |
+| `keySet()` | - | `Set<K>` | Returns unmodifiable key set (thread-safe) |
+| `size(K key)` | `key` | `int` | Returns entry count for key (uses read lock) |
 
 **Usage Example:**
 ```java
@@ -550,7 +555,7 @@ public class TickerCacheExample {
 
 ### OrderCache
 
-Specialized cache for managing order requests and active orders.
+Specialized cache for managing order requests and active orders with thread-safe cash management. Uses `CopyOnWriteArrayList` for order collections.
 
 ```java
 @Slf4j
@@ -562,15 +567,30 @@ public class OrderCache
 public OrderCache(double availableCash)
 ```
 
-**Fields:** orderRequests, activeOrders, availableCash
+**Fields:**
+- `orderRequests`: `CopyOnWriteArrayList<OrderRequest>` - Thread-safe pending orders
+- `activeOrders`: `CopyOnWriteArrayList<ActiveOrder>` - Thread-safe active orders
+- `availableCash`: `volatile double` with `@Getter` - Read-only access via getter
 
 **Key Methods:**
-- `checkEntryInOpenOrders(Ticker tick, final String tickSymbol)`: Checks if any pending order should be triggered
-- `isNotInActiveOrders(OrderRequest tickOrderRequest)`: Validates no duplicate active order exists
-- `addOrderRequest(OrderRequest order)`: Adds order request (removes duplicates first)
-- `appendActiveOrder(ActiveOrder activeOrder)`: Adds active order to tracking list
-- `removeExpiredOpenOrders(int timestamp)`: Removes orders past their expiration time
-- `getActiveOrderForSymbol(String symbol)`: Returns all active orders for a symbol
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getAvailableCash()` | - | `double` | Thread-safe read of cash balance (volatile field) |
+| `deductCash(double amount)` | `amount` | `void` | Atomically deduct cash for buy orders (synchronized) |
+| `addCash(double amount)` | `amount` | `void` | Atomically add cash for sell orders (synchronized) |
+| `checkEntryInOpenOrders(Ticker tick, String tickSymbol)` | `tick`, `tickSymbol` | `Optional<OrderRequest>` | Checks if any pending order should be triggered |
+| `isNotInActiveOrders(OrderRequest tickOrderRequest)` | `tickOrderRequest` | `boolean` | Validates no duplicate active order exists |
+| `addOrderRequest(OrderRequest order)` | `order` | `void` | Adds order request (removes duplicates first) |
+| `appendActiveOrder(ActiveOrder activeOrder)` | `activeOrder` | `void` | Adds active order to tracking list |
+| `removeExpiredOpenOrders(int timestamp)` | `timestamp` | `void` | Removes orders past their expiration time |
+| `getActiveOrderForSymbol(String symbol)` | `symbol` | `List<ActiveOrder>` | Returns all active orders for a symbol |
+
+**Thread-Safety Guarantees:**
+- **Cash operations**: `deductCash()` and `addCash()` are synchronized for atomic updates
+- **Cash reading**: `getAvailableCash()` uses volatile field for thread-safe reads
+- **Collections**: `CopyOnWriteArrayList` ensures thread-safe iteration and modification
+- **No setter**: `availableCash` field has no setter - enforces use of synchronized methods only
 
 **Usage Example:**
 ```java
@@ -587,23 +607,37 @@ public class OrderCacheExample {
     private final OrderCache orderCache = new OrderCache(100000.0);
 
     public void manageOrders(OrderRequest request, Ticker ticker) {
-        orderCache.addOrderRequest(request);
+        // Check available cash (read-only access)
+        log.info("Available cash: {}", orderCache.getAvailableCash());
 
-        Optional<OrderRequest> triggerOrder =
-            orderCache.checkEntryInOpenOrders(ticker, "NIFTY");
+        orderCache.addOrderRequest(request);
+        Optional<OrderRequest> triggerOrder = orderCache.checkEntryInOpenOrders(ticker, "NIFTY");
 
         if (triggerOrder.isPresent()) {
+            double orderCost = ticker.lastTradedPrice() * triggerOrder.get().getQuantity();
+
+            // Deduct cash for buy order (thread-safe)
+            orderCache.deductCash(orderCost);
+
             ActiveOrder activeOrder = ActiveOrderFactory.createOrder(
                 triggerOrder.get(), ticker.lastTradedPrice(), 915, "2024-10-28 09:15:00"
             );
 
             orderCache.appendActiveOrder(activeOrder);
             orderCache.removeOrderRequest(triggerOrder.get());
-            log.info("Order activated: {}", activeOrder);
+            log.info("Order activated, remaining cash: {}", orderCache.getAvailableCash());
+        }
+
+        // Release capital on exit
+        for (ActiveOrder order : orderCache.getActiveOrders()) {
+            if (order.isTargetAchieved(ticker.lastTradedPrice())) {
+                double sellValue = ticker.lastTradedPrice() * order.getBuyQuantity();
+                orderCache.addCash(sellValue); // Thread-safe cash addition
+                orderCache.removeActiveOrder(order);
+            }
         }
 
         orderCache.removeExpiredOpenOrders(1530);
-        orderCache.logOpenOrders();
     }
 }
 ```
@@ -949,7 +983,8 @@ public void exitOrder(ActiveOrder order, double currentPrice) {
 **OrderCache:**
 - `addOrderRequest()` removes duplicates before adding
 - Use `removeExpiredOpenOrders()` regularly to clean up
-- Update `availableCash` after each trade
+- Cash management: ONLY via `deductCash()` and `addCash()` (no setter provided)
+- Both cash methods are synchronized to prevent race conditions
 
 **LimitedCache:**
 - FIFO eviction when limit reached
@@ -967,9 +1002,14 @@ public void exitOrder(ActiveOrder order, double currentPrice) {
 
 ## Thread Safety
 
-All model classes are POJOs and not thread-safe by default. If sharing across threads, use proper synchronization or immutable copies.
+Most model classes are POJOs and not thread-safe by default. If sharing across threads, use proper synchronization or immutable copies.
 
-**Note:** Wyckoff model records (`WyckoffIndicators`) are immutable and thread-safe.
+**Thread-Safe Components:**
+- **OrderCache**:
+  - `getAvailableCash()` provides thread-safe reads via volatile field
+  - `deductCash()` and `addCash()` are synchronized for atomic modifications
+  - No setter provided - enforces thread-safe cash management
+- **Wyckoff Records**: `WyckoffIndicators` and all phase-related records are immutable and thread-safe
 
 ---
 

@@ -14,10 +14,15 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 
+/**
+ * Service for Wyckoff phase identification and strategy recommendation.
+ * Thread-safe implementation using concurrent collections.
+ */
 public class WyckoffPhaseService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(WyckoffPhaseService.class);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final int MINUTE_BUFFER = 60; // Keep 60 minutes of data for analysis
@@ -34,52 +39,54 @@ public class WyckoffPhaseService {
         logger.info("WyckoffPhaseService initialized with identifier: {} - {}",
                    phaseIdentifier.getIdentifierType(), phaseIdentifier.getDescription());
     }
-    
-    // Cache for storing recent price data per symbol
-    private final Map<String, LinkedList<Candle>> recentDataCache = new ConcurrentHashMap<>();
-    
-    // Cache for storing identified phases per symbol and hour
+
+    // Cache for storing recent price data per symbol (thread-safe)
+    // CopyOnWriteArrayList provides thread-safe modifications without external synchronization
+    private final Map<String, CopyOnWriteArrayList<Candle>> recentDataCache = new ConcurrentHashMap<>();
+
+    // Cache for storing identified phases per symbol and hour (thread-safe)
+    // Both outer and inner maps use ConcurrentHashMap for thread safety
     private final Map<String, Map<Integer, WyckoffPhase>> hourlyPhaseCache = new ConcurrentHashMap<>();
-    
-    // Current hour tracking
+
+    // Current hour tracking (thread-safe)
     private final Map<String, Integer> currentHourTracker = new ConcurrentHashMap<>();
-    
-    
+
+
     /**
      * Get the current Wyckoff phase for a symbol based on recent tick data
      */
     public WyckoffPhase getCurrentPhase(String symbol, Ticker currentTick) {
         // Update data cache with current tick
         updateDataCache(symbol, currentTick);
-        
+
         // Get current hour
         LocalDateTime tickTime = LocalDateTime.ofEpochSecond(
             currentTick.tickTimestamp().getTime() / 1000, 0, java.time.ZoneOffset.UTC
         );
         int currentHour = tickTime.getHour();
-        
+
         // Check if we've moved to a new hour
         Integer lastHour = currentHourTracker.get(symbol);
         if (lastHour == null || lastHour != currentHour) {
             // New hour - calculate phase
             WyckoffPhase phase = calculateHourlyPhase(symbol);
-            
+
             // Cache the phase for this hour
-            hourlyPhaseCache.computeIfAbsent(symbol, k -> new HashMap<>())
+            hourlyPhaseCache.computeIfAbsent(symbol, k -> new ConcurrentHashMap<>())
                            .put(currentHour, phase);
-            
+
             currentHourTracker.put(symbol, currentHour);
-            
+
             logger.debug("New hour {} for {}: Phase = {}", currentHour, symbol, phase.getPhaseName());
-            
+
             return phase;
         }
-        
+
         // Return cached phase for current hour
-        return hourlyPhaseCache.getOrDefault(symbol, new HashMap<>())
+        return hourlyPhaseCache.getOrDefault(symbol, new ConcurrentHashMap<>())
                                .getOrDefault(currentHour, WyckoffPhase.UNKNOWN);
     }
-    
+
     /**
      * Get the Wyckoff phase based on candlestick data
      */
@@ -87,11 +94,11 @@ public class WyckoffPhaseService {
         if (candles == null || candles.isEmpty()) {
             return WyckoffPhase.UNKNOWN;
         }
-        
+
         // Identify phase using the most recent data
         return phaseIdentifier.identifyPhase(candles, candles.size() - 1);
     }
-    
+
     /**
      * Get strategy recommendation based on Wyckoff phase
      * Enhanced with comprehensive Wyckoff-based strategy mapping
@@ -112,7 +119,7 @@ public class WyckoffPhaseService {
                     default:
                         return "RelativeStrengthMomentumStrategy"; // Momentum leaders
                 }
-                
+
             // MARKDOWN PHASE STRATEGIES - Supply exceeds demand, trending lower
             case MARKDOWN:
                 // Rotate between markdown strategies based on market phase
@@ -127,12 +134,12 @@ public class WyckoffPhaseService {
                     default:
                         return "VolatilityScalpingStrategy"; // High volatility scalping
                 }
-                
+
             // ACCUMULATION PHASE STRATEGIES - Smart money building positions
             case ACCUMULATION_PHASE_A:
                 // Early accumulation - heavy selling climax, initial support
                 return "VolumeSpreadAnalysisStrategy"; // VSA for absorption detection
-                
+
             case ACCUMULATION_PHASE_B:
                 // Building base - range development, multiple support tests
                 int accumBRotation = (int)(System.currentTimeMillis() / 3600000) % 3;
@@ -143,47 +150,47 @@ public class WyckoffPhaseService {
                 } else {
                     return "StatisticalArbitrageStrategy"; // Price inefficiency capture
                 }
-                
+
             case ACCUMULATION_PHASE_C:
                 // Testing phase - springs and shakeouts
                 return "SpringTradingStrategy"; // Spring/shakeout trading
-                
+
             case ACCUMULATION_PHASE_D:
                 // Sign of strength emerging - prepare for markup
                 return "WyckoffBreakoutStrategy"; // Early breakout signals
-                
+
             // DISTRIBUTION PHASE STRATEGIES - Smart money distributing to public
             case DISTRIBUTION_PHASE_A:
                 // Early distribution - buying climax, initial weakness
                 return "ProtectiveExitStrategy"; // Protect long positions
-                
+
             case DISTRIBUTION_PHASE_B:
                 // Range development at highs - multiple resistance tests
                 int distBRotation = (int)(System.currentTimeMillis() / 3600000) % 2;
                 return distBRotation == 0 ? "DistributionRangeFadingStrategy" : "ProtectiveExitStrategy";
-                
+
             case DISTRIBUTION_PHASE_C:
                 // Testing phase - upthrusts and failures
                 return "UpthrustTradingStrategy"; // UTAD and upthrust trading
-                
+
             case DISTRIBUTION_PHASE_D:
                 // Sign of weakness - prepare for markdown
                 return "BreakdownTradingStrategy"; // Early breakdown signals
-                
+
             // SPECIAL WYCKOFF PHASES
             case CONSOLIDATION:
                 // Neutral phase - use range-bound strategies
                 int consRotation = (int)(System.currentTimeMillis() / 3600000) % 2;
                 return consRotation == 0 ? "AccumulationRangeStrategy" : "MeanReversionStrategy";
-                
+
             case REACCUMULATION:
                 // Continuation of uptrend after pause - bullish bias
                 return "PullbackBuyingStrategy"; // Buy pullbacks in uptrend
-                
+
             case REDISTRIBUTION:
                 // Continuation of downtrend after pause - bearish bias
                 return "ContinuationShortingStrategy"; // Short rallies in downtrend
-                
+
             // UNKNOWN OR TRANSITIONAL PHASES
             case UNKNOWN:
             default:
@@ -231,7 +238,7 @@ public class WyckoffPhaseService {
                 return "Range trading - buys support, sells resistance in accumulation";
             case "VolumeSpreadAnalysisStrategy":
                 return "VSA - identifies absorption patterns with high volume, low spread";
-            
+
             // Markup Strategies
             case "WyckoffBreakoutStrategy":
                 return "Breakout trading - enters on Sign of Strength with volume expansion";
@@ -241,7 +248,7 @@ public class WyckoffPhaseService {
                 return "Trend following - rides momentum with moving average and pattern signals";
             case "RelativeStrengthMomentumStrategy":
                 return "Momentum trading - focuses on relative strength leaders with acceleration";
-            
+
             // Distribution Strategies
             case "UpthrustTradingStrategy":
                 return "Upthrust trading - shorts false breakouts above distribution resistance";
@@ -249,7 +256,7 @@ public class WyckoffPhaseService {
                 return "Range fading - sells rallies, covers dips within distribution range";
             case "ProtectiveExitStrategy":
                 return "Protective exits - manages long positions defensively during distribution";
-            
+
             // Markdown Strategies
             case "BreakdownTradingStrategy":
                 return "Breakdown trading - shorts Sign of Weakness and Last Point of Supply";
@@ -259,20 +266,21 @@ public class WyckoffPhaseService {
                 return "Momentum shorting - targets relative weakness with volume confirmation";
             case "VolatilityScalpingStrategy":
                 return "Volatility scalping - quick profits from high volatility markdown moves";
-            
+
             default:
                 return "Strategy description not available";
         }
     }
-    
+
     /**
-     * Update the data cache with new tick data
+     * Update the data cache with new tick data (thread-safe).
+     * Uses CopyOnWriteArrayList for thread-safe modifications.
      */
     private void updateDataCache(String symbol, Ticker tick) {
-        LinkedList<Candle> dataList = recentDataCache.computeIfAbsent(
-            symbol, k -> new LinkedList<>()
+        CopyOnWriteArrayList<Candle> dataList = recentDataCache.computeIfAbsent(
+            symbol, k -> new CopyOnWriteArrayList<>()
         );
-        
+
         // Convert tick to candlestick data
         String timeStr = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(
             LocalDateTime.ofEpochSecond(tick.tickTimestamp().getTime() / 1000, 0, java.time.ZoneOffset.UTC)
@@ -287,40 +295,41 @@ public class WyckoffPhaseService {
             tick.volumeTradedToday(),
             (long) tick.oi()
         );
-        
+
         dataList.add(candle);
-        
+
         // Keep only recent data (last 60 minutes)
+        // CopyOnWriteArrayList handles concurrent modifications safely
         while (dataList.size() > MINUTE_BUFFER) {
-            dataList.removeFirst();
+            dataList.remove(0);  // Remove first element
         }
     }
-    
+
     /**
      * Calculate the hourly phase based on accumulated minute data
      */
     private WyckoffPhase calculateHourlyPhase(String symbol) {
-        LinkedList<Candle> dataList = recentDataCache.get(symbol);
-        
+        CopyOnWriteArrayList<Candle> dataList = recentDataCache.get(symbol);
+
         if (dataList == null || dataList.isEmpty()) {
             return WyckoffPhase.UNKNOWN;
         }
-        
-        // Create hourly candle from minute data
+
+        // Create snapshot of current data
         List<Candle> minuteCandles = new ArrayList<>(dataList);
-        
+
         if (minuteCandles.size() < 5) {
             // Not enough data - use simple analysis
             return analyzeRecentTicks(minuteCandles);
         }
-        
+
         // Aggregate into 5-minute candles for better analysis
         List<Candle> fiveMinCandles = aggregateToFiveMinutes(minuteCandles);
-        
+
         // Identify phase
         return phaseIdentifier.identifyPhase(fiveMinCandles, fiveMinCandles.size() - 1);
     }
-    
+
     /**
      * Simple analysis for when we have limited data
      */
@@ -328,11 +337,11 @@ public class WyckoffPhaseService {
         if (candles.size() < 2) {
             return WyckoffPhase.CONSOLIDATION;
         }
-        
+
         double firstPrice = candles.get(0).close();
         double lastPrice = candles.get(candles.size() - 1).close();
         double priceChange = (lastPrice - firstPrice) / firstPrice;
-        
+
         // Determine trend
         if (priceChange > 0.002) {
             return WyckoffPhase.MARKUP;
@@ -343,26 +352,26 @@ public class WyckoffPhaseService {
             double maxPrice = candles.stream().mapToDouble(Candle::high).max().orElse(lastPrice);
             double minPrice = candles.stream().mapToDouble(Candle::low).min().orElse(lastPrice);
             double volatility = (maxPrice - minPrice) / firstPrice;
-            
+
             if (volatility > 0.005) {
                 // High volatility in range
                 return priceChange > 0 ? WyckoffPhase.ACCUMULATION_PHASE_B : WyckoffPhase.DISTRIBUTION_PHASE_B;
             }
-            
+
             return WyckoffPhase.CONSOLIDATION;
         }
     }
-    
+
     /**
      * Aggregate minute candles into 5-minute candles
      */
     private List<Candle> aggregateToFiveMinutes(List<Candle> minuteCandles) {
         List<Candle> fiveMinCandles = new ArrayList<>();
-        
+
         for (int i = 0; i < minuteCandles.size(); i += 5) {
             int endIdx = Math.min(i + 5, minuteCandles.size());
             List<Candle> batch = minuteCandles.subList(i, endIdx);
-            
+
             if (!batch.isEmpty()) {
                 double open = batch.get(0).open();
                 double close = batch.get(batch.size() - 1).close();
@@ -371,14 +380,14 @@ public class WyckoffPhaseService {
                 long volume = batch.stream().mapToLong(Candle::volume).sum();
                 long oi = batch.get(batch.size() - 1).oi();
                 String time = batch.get(0).time();
-                
+
                 fiveMinCandles.add(new Candle(time, open, high, low, close, volume, oi));
             }
         }
-        
+
         return fiveMinCandles;
     }
-    
+
     /**
      * Clear cache for a symbol (useful when starting new simulation)
      */
@@ -388,7 +397,7 @@ public class WyckoffPhaseService {
         currentHourTracker.remove(symbol);
         phaseIdentifier.reset();
     }
-    
+
     /**
      * Switch to a different phase identifier at runtime
      *
@@ -421,7 +430,7 @@ public class WyckoffPhaseService {
             logger.warn("Unknown identifier key: '{}', keeping current identifier", identifierKey);
         }
     }
-    
+
     /**
      * Get the current identifier type being used
      *
@@ -441,7 +450,7 @@ public class WyckoffPhaseService {
     public String getCurrentIdentifierTypeKey() {
         return identifierType.getKey();
     }
-    
+
     /**
      * Get phase with confidence score
      */
@@ -449,40 +458,40 @@ public class WyckoffPhaseService {
         if (candles == null || candles.isEmpty()) {
             return new PhaseWithConfidence(WyckoffPhase.UNKNOWN, 0.0);
         }
-        
+
         int index = candles.size() - 1;
         WyckoffPhase phase = phaseIdentifier.identifyPhase(candles, index);
         double confidence = phaseIdentifier.getPhaseConfidence(candles, index);
-        
+
         return new PhaseWithConfidence(phase, confidence);
     }
-    
+
     /**
      * Inner class to hold phase and confidence together
      */
     public static class PhaseWithConfidence {
         private final WyckoffPhase phase;
         private final double confidence;
-        
+
         public PhaseWithConfidence(WyckoffPhase phase, double confidence) {
             this.phase = phase;
             this.confidence = confidence;
         }
-        
+
         public WyckoffPhase getPhase() {
             return phase;
         }
-        
+
         public double getConfidence() {
             return confidence;
         }
-        
+
         @Override
         public String toString() {
             return String.format("%s (confidence: %.2f%%)", phase.getPhaseName(), confidence * 100);
         }
     }
-    
+
     /**
      * Get current phase statistics for logging
      */
@@ -491,13 +500,13 @@ public class WyckoffPhaseService {
         if (phases == null || phases.isEmpty()) {
             return "No phase data available";
         }
-        
+
         Map<WyckoffPhase, Long> phaseCounts = phases.values().stream()
             .collect(java.util.stream.Collectors.groupingBy(
                 phase -> phase,
                 java.util.stream.Collectors.counting()
             ));
-        
+
         return phaseCounts.toString();
     }
 }

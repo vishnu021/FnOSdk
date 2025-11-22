@@ -73,7 +73,9 @@ public class CandleAnalysisExample {
 
 **Package:** `com.vish.fno.util`
 
-Comprehensive time utilities for trading hours, date conversions, and IST timezone operations. Most methods are static and thread-safe.
+Comprehensive time utilities for trading hours, date conversions, and IST timezone operations. All methods are static and thread-safe.
+
+**Thread-Safety:** All methods are thread-safe. Uses `DateTimeFormatter` (immutable) instead of `SimpleDateFormat`. No synchronized blocks needed.
 
 **Default Timezone:** Asia/Kolkata (IST)
 

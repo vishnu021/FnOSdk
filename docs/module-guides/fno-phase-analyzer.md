@@ -321,22 +321,35 @@ public class PhaseAnalysisService {
 
 ### WyckoffPhaseService - Real-time Phase Identification
 
+Service for Wyckoff phase identification with thread-safe caching and runtime identifier switching.
+
+**Thread-Safety Implementation:**
+- `CopyOnWriteArrayList` for recent data cache (thread-safe modifications)
+- `ConcurrentHashMap` for hourly phase cache and hour tracking
+- No external synchronization needed for public methods
+- Safe for concurrent tick processing from multiple threads
+
+**Constructor:**
+```java
+public WyckoffPhaseService(WyckoffPhaseIdentifierFactory identifierFactory)
+```
+
 **Key Methods:**
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `getCurrentPhase(...)` | symbol, currentTick | `WyckoffPhase` | Real-time phase from tick data (hourly cached) |
-| `getPhaseFromCandles(...)` | candles | `WyckoffPhase` | Phase from candle list |
-| `getPhaseWithConfidence(...)` | candles | `PhaseWithConfidence` | Phase + confidence together |
-| `getStrategyForPhase(...)` | phase | `String` | Recommended strategy name |
-| `getAlternativeStrategyForPhase(...)` | phase | `String` | Alternative strategy name |
-| `getStrategyDescription(...)` | strategyName | `String` | Strategy description |
-| `clearCache(...)` | symbol | `void` | Clears all caches for symbol |
-| `switchIdentifier(WyckoffIdentifierType)` | type | `void` | Type-safe identifier switching (recommended) |
-| `switchIdentifier(String)` | key | `void` | String-based identifier switching (deprecated) |
+| `getCurrentPhase(String, Ticker)` | `symbol`, `currentTick` | `WyckoffPhase` | Real-time phase from tick data (hourly cached, thread-safe) |
+| `getPhaseFromCandles(List<Candle>)` | `candles` | `WyckoffPhase` | Phase from candle list |
+| `getPhaseWithConfidence(List<Candle>)` | `candles` | `PhaseWithConfidence` | Phase + confidence together |
+| `getStrategyForPhase(WyckoffPhase)` | `phase` | `String` | Recommended strategy name |
+| `getAlternativeStrategyForPhase(WyckoffPhase)` | `phase` | `String` | Alternative strategy name |
+| `getStrategyDescription(String)` | `strategyName` | `String` | Strategy description |
+| `clearCache(String)` | `symbol` | `void` | Clears all caches for symbol (thread-safe) |
+| `switchIdentifier(WyckoffIdentifierType)` | `type` | `void` | Type-safe identifier switching, clears caches (recommended) |
+| `switchIdentifier(String)` | `key` | `void` | String-based identifier switching (deprecated) |
 | `getCurrentIdentifierType()` | - | `WyckoffIdentifierType` | Returns current identifier type enum |
 | `getCurrentIdentifierTypeKey()` | - | `String` | Returns current identifier key (deprecated) |
-| `getPhaseStats(...)` | symbol | `String` | Phase distribution statistics |
+| `getPhaseStats(String)` | `symbol` | `String` | Phase distribution statistics |
 
 **Strategy Mappings:**
 - **MARKUP**: WyckoffBreakoutStrategy, PullbackBuyingStrategy (rotates)

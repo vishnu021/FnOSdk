@@ -4,25 +4,22 @@ import com.vish.fno.model.Ticker;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.orderrequest.OrderRequest;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
-
-import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Slf4j
 public class OrderCache {
     private final List<OrderRequest> orderRequests;
     private final List<ActiveOrder> activeOrders;
     @Getter
-    @Setter
-    private double availableCash;
+    private volatile double availableCash;
 
     public OrderCache(double availableCash) {
         this.availableCash = availableCash;
-        orderRequests = new ArrayList<>();
-        activeOrders = new ArrayList<>();
+        orderRequests = new CopyOnWriteArrayList<>();
+        activeOrders = new CopyOnWriteArrayList<>();
         log.info("Initialising order cache with available cash: {}", this.availableCash);
     }
 
@@ -99,5 +96,29 @@ public class OrderCache {
 
     public List<ActiveOrder> getActiveOrders() {
         return activeOrders;
+    }
+
+    /**
+     * Atomically deduct cash from available balance.
+     * Thread-safe operation for buy orders.
+     *
+     * @param amount the amount to deduct
+     */
+    @SuppressWarnings("PMD.AvoidSynchronizedAtMethodLevel")
+    public synchronized void deductCash(double amount) {
+        this.availableCash -= amount;
+        log.debug("Deducted {} from available cash, new balance: {}", amount, this.availableCash);
+    }
+
+    /**
+     * Atomically add cash to available balance.
+     * Thread-safe operation for sell orders.
+     *
+     * @param amount the amount to add
+     */
+    @SuppressWarnings("PMD.AvoidSynchronizedAtMethodLevel")
+    public synchronized void addCash(double amount) {
+        this.availableCash += amount;
+        log.debug("Added {} to available cash, new balance: {}", amount, this.availableCash);
     }
 }
