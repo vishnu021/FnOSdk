@@ -19,6 +19,7 @@ Each module has a dedicated guide with API reference, examples, and integration 
 - `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration
 - `docs/module-guides/fno-strategy-utils.md` - Strategy utilities for price action, CPR/PCR analysis
 - `docs/module-guides/fno-phase-analyzer.md` - Wyckoff phase analysis and market regime identification
+- `docs/module-guides/fno-orderflow.md` - Order flow management and strategy execution framework
 
 ---
 
@@ -37,7 +38,7 @@ mvn clean install
 
 ### Build Individual Module
 ```bash
-cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader, fno-strategy-utils, fno-phase-analyzer
+cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader, fno-strategy-utils, fno-phase-analyzer, fno-orderflow
 mvn clean install
 ```
 
@@ -110,6 +111,14 @@ fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, an
     ├── fno-utils
     │   └── fno-models
     └── fno-models
+
+fno-orderflow (depends on fno-kite-reader, fno-utils, and fno-models)
+    ├── fno-kite-reader
+    │   └── fno-utils
+    │       └── fno-models
+    ├── fno-utils
+    │   └── fno-models
+    └── fno-models
 ```
 
 ### Module Responsibilities
@@ -161,6 +170,13 @@ fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, an
 - Derivatives/Futures: `DerivativesFuturesOIWyckoffPhaseIdentifier` (Open Interest analysis)
 - Composite strategy: `CompositeWyckoffPhaseIdentifier` (combines multiple strategies)
 - Factory pattern: `WyckoffPhaseIdentifierFactory` (creates appropriate identifiers)
+
+**fno-orderflow** - Order flow management and strategy execution framework (depends on fno-kite-reader, fno-utils, fno-models):
+- Strategy execution: `AbstractStrategyExecutor` (template method pattern for strategy execution)
+- Order handling: `OrderHandler` (interface for order execution and management)
+- Trading hours validation: Excludes weekends, validates trading hours
+- Library-friendly: No Spring dependencies, constructor injection only
+- Supports both minute-based and option-based strategies
 
 ## Key Architecture Patterns
 

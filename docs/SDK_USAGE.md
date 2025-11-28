@@ -12,7 +12,8 @@ docs/module-guides/
 ├── fno-utils.md           - Utility functions (candle ops, time utils, options utils)
 ├── fno-technicals.md      - Technical indicators and Greeks
 ├── fno-kite-reader.md     - Kite Connect API integration
-└── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
+├── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
+└── fno-orderflow.md       - Order flow management and strategy execution framework
 ```
 
 **For AI Coding Assistants**: Each module guide contains:
@@ -35,6 +36,8 @@ docs/module-guides/
 | **Trend Analysis & CPR** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 | **Price Action Trading** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 | **Partial Profit Booking** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
+| **Strategy Execution** | fno-models, fno-utils, fno-kite-reader, fno-orderflow | [fno-orderflow.md](module-guides/fno-orderflow.md) |
+| **Order Flow Management** | fno-models, fno-utils, fno-kite-reader, fno-orderflow | [fno-orderflow.md](module-guides/fno-orderflow.md) |
 
 ## Module Dependencies
 
@@ -53,6 +56,14 @@ fno-strategy-utils
     │   ├── fno-utils
     │   │   └── fno-models
     │   └── fno-models
+    ├── fno-utils
+    │   └── fno-models
+    └── fno-models
+
+fno-orderflow
+    ├── fno-kite-reader
+    │   └── fno-utils
+    │       └── fno-models
     ├── fno-utils
     │   └── fno-models
     └── fno-models
@@ -89,6 +100,13 @@ fno-strategy-utils
     <dependency>
         <groupId>com.vish.fno</groupId>
         <artifactId>fno-kite-reader</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- For strategy execution and order flow management -->
+    <dependency>
+        <groupId>com.vish.fno</groupId>
+        <artifactId>fno-orderflow</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
@@ -227,6 +245,7 @@ This project uses FnOSdk for trading operations.
 - Utility functions → [fno-utils.md](../FnOSdk/docs/module-guides/fno-utils.md)
 - Kite Connect API → [fno-kite-reader.md](../FnOSdk/docs/module-guides/fno-kite-reader.md)
 - Strategy utilities → [fno-strategy-utils.md](../FnOSdk/docs/module-guides/fno-strategy-utils.md)
+- Order flow management → [fno-orderflow.md](../FnOSdk/docs/module-guides/fno-orderflow.md)
 
 When generating code using FnOSdk modules, reference the appropriate guide above for:
 - Exact API signatures
