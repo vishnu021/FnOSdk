@@ -2,8 +2,6 @@ package com.vish.fno.model.order.orderrequest;
 
 import com.vish.fno.model.Task;
 import com.vish.fno.model.Ticker;
-import com.vish.fno.model.helper.EntryVerifier;
-import com.vish.fno.model.helper.OptionEntryVerifier;
 import com.vish.fno.model.util.ModelUtils;
 import lombok.Builder;
 import lombok.Getter;
@@ -32,17 +30,13 @@ public class OptionBasedOrderRequest implements OrderRequest {
     private double buyThreshold;
     private double target;
     private double stopLoss;
-    private int quantity;
     private Map<String, String> extraData;
-    private int lotSize;
-    private EntryVerifier entryVerifier;
 
     @SuppressWarnings("PMD.ConfusingTernary")
     @Builder(builderMethodName = "builder")
     public OptionBasedOrderRequest(Task task, String tag, String index, Date date, int timestamp,
                                    int expirationTimestamp, double buyThreshold, double target, double stopLoss,
-                                   int quantity, Map<String, String> extraData, int lotSize,
-                                   EntryVerifier entryVerifier) {
+                                   Map<String, String> extraData) {
         this.task = task;
         this.tag = tag == null ? "" : tag.replaceAll("[a-z]", "");
         this.index = index;
@@ -52,10 +46,7 @@ public class OptionBasedOrderRequest implements OrderRequest {
         this.buyThreshold = buyThreshold;
         this.target = target;
         this.stopLoss = stopLoss;
-        this.quantity = quantity;
         this.extraData = extraData;
-        this.lotSize = lotSize;
-        this.entryVerifier = entryVerifier != null ? entryVerifier : new OptionEntryVerifier();
     }
 
     public static OptionBasedOrderRequestBuilder builder(String tag, String index, Task task) {
@@ -84,17 +75,12 @@ public class OptionBasedOrderRequest implements OrderRequest {
 
     @Override
     public Optional<OrderRequest> verifyBuyThreshold(Ticker tick) {
-        return entryVerifier.verifyBuyThreshold(tick, this);
-    }
-
-    @Override
-    public boolean hasMoveAlreadyHappened(double ltp) {
-        return entryVerifier.hasMoveAlreadyHappened(ltp, this);
-    }
-
-    @Override
-    public boolean isPlaceOrder(double ltp, double availableCash, boolean isExpiryDayForOption) {
-        return entryVerifier.isPlaceOrder(this, ltp, isExpiryDayForOption, availableCash);
+        if (tick.lastTradedPrice() > buyThreshold) {
+            log.info("tick ltp: {} is greater than buy threshold {}, placing order request({}) : {}",
+                    tick.lastTradedPrice(), buyThreshold, index, this);
+            return Optional.of(this);
+        }
+        return Optional.empty();
     }
 
     @Override

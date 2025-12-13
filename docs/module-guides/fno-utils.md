@@ -208,45 +208,6 @@ public class PatternRecognitionExample {
 
 ---
 
-### OptionsMetaDataUtils
-
-**Package:** `com.vish.fno.util`
-
-Provides lot size information for various trading instruments. All methods are static and thread-safe.
-
-**Method:**
-```java
-public static int getLotSize(String symbol)
-```
-
-**Supported Symbols:**
-- "NIFTY BANK" → 15
-- "NIFTY 50" → 25
-- "BAJFINANCE" → 125
-- "HDFCBANK" → 550
-- "HINDUNILVR" → 300
-- "RELIANCE" → 250
-- All others → 1 (default)
-
-**Example:**
-```java
-import com.vish.fno.util.OptionsMetaDataUtils;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
-public class LotSizeExample {
-    public void calculateOrderValue() {
-        String symbol = "NIFTY BANK";
-        int lotSize = OptionsMetaDataUtils.getLotSize(symbol);
-        double premium = 150.50;
-        double orderValue = lotSize * premium;
-        log.info("Order value: {}", orderValue); // 2257.5
-    }
-}
-```
-
----
-
 ### FileUtils
 
 **Package:** `com.vish.fno.util`
@@ -816,7 +777,7 @@ public class TrendAnalysisExample {
 
 ## Thread Safety
 
-**Thread-safe (static methods):** CandleUtils, TimeUtils, CandlePatternUtils, OptionsMetaDataUtils, Utils, CompressionUtils, JsonUtils, OrderManagerUtils
+**Thread-safe (static methods):** CandleUtils, TimeUtils, CandlePatternUtils, Utils, CompressionUtils, JsonUtils, OrderManagerUtils
 
 **Instance-based (not thread-safe):** FileUtils, CandleStickCache, AbstractDataCache, HistoricDataCache
 

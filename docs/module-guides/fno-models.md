@@ -30,14 +30,10 @@ public interface OrderRequest
 | `getIndex()` | - | `String` | Trading index/symbol (e.g., "NIFTY", "BANKNIFTY") |
 | `getBuyThreshold()` | - | `double` | Price threshold at which to place order |
 | `getTarget()` | - | `double` | Target price for the trade |
-| `getQuantity()` | - | `int` | Quantity to trade |
 | `getExpirationTimestamp()` | - | `int` | Timestamp when order request expires |
 | `getTag()` | - | `String` | Unique tag identifying the order request |
 | `getTask()` | - | `Task` | Task associated with this order request |
 | `verifyBuyThreshold(Ticker tick)` | `tick` | `Optional<OrderRequest>` | Returns order if threshold crossed, empty otherwise |
-| `getEntryVerifier()` | - | `EntryVerifier` | Entry verifier instance for this order |
-| `hasMoveAlreadyHappened(double ltp)` | `ltp` | `boolean` | Checks if target move already occurred |
-| `isPlaceOrder(double ltp, double availableCash, boolean isExpiryDayForOption)` | `ltp`, `availableCash`, `isExpiryDayForOption` | `boolean` | Final validation before placing order |
 
 ---
 
@@ -52,13 +48,12 @@ Order request for index-based futures/options trading.
 public class IndexOrderRequest implements OrderRequest
 ```
 
-**Key Fields:** task, tag, index, optionSymbol, date, timestamp, expirationTimestamp, buyThreshold, target, stopLoss, quantity, callOrder, extraData, lotSize, entryVerifier
+**Key Fields:** task, tag, index, optionSymbol, date, timestamp, expirationTimestamp, buyThreshold, target, stopLoss, callOrder, extraData
 
 **Builder:**
 ```java
 public static IndexOrderRequestBuilder builder(String tag, String index, Task task)
 ```
-Automatically initializes with `IndexEntryVerifier`.
 
 ---
 
@@ -73,13 +68,12 @@ Order request for option premium-based trading.
 public class OptionBasedOrderRequest implements OrderRequest
 ```
 
-**Key Fields:** task, tag, index, date, timestamp, expirationTimestamp, buyThreshold, target, stopLoss, quantity, extraData, lotSize, entryVerifier
+**Key Fields:** task, tag, index, date, timestamp, expirationTimestamp, buyThreshold, target, stopLoss, extraData
 
 **Builder:**
 ```java
 public static OptionBasedOrderRequestBuilder builder(String tag, String index, Task task)
 ```
-Automatically initializes with `OptionEntryVerifier`.
 
 ---
 
@@ -94,12 +88,10 @@ Order request for tick-based high-frequency trading.
 public class TickBasedOrderRequest implements OrderRequest
 ```
 
-**Key Fields:** Similar to `IndexOrderRequest` but without `entryVerifier` (no threshold verification).
+**Key Fields:** Similar to `IndexOrderRequest`.
 
 **Key Differences:**
-- `verifyBuyThreshold()` always returns `Optional.of(this)` (no verification)
-- `hasMoveAlreadyHappened()` always returns `false` (always execute)
-- `isPlaceOrder()` only checks task enabled status and available cash
+- `verifyBuyThreshold()` always returns `Optional.of(this)` (no threshold verification needed)
 
 **Builder:**
 ```java
@@ -128,10 +120,8 @@ public class OrderRequestExample {
             .buyThreshold(19500.0)
             .target(19600.0)
             .stopLoss(19450.0)
-            .quantity(50)
             .callOrder(true)
             .extraData(new HashMap<>())
-            .lotSize(50)
             .build();
 
         // Option premium order
@@ -142,9 +132,7 @@ public class OrderRequestExample {
             .buyThreshold(150.0)
             .target(180.0)
             .stopLoss(140.0)
-            .quantity(50)
             .extraData(new HashMap<>())
-            .lotSize(50)
             .build();
 
         // Tick-based order (immediate execution)
@@ -156,10 +144,8 @@ public class OrderRequestExample {
             .buyThreshold(19500.0)
             .target(19520.0)
             .stopLoss(19490.0)
-            .quantity(50)
             .callOrder(true)
             .extraData(new HashMap<>())
-            .lotSize(50)
             .build();
 
         log.info("Created call order: {}", callOrder);
@@ -249,11 +235,12 @@ Active order implementation for index-based trades.
 public class ActiveIndexOrder extends AbstractActiveOrder
 ```
 
-**Additional Fields:** task, index, optionSymbol, lotSize, callOrder, buyOptionPrice, sellOptionPrice, isActive, realisedProfit, entryVerifier
+**Additional Fields:** task, index, optionSymbol, lotSize, callOrder, buyOptionPrice, sellOptionPrice, isActive, realisedProfit
 
 **Constructor:**
 ```java
-public ActiveIndexOrder(IndexOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp)
+public ActiveIndexOrder(IndexOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
+                        int quantity, int lotSize)
 ```
 
 **Key Methods:**
@@ -276,11 +263,12 @@ Active order for option premium-based trades.
 public class OptionBasedActiveOrder extends AbstractActiveOrder
 ```
 
-**Additional Fields:** task, index, lotSize, isActive, realisedProfit, entryVerifier
+**Additional Fields:** task, index, lotSize, isActive, realisedProfit
 
 **Constructor:**
 ```java
-public OptionBasedActiveOrder(OptionBasedOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp)
+public OptionBasedActiveOrder(OptionBasedOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
+                              int quantity, int lotSize)
 ```
 
 **Key Differences:**
@@ -314,7 +302,8 @@ public class ActiveOrderFactory
 
 **Method:**
 ```java
-public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int timestamp, String orderEntryTimestamp)
+public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int timestamp, String orderEntryTimestamp,
+                                      int quantity, int lotSize)
 ```
 
 **Mapping:**
@@ -335,8 +324,11 @@ public class OrderExecutionExample {
         int currentTimestamp = 920;
         String timestampString = "2024-10-28 09:20:00";
 
+        int quantity = 50;
+        int lotSize = 50;
+
         ActiveOrder activeOrder = ActiveOrderFactory.createOrder(
-            orderRequest, currentLTP, currentTimestamp, timestampString
+            orderRequest, currentLTP, currentTimestamp, timestampString, quantity, lotSize
         );
 
         log.info("Active order created: {}", activeOrder);
@@ -410,83 +402,53 @@ public class SellDecisionExample {
 
 ---
 
-## Helper Package
+### ExitDetail
 
-### EntryVerifier Interface
-
-Interface for verifying order entry conditions.
+Immutable record for storing order exit details when an order is sold (partially or fully).
 
 ```java
-public interface EntryVerifier
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record ExitDetail(
+    Integer quantity,
+    Double sellPrice,
+    Double sellOptionPrice
+)
 ```
 
-**Constant:** `String ORDER_EXECUTED = "orderExecuted";`
+**Fields:**
+- `quantity`: Number of contracts/lots sold in this exit
+- `sellPrice`: Index price at which the order was sold
+- `sellOptionPrice`: Option price at which the order was sold (null for non-index orders)
 
-**Methods:**
-- `isPlaceOrder(OrderRequest orderRequest, double ltp, boolean isExpiryDayForOption, double availableCash)`: Returns `true` if order should be placed
-- `hasMoveAlreadyHappened(double ltp, OrderRequest order)`: Returns `true` if significant price movement already occurred
-- `verifyBuyThreshold(Ticker tick, OrderRequest orderRequest)`: Returns order request if threshold crossed, empty otherwise
-
----
-
-### IndexEntryVerifier
-
-Entry verifier for index-based orders.
-
+**Factory Methods:**
 ```java
-@Slf4j
-@NoArgsConstructor
-public class IndexEntryVerifier implements EntryVerifier
+public static ExitDetail forRegularOrder(Integer quantity, Double sellPrice)
+public static ExitDetail forIndexOrder(Integer quantity, Double sellPrice, Double sellOptionPrice)
 ```
-
-**Logic:**
-1. **isPlaceOrder:** Checks task enabled, expiry day orders allowed, available cash, move already happened
-2. **verifyBuyThreshold:** For Call orders, triggers when `LTP > buyThreshold`; for Put orders, triggers when `LTP < buyThreshold`
-3. **hasMoveAlreadyHappened:** Returns `false` if `targetRemaining > (priceAlreadyCrossed * 5)` (maintains risk-reward ratio)
 
 **Usage Example:**
 ```java
-import com.vish.fno.model.helper.IndexEntryVerifier;
-import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
-import com.vish.fno.model.Ticker;
+import com.vish.fno.model.order.ExitDetail;
 import lombok.extern.slf4j.Slf4j;
-import java.util.Optional;
 
 @Slf4j
-public class EntryVerificationExample {
-    private final IndexEntryVerifier verifier = new IndexEntryVerifier();
+public class ExitDetailsExample {
+    public void recordOrderExit() {
+        // Regular order exit (non-index)
+        ExitDetail regularExit = ExitDetail.forRegularOrder(50, 19550.0);
+        log.info("Regular exit: {} lots at {}", regularExit.quantity(), regularExit.sellPrice());
 
-    public void checkEntry(IndexOrderRequest order, Ticker tick) {
-        Optional<IndexOrderRequest> verifiedOrder =
-            (Optional<IndexOrderRequest>) verifier.verifyBuyThreshold(tick, order);
-
-        if (verifiedOrder.isPresent()) {
-            double currentLTP = tick.lastTradedPrice();
-            boolean shouldPlace = verifier.isPlaceOrder(order, currentLTP, false, 100000.0);
-
-            if (shouldPlace) {
-                log.info("Placing order: {}", order);
-            }
-        }
+        // Index order exit with option price
+        ExitDetail indexExit = ExitDetail.forIndexOrder(25, 19500.0, 175.0);
+        log.info("Index exit: {} lots, index={}, option={}",
+            indexExit.quantity(), indexExit.sellPrice(), indexExit.sellOptionPrice());
     }
 }
 ```
 
 ---
 
-### OptionEntryVerifier
-
-Entry verifier for option premium-based orders.
-
-```java
-@Slf4j
-@NoArgsConstructor
-public class OptionEntryVerifier implements EntryVerifier
-```
-
-**Logic:** Similar to `IndexEntryVerifier`, always assumes long positions (buy premium), triggers when `LTP > buyThreshold`.
-
----
+## Helper Package
 
 ### OrderFlowHandler Interface
 
@@ -614,13 +576,16 @@ public class OrderCacheExample {
         Optional<OrderRequest> triggerOrder = orderCache.checkEntryInOpenOrders(ticker, "NIFTY");
 
         if (triggerOrder.isPresent()) {
-            double orderCost = ticker.lastTradedPrice() * triggerOrder.get().getQuantity();
+            int quantity = 50;
+            int lotSize = 50;
+            double orderCost = ticker.lastTradedPrice() * quantity;
 
             // Deduct cash for buy order (thread-safe)
             orderCache.deductCash(orderCost);
 
             ActiveOrder activeOrder = ActiveOrderFactory.createOrder(
-                triggerOrder.get(), ticker.lastTradedPrice(), 915, "2024-10-28 09:15:00"
+                triggerOrder.get(), ticker.lastTradedPrice(), 915, "2024-10-28 09:15:00",
+                quantity, lotSize
             );
 
             orderCache.appendActiveOrder(activeOrder);

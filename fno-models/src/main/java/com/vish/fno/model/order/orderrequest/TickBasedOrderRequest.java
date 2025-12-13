@@ -2,8 +2,6 @@ package com.vish.fno.model.order.orderrequest;
 
 import com.vish.fno.model.Task;
 import com.vish.fno.model.Ticker;
-import com.vish.fno.model.helper.EntryVerifier;
-import com.vish.fno.model.helper.IndexEntryVerifier;
 import com.vish.fno.model.util.ModelUtils;
 import lombok.Builder;
 import lombok.Getter;
@@ -35,16 +33,14 @@ public class TickBasedOrderRequest implements OrderRequest {
     private double buyThreshold;
     private double target;
     private double stopLoss;
-    private int quantity;
     private boolean callOrder;
     private Map<String, String> extraData;
-    private int lotSize;
 
     @SuppressWarnings("PMD.ConfusingTernary")
     @Builder(builderMethodName = "builder")
     public TickBasedOrderRequest(Task task, String tag, String index, String optionSymbol, Date date, int timestamp,
                                  int expirationTimestamp, double buyThreshold, double target, double stopLoss,
-                                 int quantity, boolean callOrder, Map<String, String> extraData, int lotSize) {
+                                 boolean callOrder, Map<String, String> extraData) {
         this.task = task;
         this.tag = tag == null ? "" : tag.replaceAll("[a-z]", "");
         this.index = index;
@@ -55,10 +51,8 @@ public class TickBasedOrderRequest implements OrderRequest {
         this.buyThreshold = buyThreshold;
         this.target = target;
         this.stopLoss = stopLoss;
-        this.quantity = quantity;
         this.callOrder = callOrder;
         this.extraData = extraData;
-        this.lotSize = lotSize;
     }
 
     public static TickBasedOrderRequestBuilder builder(String tag, String index, Task task) {
@@ -87,45 +81,9 @@ public class TickBasedOrderRequest implements OrderRequest {
         return Objects.hash(tag, index, callOrder);
     }
 
+    @Override
     public Optional<OrderRequest> verifyBuyThreshold(Ticker tick) {
         return Optional.of(this);
-    }
-
-    @Override
-    public EntryVerifier getEntryVerifier() {
-        return null;
-    }
-
-    @Override
-    public boolean hasMoveAlreadyHappened(double ltp) {
-        return false;
-    }
-
-    @Override
-    public boolean isPlaceOrder(double ltp, double availableCash, boolean isExpiryDayForOption) {
-        // check if the strategy is enabled for expiry day
-        Task task = this.getTask();
-        // TODO: add test case
-        if (!task.isExpiryDayOrders() && isExpiryDayForOption) {
-            log.info("Expiry day orders is not enabled for task: {} ", this.getTask());
-            return false;
-        }
-
-        if (!this.getTask().isEnabled()) {
-            log.info("The following task({}) has not been enabled, not placing order: {}", this.getTask(), this);
-            return false;
-        }
-
-
-        if (availableCash > ltp * this.getQuantity()) {
-            log.info("Placing order as the symbol is : {} or amount is: {}. Available amount: {}",
-                    this.getIndex(), (ltp * this.getQuantity()), availableCash);
-            return true;
-        } else {
-            log.info("Not placing order as the symbol is : {} or amount is: {}. Available amount: {}",
-                    this.getIndex(), (ltp * this.getQuantity()), availableCash);
-        }
-        return false;
     }
 
     @Override

@@ -194,7 +194,7 @@ Expected: Uses `SimpleMovingAverage(20)` and `calculate(candles)`
 Expected: Uses `IndexOrderRequest.builder()` with correct fields
 
 **Test 3: "Calculate delta for an ATM NIFTY call option"**
-Expected: Uses `Delta.calculate()` with 6 parameters in correct order
+Expected: Uses `Delta.calculateDelta()` with 6 parameters in correct order (stockPrice, strikePrice, timeToExpiryInYears, riskFreeRate, volatility, isCall)
 
 ## Future Enhancements
 

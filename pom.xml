@@ -17,7 +17,6 @@
 		<module>fno-kite-reader</module>
 		<module>fno-strategy-utils</module>
 		<module>fno-phase-analyzer</module>
-		<module>fno-orderflow</module>
 	</modules>
 
 	<groupId>com.vish.fno</groupId>

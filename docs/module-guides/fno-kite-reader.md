@@ -476,6 +476,104 @@ String symbol = cache.getSymbol(256265L);
 
 ---
 
+### TickMapper - Kite Tick to Ticker Conversion
+
+Utility for converting Zerodha Kite Tick objects to internal `Ticker` format. Used for backtesting and order management without direct `OrderManager` dependency.
+
+```java
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class TickMapper
+```
+
+**Method:**
+```java
+public static Ticker mapTick(Tick tick, String tickSymbol)
+```
+
+**Parameters:**
+- `tick`: Zerodha Kite Tick object from WebSocket or API
+- `tickSymbol`: Trading symbol for the tick
+
+**Returns:** Internal `Ticker` record with complete market data
+
+**Usage Example:**
+```java
+import com.vish.fno.reader.util.TickMapper;
+import com.vish.fno.model.Ticker;
+import com.zerodhatech.models.Tick;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class TickConversionExample {
+    public void processWebSocketTicks(ArrayList<Tick> ticks) {
+        for (Tick tick : ticks) {
+            String symbol = getSymbolForToken(tick.getInstrumentToken());
+            Ticker ticker = TickMapper.mapTick(tick, symbol);
+
+            log.info("Mapped ticker: symbol={}, LTP={}, OI={}",
+                ticker.instrumentSymbol(), ticker.lastTradedPrice(), ticker.oi());
+        }
+    }
+}
+```
+
+**Edge Cases:**
+- Handles null market depth gracefully (returns empty map)
+- Null-safe field extraction (uses Optional with defaults)
+- Market depth entries preserve buy/sell segregation
+
+---
+
+### OrderDetailsLogger - Order Lifecycle Logging
+
+Logging utility for order execution lifecycle and market depth analysis.
+
+```java
+@Slf4j
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class OrderDetailsLogger
+```
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `logMarketDepth(Ticker)` | `tick` | `void` | Logs buy/sell market depth from ticker |
+| `logOrderLifeCycle(List<ActiveOrder>, Order, String)` | `activeOrders`, `order`, `orderId` | `void` | Logs order state transitions (BUY/SELL, PLACED/COMPLETE) |
+| `getActiveOrdersByOrderId(List<ActiveOrder>, String)` | `activeOrders`, `orderId` | `List<ActiveOrder>` | Filters active orders by Kite order ID from extraData |
+
+**Usage Example:**
+```java
+import com.vish.fno.reader.util.OrderDetailsLogger;
+import com.vish.fno.model.Ticker;
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.zerodhatech.models.Order;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OrderMonitoringExample {
+    public void monitorOrder(Ticker tick, List<ActiveOrder> activeOrders, Order kiteOrder, String orderId) {
+        // Log market depth for decision making
+        OrderDetailsLogger.logMarketDepth(tick);
+
+        // Log order lifecycle events
+        OrderDetailsLogger.logOrderLifeCycle(activeOrders, kiteOrder, orderId);
+
+        // Retrieve specific orders by Kite order ID
+        List<ActiveOrder> matchedOrders = OrderDetailsLogger.getActiveOrdersByOrderId(activeOrders, orderId);
+        log.info("Found {} active orders for Kite order ID: {}", matchedOrders.size(), orderId);
+    }
+}
+```
+
+**Edge Cases:**
+- `logMarketDepth()` handles null depth map gracefully (no-op)
+- Logs "next buy price" and "next sell price" from depth[0] if available
+- Order matching uses `kiteOrderId` key in ActiveOrder's `extraData` map
+- Non-null assertion on return value (empty list if no matches)
+
+---
+
 ## Error Handling
 
 ### Kite API Error Codes

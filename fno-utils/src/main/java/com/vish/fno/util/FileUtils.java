@@ -40,7 +40,7 @@ public final class FileUtils implements Constants {
         try {
             createDirectoryIfNotExist(CANDLESTICK_PATH);
             indentedMapper.writeValue(new File(path), candles);
-            log.debug("Saved Candlestick data to {}", path);
+            log.trace("Saved Candlestick data to {}", path);
         } catch (IOException e) {
             log.error("Failed to save candlestick data", e);
         }

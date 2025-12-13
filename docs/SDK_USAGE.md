@@ -12,8 +12,7 @@ docs/module-guides/
 ├── fno-utils.md           - Utility functions (candle ops, time utils, options utils)
 ├── fno-technicals.md      - Technical indicators and Greeks
 ├── fno-kite-reader.md     - Kite Connect API integration
-├── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
-└── fno-orderflow.md       - Order flow management and strategy execution framework
+└── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
 ```
 
 **For AI Coding Assistants**: Each module guide contains:
@@ -36,8 +35,6 @@ docs/module-guides/
 | **Trend Analysis & CPR** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 | **Price Action Trading** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 | **Partial Profit Booking** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
-| **Strategy Execution** | fno-models, fno-utils, fno-kite-reader, fno-orderflow | [fno-orderflow.md](module-guides/fno-orderflow.md) |
-| **Order Flow Management** | fno-models, fno-utils, fno-kite-reader, fno-orderflow | [fno-orderflow.md](module-guides/fno-orderflow.md) |
 
 ## Module Dependencies
 
@@ -56,14 +53,6 @@ fno-strategy-utils
     │   ├── fno-utils
     │   │   └── fno-models
     │   └── fno-models
-    ├── fno-utils
-    │   └── fno-models
-    └── fno-models
-
-fno-orderflow
-    ├── fno-kite-reader
-    │   └── fno-utils
-    │       └── fno-models
     ├── fno-utils
     │   └── fno-models
     └── fno-models
@@ -102,13 +91,6 @@ fno-orderflow
         <artifactId>fno-kite-reader</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
-
-    <!-- For strategy execution and order flow management -->
-    <dependency>
-        <groupId>com.vish.fno</groupId>
-        <artifactId>fno-orderflow</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-    </dependency>
 </dependencies>
 ```
 
@@ -132,30 +114,37 @@ RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
 List<Double> rsiValues = rsi14.calculate(candles);
 ```
 
-### Scenario 2: Place Index Futures Order
+### Scenario 2: Create Index Order Request
 
-**Read**: [fno-models.md - IndexOrderRequest](module-guides/fno-models.md#indexorderrequest---index-futures-orders)
+**Read**: [fno-models.md - IndexOrderRequest](module-guides/fno-models.md#indexorderrequest)
 
 ```java
 import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import com.vish.fno.model.Task;
+import java.util.Date;
 
-IndexOrderRequest order = IndexOrderRequest.builder()
-    .symbol("NIFTY24SEPFUT")
-    .quantity(50)
-    .orderType("MARKET")
-    .transactionType("BUY")
-    .product("MIS")
+Task task = Task.builder().enabled(true).expiryDayOrders(true).build();
+IndexOrderRequest order = IndexOrderRequest.builder("STRATEGY_1", "NIFTY", task)
+    .optionSymbol("NIFTY24SEPFUT")
+    .date(new Date())
+    .timestamp(915)
+    .expirationTimestamp(1530)
+    .buyThreshold(19500.0)
+    .target(19600.0)
+    .stopLoss(19450.0)
+    .callOrder(true)
     .build();
 ```
 
 ### Scenario 3: Convert Minute Candles to 15-Minute
 
-**Read**: [fno-utils.md - CandleUtils](module-guides/fno-utils.md#candleutils---candlestick-operations)
+**Read**: [fno-utils.md - TimeFrameUtils](module-guides/fno-utils.md#timeframeutils)
 
 ```java
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.TimeFrameUtils;
+import com.vish.fno.model.Candle;
 
-List<Candlestick> fifteenMin = CandleUtils.convertToTimeFrame(oneMinCandles, "15minute");
+List<Candle> fifteenMin = TimeFrameUtils.mergeCandle(oneMinCandles, 15);
 ```
 
 ### Scenario 4: Calculate Option Greeks
@@ -165,8 +154,8 @@ List<Candlestick> fifteenMin = CandleUtils.convertToTimeFrame(oneMinCandles, "15
 ```java
 import com.vish.fno.technical.greeks.*;
 
-double delta = Delta.calculate(spot, strike, tte, rfr, iv, "CE");
-double theta = Theta.calculate(spot, strike, tte, rfr, iv, "CE");
+double delta = Delta.calculateDelta(spot, strike, tte, rfr, iv, true);  // true for call
+double theta = Theta.calculateTheta(spot, strike, tte, rfr, iv, true);  // true for call
 ```
 
 ### Scenario 5: Fetch Historical Data from Kite
@@ -245,7 +234,6 @@ This project uses FnOSdk for trading operations.
 - Utility functions → [fno-utils.md](../FnOSdk/docs/module-guides/fno-utils.md)
 - Kite Connect API → [fno-kite-reader.md](../FnOSdk/docs/module-guides/fno-kite-reader.md)
 - Strategy utilities → [fno-strategy-utils.md](../FnOSdk/docs/module-guides/fno-strategy-utils.md)
-- Order flow management → [fno-orderflow.md](../FnOSdk/docs/module-guides/fno-orderflow.md)
 
 When generating code using FnOSdk modules, reference the appropriate guide above for:
 - Exact API signatures

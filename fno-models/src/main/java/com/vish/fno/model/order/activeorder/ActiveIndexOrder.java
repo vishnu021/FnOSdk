@@ -1,8 +1,6 @@
 package com.vish.fno.model.order.activeorder;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vish.fno.model.Task;
-import com.vish.fno.model.helper.EntryVerifier;
 import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
 import com.vish.fno.model.util.ModelUtils;
 import lombok.Getter;
@@ -29,16 +27,15 @@ public class ActiveIndexOrder extends AbstractActiveOrder {
     @Setter
     private boolean isActive;
     private double realisedProfit;
-    @JsonIgnore
-    private final EntryVerifier entryVerifier;
 
-    public ActiveIndexOrder(IndexOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp) {
+    public ActiveIndexOrder(IndexOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
+                            int quantity, int lotSize) {
         super(openOrder.getTag(),
                 openOrder.getDate(),
                 timestampIndex,
                 openOrder.getBuyThreshold(),
                 buyPrice,
-                openOrder.getQuantity(),
+                quantity,
                 openOrder.getTarget(),
                 openOrder.getStopLoss(),
                 openOrder.getExtraData());
@@ -46,11 +43,10 @@ public class ActiveIndexOrder extends AbstractActiveOrder {
         this.optionSymbol = openOrder.getOptionSymbol();
         this.callOrder = openOrder.isCallOrder();
         this.task = openOrder.getTask();
-        this.lotSize = openOrder.getLotSize();
+        this.lotSize = lotSize;
         this.isActive = true;
         this.realisedProfit = 0f;
         this.extraData.put("entryDateTime", timestamp);
-        this.entryVerifier = openOrder.getEntryVerifier();
     }
 
     public void setStopLoss(double stopLoss) {
