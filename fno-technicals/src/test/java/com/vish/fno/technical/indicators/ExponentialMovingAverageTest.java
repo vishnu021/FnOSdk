@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockitoAnnotations;
 
+import java.io.File;
 import java.util.List;
 
 import static com.vish.fno.util.CandleUtils.*;
@@ -17,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ExponentialMovingAverageTest {
     private static final int DURATION = 14;
 
-    private static final String resourcePath = ".//src//test//resources//RELIANCE_2023_03_17//";
+    private static final String resourcePath = "." + File.separator + "src" + File.separator + "test" + File.separator + "resources" + File.separator + "RELIANCE_2023_03_17" + File.separator;
     private static final String currentDayFile = "RELIANCE_2023-03-17.json";
     private static final String prevDayFile = "RELIANCE_2023-03-16.json";
 

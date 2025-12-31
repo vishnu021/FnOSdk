@@ -135,7 +135,7 @@ Primary service for order execution, market data, and historical data retrieval.
 
 | Method | Parameters | Returns | Description |
 |--------|-----------|---------|-------------|
-| `authenticate(String)` | requestToken | `void` | Generates session, sets access token, initializes WebSocket |
+| `authenticate(String)` | requestToken | `void` | Generates session, sets access token, subscribes to NIFTY 50 and NIFTY BANK option symbols, initializes WebSocket |
 | `isInitialised()` | - | `boolean` | Returns true if service is ready for trading |
 | `buyOrder(...)` | symbol, orderSize, tag, isPlaceOrder | `Optional<KiteOpenOrder>` | Places buy order (or dry run) |
 | `sellOrder(...)` | symbol, orderSize, tag, isPlaceOrder | `Optional<KiteOpenOrder>` | Places sell order (or dry run) |
@@ -146,6 +146,7 @@ Primary service for order execution, market data, and historical data retrieval.
 | `getITMStock(...)` | indexSymbol, price, isCall | `String` | Returns ITM option symbol |
 | `getOTMStock(...)` | indexSymbol, price, isCall | `String` | Returns OTM option symbol |
 | `appendIndexITMOptions()` | - | `void` | Adds ITM options for default indices to WebSocket |
+| `appendAllOptionsForIndex(String)` | indexSymbol | `void` | Subscribes to ALL option symbols (CE + PE, all strikes, nearest expiry) for the given index. Only executes if WebSocket is enabled - does nothing if WebSocket is disabled. Works for any index (NIFTY_50, NIFTY_BANK, NIFTY_FIN_SERVICE, etc.). WARNING: 100+ symbols per index |
 | `appendWebSocketSymbolsList(...)` | symbols, addFutures | `void` | Subscribes to additional symbols via WebSocket |
 | `setOnTickerArrivalListener(...)` | onTickerArrivalListener | `void` | Sets tick data listener |
 | `setOnOrderUpdateListener(...)` | onOrderUpdateListener | `void` | Sets order update listener |
@@ -387,6 +388,59 @@ OrderParams params = OrderUtils.createMarketOrderWithParameters(
     "ALGO_STRATEGY_V1"
 );
 ```
+
+---
+
+### OptionPriceUtils - Option Symbol Resolution
+
+**Package:** `com.vish.fno.reader.service` (package-private)
+
+Utility for resolving option symbols (ITM, OTM, all strikes) for indices. Used internally by `KiteService`.
+
+```java
+final class OptionPriceUtils
+```
+
+**Public Static Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `getAllOptionSymbols(String, List<Instrument>)` | `indexSymbol`, `instruments` | `List<String>` | Returns ALL option symbols (CE + PE, all strikes, nearest expiry) for index. Logs count breakdown |
+| `getNextExpiryFutureSymbol(String, List<Instrument>)` | `symbol`, `instruments` | `Optional<String>` | Returns next expiry futures symbol |
+| `getITMStock(String, double, boolean, List<Instrument>)` | `indexSymbol`, `price`, `isCall`, `instruments` | `String` | Returns ITM option symbol |
+| `getOTMStock(String, double, boolean, List<Instrument>)` | `indexSymbol`, `price`, `isCall`, `instruments` | `String` | Returns OTM option symbol |
+
+**Usage Examples:**
+```java
+import com.vish.fno.reader.service.OptionPriceUtils;
+import com.zerodhatech.models.Instrument;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OptionSubscriptionExample {
+    public void subscribeToAllOptions(List<Instrument> instruments) {
+        // Get all option symbols for index (CE + PE, all strikes)
+        List<String> allOptions = OptionPriceUtils.getAllOptionSymbols("NIFTY 50", instruments);
+        log.info("Found {} option symbols", allOptions.size()); // Logs: "Found 146 option symbols for NIFTY 50: 73 CALLs, 73 PUTs"
+
+        kiteService.appendWebSocketSymbolsList(allOptions, false);
+    }
+
+    public void getSpecificStrikes(List<Instrument> instruments) {
+        // Get ITM call at specific price
+        String itmCall = OptionPriceUtils.getITMStock("NIFTY 50", 19450.0, true, instruments);
+
+        // Get OTM put at specific price
+        String otmPut = OptionPriceUtils.getOTMStock("NIFTY BANK", 44200.0, false, instruments);
+    }
+}
+```
+
+**Edge Cases:**
+- Returns empty list if no options found for index
+- Automatically resolves exchange (NFO/BFO) based on instrument data
+- Uses nearest expiry only (does not include far-month contracts)
+- Supported indices: NIFTY 50, NIFTY BANK, NIFTY FIN SERVICE
 
 ---
 

@@ -7,7 +7,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.Date;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.vish.fno.util.Utils.getTopNLines;
 
@@ -15,6 +18,14 @@ import static com.vish.fno.util.Utils.getTopNLines;
 @AllArgsConstructor
 @SuppressWarnings("PMD")
 class HistoricalDataService {
+    private static final int ERROR_STACK_TRACE_LINES = 3;
+    private static final String FUTURES_SUFFIX = "FUT";
+    private static final String[] MONTH_CODES = {
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+        "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+    };
+    private static final int FUTURES_YEAR_RANGE = 3; // Current year + 2 future years
+
     private final KiteService kiteService;
     private final InstrumentCache instrumentCache;
 
@@ -38,7 +49,7 @@ class HistoricalDataService {
             return kiteService.getKiteSdk().getHistoricalData(from, to, instrument, interval, continuous, true);
         } catch (JSONException | IOException | KiteException e) {
             log.error("Error while requesting historical data (from: {}, to: {}, symbol: {}, continuous: {}), errorMessage: {}\n{}",
-                    from, to, instrument, continuous, e.getMessage(), getTopNLines(e, 3));
+                    from, to, instrument, continuous, e.getMessage(), getTopNLines(e, ERROR_STACK_TRACE_LINES));
         }
         return null;
     }
@@ -89,7 +100,7 @@ class HistoricalDataService {
      * Checks if the symbol is a futures contract based on naming pattern.
      */
     private boolean isFuturesSymbol(String symbol) {
-        return symbol != null && (symbol.contains("FUT") || symbol.matches(".*\\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*"));
+        return symbol != null && (symbol.contains(FUTURES_SUFFIX) || symbol.matches(".*\\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*"));
     }
 
     /**
@@ -104,14 +115,12 @@ class HistoricalDataService {
         String baseName = extractBaseName(expiredSymbol);
         if (baseName == null) return null;
 
-        // Try common current month patterns
-        String[] months = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-                          "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
-        String[] years = {"24", "25", "26"}; // Current and near-term years
+        // Try current and future years dynamically
+        String[] years = generateYearCodes();
 
         for (String year : years) {
-            for (String month : months) {
-                String candidateSymbol = baseName + year + month + "FUT";
+            for (String month : MONTH_CODES) {
+                String candidateSymbol = baseName + year + month + FUTURES_SUFFIX;
                 if (instrumentCache.getInstrument(candidateSymbol) != null) {
                     log.debug("Found potential current contract: {}", candidateSymbol);
                     return candidateSymbol;
@@ -121,6 +130,21 @@ class HistoricalDataService {
 
         log.warn("Could not find current contract for expired symbol: {}", expiredSymbol);
         return null;
+    }
+
+    /**
+     * Generates year codes for futures contracts based on current year.
+     * Returns last 2 digits of current year and next 2 years.
+     *
+     * @return Array of year codes (e.g., ["25", "26", "27"] for year 2025)
+     */
+    private String[] generateYearCodes() {
+        int currentYear = LocalDate.now().getYear() % 100; // Get last 2 digits
+        String[] yearCodes = new String[FUTURES_YEAR_RANGE];
+        for (int i = 0; i < FUTURES_YEAR_RANGE; i++) {
+            yearCodes[i] = String.format("%02d", currentYear + i);
+        }
+        return yearCodes;
     }
 
     /**
@@ -136,8 +160,9 @@ class HistoricalDataService {
         if (symbol == null) return null;
 
         // Pattern for symbols like NIFTY25AUGFUT, BANKNIFTY25SEPFUT
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("^([A-Z]+)\\d{2}[A-Z]{3}FUT$");
-        java.util.regex.Matcher matcher = pattern.matcher(symbol);
+        String patternString = "^([A-Z]+)\\d{2}[A-Z]{3}" + FUTURES_SUFFIX + "$";
+        Pattern pattern = Pattern.compile(patternString);
+        Matcher matcher = pattern.matcher(symbol);
 
         if (matcher.matches()) {
             return matcher.group(1);

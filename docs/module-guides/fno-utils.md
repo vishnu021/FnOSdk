@@ -214,6 +214,8 @@ public class PatternRecognitionExample {
 
 Handles file operations for candlestick data, tick data, and order logging. Instance-based class, not thread-safe.
 
+**Platform Compatibility:** Uses `File.separator` for cross-platform path compatibility (Windows/Linux/macOS).
+
 **Constructor:**
 ```java
 public FileUtils()

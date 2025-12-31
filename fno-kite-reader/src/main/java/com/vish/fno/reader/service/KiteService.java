@@ -62,6 +62,12 @@ public class KiteService {
             kiteSdk.setAccessToken(user.accessToken);
             kiteSdk.setPublicToken(user.publicToken);
             addSessionExpiryHook();
+
+            // Add all option symbols for NIFTY 50 and NIFTY BANK BEFORE WebSocket initialization
+            // The OnConnectedListener will subscribe to them automatically when WebSocket connects
+            appendAllOptionsForIndex(NIFTY_50);
+            appendAllOptionsForIndex(NIFTY_BANK);
+
             kiteWebSocket.initialize(kiteSdk);
             Margin margins = kiteSdk.getMargins(EQUITY);
             log.info("available_cash={}", margins.available.cash);
@@ -267,6 +273,28 @@ public class KiteService {
             }
         }
         itmOptionsAppended = true;
+    }
+
+    /**
+     * Appends ALL option symbols for a given index to WebSocket subscription list
+     * WARNING: This subscribes to ALL strikes (100+ symbols per index)
+     *
+     * @param indexSymbol The index symbol (e.g., NIFTY_50, NIFTY_BANK, NIFTY_FIN_SERVICE)
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public void appendAllOptionsForIndex(String indexSymbol) {
+        if(kiteWebSocket.isConnectToWebSocket()) {
+            try {
+                List<String> optionSymbols = OptionPriceUtils.getAllOptionSymbols(
+                    indexSymbol,
+                    instrumentCache.getInstruments()
+                );
+                log.info("Adding {} {} option symbols to WebSocket subscription list", optionSymbols.size(), indexSymbol);
+                kiteWebSocket.appendWebSocketSymbolsList(optionSymbols, false);
+            } catch (Exception e) {
+                log.error("Failed to get {} option symbols", indexSymbol, e);
+            }
+        }
     }
 
     @NotNull

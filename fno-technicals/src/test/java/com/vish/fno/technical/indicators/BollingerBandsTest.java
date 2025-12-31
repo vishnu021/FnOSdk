@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockitoAnnotations;
 
+import java.io.File;
 import java.util.List;
 
 import static com.vish.fno.util.CandleUtils.getBBData;
@@ -17,7 +18,7 @@ class BollingerBandsTest {
 
     private static final int DURATION = 20;
     private static final double MULTIPLIER = 2.0;
-    private static final String resourcePath = ".//src//test//resources//RELIANCE_2023_08_11//";
+    private static final String resourcePath = "." + File.separator + "src" + File.separator + "test" + File.separator + "resources" + File.separator + "RELIANCE_2023_08_11" + File.separator;
     private static final String currentDayFile = "RELIANCE_2023-08-11.json";
     private static final String prevDayFile = "RELIANCE_2023-08-10.json";
     private BollingerBands underTest;

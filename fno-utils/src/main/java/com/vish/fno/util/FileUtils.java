@@ -22,8 +22,8 @@ public final class FileUtils implements Constants {
 
     private final ObjectMapper indentedMapper;
     private final ObjectMapper mapper;
-    String filePath = Paths.get(".").normalize().toAbsolutePath() + "\\" + directory + "\\";
-    String tickPath = Paths.get(".").normalize().toAbsolutePath() + "\\" + tick_directory + "\\";
+    String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
+    String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
     int bufferLength;
 
     public FileUtils() {
@@ -67,7 +67,7 @@ public final class FileUtils implements Constants {
     public void appendTickToFile(String symbol, Object tick) {
         String folderPath = tickPath + getFormattedDate(new Date());
         createDirectoryIfNotExist(folderPath);
-        String filePath = folderPath + "//" + symbol + ".txt";
+        String filePath = folderPath + File.separator + symbol + ".txt";
         filePath = filePath.replaceAll("\\s", "_");
 
         try {
@@ -88,7 +88,7 @@ public final class FileUtils implements Constants {
 
     private String candleFileName(String instrument, Date fromDate) {
         createDirectoryIfNotExist(filePath + getFormattedDate(fromDate));
-        return filePath + getFormattedDate(fromDate) + "\\" + instrument + ".json";
+        return filePath + getFormattedDate(fromDate) + File.separator + instrument + ".json";
     }
 
     private String getFormattedDate(Date date) {
