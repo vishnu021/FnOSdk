@@ -146,8 +146,8 @@ Primary service for order execution, market data, and historical data retrieval.
 | `getITMStock(...)` | indexSymbol, price, isCall | `String` | Returns ITM option symbol |
 | `getOTMStock(...)` | indexSymbol, price, isCall | `String` | Returns OTM option symbol |
 | `appendIndexITMOptions()` | - | `void` | Adds ITM options for default indices to WebSocket |
-| `appendAllOptionsForIndex(String)` | indexSymbol | `void` | Subscribes to ALL option symbols (CE + PE, all strikes, nearest expiry) for the given index. Only executes if WebSocket is enabled - does nothing if WebSocket is disabled. Works for any index (NIFTY_50, NIFTY_BANK, NIFTY_FIN_SERVICE, etc.). WARNING: 100+ symbols per index |
-| `appendWebSocketSymbolsList(...)` | symbols, addFutures | `void` | Subscribes to additional symbols via WebSocket |
+| `appendAllOptionsForIndex(String)` | indexSymbol | `void` | Subscribes to ALL option symbols (CE + PE, all strikes, nearest expiry) for the given index. Automatically filters out already-subscribed tokens. Only executes if WebSocket is enabled - does nothing if WebSocket is disabled. Works for any index (NIFTY_50, NIFTY_BANK, NIFTY_FIN_SERVICE, etc.). WARNING: 100+ symbols per index |
+| `appendWebSocketSymbolsList(...)` | symbols, addFutures | `void` | Subscribes to additional symbols via WebSocket. Automatically prevents duplicate subscriptions |
 | `setOnTickerArrivalListener(...)` | onTickerArrivalListener | `void` | Sets tick data listener |
 | `setOnOrderUpdateListener(...)` | onOrderUpdateListener | `void` | Sets order update listener |
 | `getInstruments()` | - | `List<Instrument>` | Returns filtered instrument list |
@@ -155,6 +155,9 @@ Primary service for order execution, market data, and historical data retrieval.
 | `getInstrument(String)` | symbol | `Long` | Returns instrument token for symbol |
 | `getSymbol(long)` | token | `String` | Returns symbol for instrument token |
 | `isExpiryDayForOption(...)` | optionSymbol, date | `boolean` | Checks if option expires on given date |
+| `getSubscribedWebSocketTokens()` | - | `List<Long>` | Returns list of currently subscribed WebSocket instrument tokens |
+| `getSubscribedWebSocketTokensCount()` | - | `int` | Returns count of currently subscribed WebSocket tokens |
+| `isSymbolSubscribed(String)` | symbol | `boolean` | Checks if a symbol is already subscribed to WebSocket |
 
 #### Complete Trading Application Example
 
@@ -687,17 +690,23 @@ if (order.order() == null) {
    - Handle both Kite API errors (with error codes) and generic failures
    - Use paper trading mode (`placeOrders=false`) for testing
 
-3. **Rate Limiting**:
+3. **WebSocket Subscriptions**:
+   - Duplicate prevention is automatic - no need to check before calling `appendAllOptionsForIndex()` or `appendWebSocketSymbolsList()`
+   - Use `getSubscribedWebSocketTokens()` to get list of currently subscribed tokens
+   - Use `getSubscribedWebSocketTokensCount()` to get count of subscribed tokens
+   - Use `isSymbolSubscribed(String)` to check if a specific symbol is already subscribed
+
+4. **Rate Limiting**:
    - Respect Kite API rate limits (3 requests/second)
    - Use WebSocket for real-time data instead of polling
    - Implement exponential backoff for failed requests
 
-4. **Instrument Cache**:
+5. **Instrument Cache**:
    - Use `InstrumentFileUtils` to cache instrument data locally
    - Refresh cache daily (instruments change daily)
    - Load from cache at startup to avoid rate limits
 
-5. **Security**:
+6. **Security**:
    - Never commit API keys/secrets to version control
    - Use environment variables or secure vaults
    - Rotate access tokens daily (they expire at 3:30 AM IST)

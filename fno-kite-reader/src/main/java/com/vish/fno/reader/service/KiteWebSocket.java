@@ -25,7 +25,8 @@ public class KiteWebSocket {
     @Getter
     private final boolean connectToWebSocket;
     private boolean isConnected;
-    private final ArrayList<Long> webSocketTokensToSubscribe;
+    private final ArrayList<Long> tokensToSubscribe;
+    private final ArrayList<Long> subscribedTokens;
     @Setter
     private OnTicks onTickerArrivalListener;
     @Setter
@@ -34,9 +35,10 @@ public class KiteWebSocket {
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {
         this.connectToWebSocket = connectToWebSocket;
         this.instrumentCache = instrumentCache;
-        this.webSocketTokensToSubscribe = new ArrayList<>();
-        this.webSocketTokensToSubscribe.add(256265L);
-        this.webSocketTokensToSubscribe.add(260105L);
+        this.tokensToSubscribe = new ArrayList<>();
+        this.subscribedTokens = new ArrayList<>();
+        this.tokensToSubscribe.add(256265L);
+        this.tokensToSubscribe.add(260105L);
         this.onOrderUpdateListener = order -> log.info("Order update complete : {}", JsonUtils.getFormattedObject(order));
     }
 
@@ -54,7 +56,7 @@ public class KiteWebSocket {
              * For getting only last traded price, use modeLTP
              * For getting last traded price, last traded quantity, average price, volume traded today, total sell quantity and total buy quantity, open, high, low, close, change, use modeQuote
              * For getting all data with depth, use modeFull*/
-            tickerProvider.setMode(webSocketTokensToSubscribe, KiteTicker.modeLTP);
+            tickerProvider.setMode(tokensToSubscribe, KiteTicker.modeLTP);
         }
     }
 
@@ -63,9 +65,14 @@ public class KiteWebSocket {
             /* Subscribe ticks for token.
              * By default, all tokens are subscribed for modeQuote.
              * */
-            log.info("Subscribing to following tokens: {}", webSocketTokensToSubscribe);
-            tickerProvider.subscribe(webSocketTokensToSubscribe);
-            tickerProvider.setMode(webSocketTokensToSubscribe, KiteTicker.modeFull);
+            log.info("Subscribing to following {} tokens: {}", tokensToSubscribe.size(), tokensToSubscribe);
+            tickerProvider.subscribe(tokensToSubscribe);
+            tickerProvider.setMode(tokensToSubscribe, KiteTicker.modeFull);
+
+            // Move tokens from queue to subscribed list AFTER subscribing
+            subscribedTokens.addAll(tokensToSubscribe);
+            tokensToSubscribe.clear();
+            log.info("Subscription complete. {} tokens now subscribed", subscribedTokens.size());
         });
 
         tickerProvider.setOnDisconnectedListener(() -> log.info("disconnected"));
@@ -93,6 +100,32 @@ public class KiteWebSocket {
         tickerProvider.unsubscribe(tokens);
     }
 
+    /**
+     * Returns the list of currently subscribed WebSocket tokens
+     * @return Immutable copy of subscribed tokens list
+     */
+    public List<Long> getSubscribedTokens() {
+        return new ArrayList<>(subscribedTokens);
+    }
+
+    /**
+     * Returns the count of currently subscribed WebSocket tokens
+     * @return Number of subscribed tokens
+     */
+    public int getSubscribedTokensCount() {
+        return subscribedTokens.size();
+    }
+
+    /**
+     * Checks if a symbol is already subscribed to WebSocket
+     * @param symbol The trading symbol to check
+     * @return true if symbol is subscribed, false otherwise
+     */
+    public boolean isSymbolSubscribed(String symbol) {
+        Long token = instrumentCache.getInstrument(symbol);
+        return token != null && subscribedTokens.contains(token);
+    }
+
     public void appendWebSocketSymbolsList(List<String> symbols, boolean addFutures) {
         if(!connectToWebSocket) {
             return;
@@ -108,30 +141,54 @@ public class KiteWebSocket {
         }
 
         allSymbols.addAll(symbols);
-        List<Long> webSocketsToAdd = allSymbols
+
+        // Separate into new tokens and already existing tokens
+        List<Long> allTokens = allSymbols
                 .stream()
                 .map(instrumentCache::getInstrument)
-                .filter(t -> !webSocketTokensToSubscribe.contains(t))
+                .toList();
+
+        List<Long> alreadySubscribed = allTokens
+                .stream()
+                .filter(subscribedTokens::contains)
+                .toList();
+
+        List<Long> alreadyInQueue = allTokens
+                .stream()
+                .filter(t -> !subscribedTokens.contains(t) && tokensToSubscribe.contains(t))
+                .toList();
+
+        List<Long> newTokensToAdd = allTokens
+                .stream()
+                .filter(t -> !subscribedTokens.contains(t) && !tokensToSubscribe.contains(t))
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        if(!webSocketsToAdd.isEmpty()) {
-            log.info("Appending symbols: {} to websocket token list", allSymbols);
-            webSocketTokensToSubscribe.addAll(webSocketsToAdd);
-            this.subscribe(webSocketTokensToSubscribe);
+        // Log tokens that were skipped
+        if(!alreadySubscribed.isEmpty()) {
+            log.info("Skipping {} tokens - already subscribed: {}", alreadySubscribed.size(), alreadySubscribed);
         }
-    }
+        if(!alreadyInQueue.isEmpty()) {
+            log.info("Skipping {} tokens - already in queue: {}", alreadyInQueue.size(), alreadyInQueue);
+        }
 
-    private void subscribe(ArrayList<Long> tokens) {
-        if(isConnected) {
-            /* Subscribe ticks for token.
-             * By default, all tokens are subscribed for modeQuote.
-             * */
-            log.info("Subscribing : {}", tokens);
-            tickerProvider.subscribe(tokens);
-            tickerProvider.setMode(tokens, KiteTicker.modeFull);
+        if(newTokensToAdd.isEmpty()) {
+            log.info("No new tokens to add - all {} tokens were already subscribed or queued: {}", allTokens.size(), allTokens);
         } else {
-            log.info("Appending tokens to toSubscribe list : {}", tokens);
-            webSocketTokensToSubscribe.addAll(tokens);
+            if(isConnected) {
+                // WebSocket is connected - subscribe immediately then add to subscribedTokens
+                log.info("WebSocket connected - subscribing to {} new tokens immediately", newTokensToAdd.size());
+                tickerProvider.subscribe(new ArrayList<>(newTokensToAdd));
+                tickerProvider.setMode(new ArrayList<>(newTokensToAdd), KiteTicker.modeFull);
+
+                // Add to subscribedTokens AFTER subscribing
+                subscribedTokens.addAll(newTokensToAdd);
+                log.info("Subscription complete. Total subscribed tokens: {}", subscribedTokens.size());
+            } else {
+                // WebSocket not connected - add to queue
+                log.info("WebSocket not connected - adding {} tokens to queue (will subscribe on connect)", newTokensToAdd.size());
+                tokensToSubscribe.addAll(newTokensToAdd);
+                log.info("Total tokens in queue: {}", tokensToSubscribe.size());
+            }
         }
     }
 

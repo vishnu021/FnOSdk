@@ -297,6 +297,31 @@ public class KiteService {
         }
     }
 
+    /**
+     * Returns the list of currently subscribed WebSocket tokens
+     * @return List of subscribed instrument tokens
+     */
+    public List<Long> getSubscribedWebSocketTokens() {
+        return kiteWebSocket.getSubscribedTokens();
+    }
+
+    /**
+     * Returns the count of currently subscribed WebSocket tokens
+     * @return Number of subscribed tokens
+     */
+    public int getSubscribedWebSocketTokensCount() {
+        return kiteWebSocket.getSubscribedTokensCount();
+    }
+
+    /**
+     * Checks if a symbol is already subscribed to WebSocket
+     * @param symbol The trading symbol to check
+     * @return true if symbol is subscribed, false otherwise
+     */
+    public boolean isSymbolSubscribed(String symbol) {
+        return kiteWebSocket.isSymbolSubscribed(symbol);
+    }
+
     @NotNull
     private KiteOpenOrder buildUnsuccessfulKiteOrder() {
         return new KiteOpenOrder(null, false, null, null);
