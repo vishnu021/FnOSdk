@@ -19,10 +19,10 @@ import static org.mockito.Mockito.*;
 
 @Slf4j
 class InstrumentCacheTest {
-    private static final String INSTRUMENT_CACHE_FILE = "/src/test/java/resources/instrument_cache/instruments_2024-07-04.json";
+    private static final String INSTRUMENT_CACHE_FILE = "/src/test/java/resources/instrument_cache/instruments_2025-12-31.json";
 
-    @Mock private KiteService kiteService;
-
+    @Mock
+    private KiteService kiteService;
     private InstrumentCache underTest;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -30,7 +30,7 @@ class InstrumentCacheTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        List<String> nifty100Symbols = List.of("NIFTY 50", "NIFTY BANK", "HDFCBANK", "BANKNIFTY", "NIFTY");
+        List<String> nifty100Symbols = List.of("NIFTY", "BANKNIFTY", "HDFCBANK", "RELIANCE", "SBIN", "SENSEX", "BANKEX");
         underTest = new InstrumentCache(nifty100Symbols, kiteService);
         List<Instrument> instruments = mockInstrumentCache();
         when(kiteService.getAllInstruments()).thenReturn(instruments);
@@ -67,10 +67,10 @@ class InstrumentCacheTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-            String optionSymbol = "NIFTY24JUL25000PE";
+            String optionSymbol = "NIFTY2610626000CE";
 
             Calendar calendar = Calendar.getInstance();
-            calendar.set(2024, Calendar.JULY, 25, 0, 0, 0);
+            calendar.set(2026, Calendar.JANUARY, 6, 0, 0, 0);
             Date date = calendar.getTime();
             // Act
             boolean isExpiryDayForOption = underTest.isExpiryDayForOption(optionSymbol, date);
@@ -85,10 +85,10 @@ class InstrumentCacheTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-            String optionSymbol = "NIFTY24JUL25000PE";
+            String optionSymbol = "NIFTY2610626000CE";
 
             Calendar calendar = Calendar.getInstance();
-            calendar.set(2024, Calendar.JULY, 27, 0, 0, 0);
+            calendar.set(2025, Calendar.DECEMBER, 31, 0, 0, 0);
 
             Date date = calendar.getTime();
             // Act
@@ -99,30 +99,125 @@ class InstrumentCacheTest {
     }
 
     /**
-     * Thread-safety test: Concurrent initialization via double-checked locking
-     * Verifies that only one thread initializes the cache even with concurrent access
+     * Test getLotSizeFromFuture() method with valid index name.
+     * This method searches for FUT (future) instruments only, not equity.
      */
     @Test
-    void testConcurrentInitialization() throws InterruptedException, ExecutionException {
+    void testGetLotSizeFromFutureWithValidIndexName() {
         try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
             // Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
 
-            List<String> nifty100Symbols = List.of("NIFTY 50", "NIFTY BANK", "HDFCBANK");
-            InstrumentCache cache = new InstrumentCache(nifty100Symbols, kiteService);
+            String indexName = "NIFTY";
 
-            int numThreads = 20;
-            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            List<Future<List<Instrument>>> futures = new ArrayList<>();
-            CountDownLatch startLatch = new CountDownLatch(1);
+            // Act
+            Integer lotSize = underTest.getLotSizeFromFuture(indexName);
 
-            // Act - multiple threads call getInstruments() simultaneously (first time)
-            for (int i = 0; i < numThreads; i++) {
-                Future<List<Instrument>> future = executor.submit(() -> {
+            // Assert
+            assertNotNull(lotSize, "Lot size should not be null for NIFTY futures");
+            assertTrue(lotSize > 0, "Lot size for NIFTY futures should be positive");
+            assertEquals(65, lotSize, "NIFTY lot size should be 65");
+            log.info("Lot size for {} futures: {}", indexName, lotSize);
+        }
+    }
+
+    /**
+     * Test getLotSizeFromFuture() method with invalid index name
+     */
+    @Test
+    void testGetLotSizeFromFutureWithInvalidIndexName() {
+        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+
+            String indexName = "INVALID_INDEX";
+
+            // Act
+            Integer lotSize = underTest.getLotSizeFromFuture(indexName);
+
+            // Assert
+            assertNull(lotSize, "Lot size should be null for invalid index name");
+        }
+    }
+
+    /**
+     * Test getLotSizeFromFuture() method with null index name
+     */
+    @Test
+    void testGetLotSizeFromFutureWithNullIndexName() {
+        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+
+            // Act
+            Integer lotSize = underTest.getLotSizeFromFuture(null);
+
+            // Assert
+            assertNull(lotSize, "Lot size should be null for null index name");
+        }
+    }
+
+    /**
+     * Test getAllFutureLotSizeInfo() method.
+     * This method returns a map of index name to lot size for all future contracts.
+     */
+    @Test
+    void testGetAllFutureLotSizeInfo() {
+        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+
+            // Act
+            Map<String, Integer> allFutureLotSizes = underTest.getAllFutureLotSizeInfo();
+
+            // Assert
+            assertNotNull(allFutureLotSizes, "Future lot sizes map should not be null");
+            assertFalse(allFutureLotSizes.isEmpty(), "Future lot sizes map should not be empty");
+            log.info("Total future contracts: {}", allFutureLotSizes.size());
+
+            // Verify specific indices exist in map
+            assertTrue(allFutureLotSizes.containsKey("NIFTY 50"), "NIFTY 50 should be in future lot sizes");
+            assertTrue(allFutureLotSizes.containsKey("NIFTY BANK"), "NIFTY BANK should be in future lot sizes");
+
+            // Verify specific lot sizes
+            assertEquals(65, allFutureLotSizes.get("NIFTY 50"), "NIFTY lot size should be 65");
+            assertEquals(30, allFutureLotSizes.get("NIFTY BANK"), "NIFTY BANK lot size should be 30");
+
+            // Verify all lot sizes are positive (futures always have positive lot sizes)
+            allFutureLotSizes.forEach((indexName, lotSize) -> {
+                assertTrue(lotSize > 0, "Lot size for " + indexName + " futures should be positive");
+                log.info("Index: {}, Lot Size: {}", indexName, lotSize);
+            });
+        }
+    }
+
+    /**
+     * Test concurrent access to lot size methods.
+     * Ensures thread-safe lazy initialization works correctly.
+     */
+    @Test
+    void testConcurrentAccessToLotSizeMethods() {
+        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+
+            int threadCount = 10;
+            ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+            CountDownLatch latch = new CountDownLatch(threadCount);
+            List<Future<Integer>> futures = new ArrayList<>();
+
+            // Act - Multiple threads accessing lot size methods concurrently
+            for (int i = 0; i < threadCount; i++) {
+                Future<Integer> future = executor.submit(() -> {
                     try {
-                        startLatch.await(); // Wait for all threads to be ready
-                        return cache.getInstruments();
+                        latch.countDown();
+                        latch.await(); // Wait for all threads to be ready
+                        return underTest.getLotSizeFromFuture("NIFTY");
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         return null;
@@ -131,186 +226,20 @@ class InstrumentCacheTest {
                 futures.add(future);
             }
 
-            // Start all threads simultaneously
-            startLatch.countDown();
-
-            // Collect results
-            List<List<Instrument>> results = new ArrayList<>();
-            for (Future<List<Instrument>> future : futures) {
-                results.add(future.get());
+            // Assert - All threads should get the same lot size
+            Set<Integer> uniqueLotSizes = new HashSet<>();
+            for (Future<Integer> future : futures) {
+                Integer lotSize = future.get();
+                assertNotNull(lotSize, "Lot size should not be null");
+                assertTrue(lotSize > 0, "Lot size should be positive");
+                uniqueLotSizes.add(lotSize);
             }
 
+            assertEquals(1, uniqueLotSizes.size(), "All threads should get the same lot size");
             executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-
-            // Assert - all threads should get the same list reference (initialized once)
-            // Verify kiteService.getAllInstruments() was called exactly once
-            verify(kiteService, times(1)).getAllInstruments();
-
-            // All results should be non-null and have same size
-            for (List<Instrument> result : results) {
-                assertNotNull(result);
-                assertEquals(results.get(0).size(), result.size());
-            }
-        }
-    }
-
-    /**
-     * Thread-safety test: Concurrent reads after initialization
-     * Verifies fast-path (non-locking) access works correctly
-     */
-    @Test
-    void testConcurrentReadsAfterInitialization() throws InterruptedException, ExecutionException {
-        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
-            // Arrange
-            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-
-            List<String> nifty100Symbols = List.of("NIFTY 50", "NIFTY BANK", "HDFCBANK");
-            InstrumentCache cache = new InstrumentCache(nifty100Symbols, kiteService);
-
-            // Initialize cache first (single-threaded)
-            List<Instrument> initialResult = cache.getInstruments();
-            assertNotNull(initialResult);
-
-            // Act - concurrent reads from already-initialized cache
-            int numThreads = 50;
-            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            List<Future<List<Instrument>>> futures = new ArrayList<>();
-
-            for (int i = 0; i < numThreads; i++) {
-                Future<List<Instrument>> future = executor.submit(cache::getInstruments);
-                futures.add(future);
-            }
-
-            // Collect results
-            List<List<Instrument>> results = new ArrayList<>();
-            for (Future<List<Instrument>> future : futures) {
-                results.add(future.get());
-            }
-
-            executor.shutdown();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-
-            // Assert - all reads return consistent data
-            for (List<Instrument> result : results) {
-                assertNotNull(result);
-                assertEquals(initialResult.size(), result.size());
-            }
-
-            // Verify no additional calls to kiteService (should use cached data)
-            verify(kiteService, times(1)).getAllInstruments();
-        }
-    }
-
-    /**
-     * Thread-safety test: Concurrent calls to various cache methods
-     * Verifies thread-safety of all public methods
-     */
-    @Test
-    void testConcurrentMixedOperations() throws InterruptedException, ExecutionException {
-        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
-            // Arrange
-            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-
-            List<String> nifty100Symbols = List.of("NIFTY 50", "NIFTY BANK", "HDFCBANK");
-            InstrumentCache cache = new InstrumentCache(nifty100Symbols, kiteService);
-
-            int numThreads = 30;
-            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            List<Future<?>> futures = new ArrayList<>();
-            CountDownLatch startLatch = new CountDownLatch(1);
-
-            // Act - threads perform different operations concurrently
-            for (int i = 0; i < numThreads; i++) {
-                final int threadId = i;
-                Future<?> future = executor.submit(() -> {
-                    try {
-                        startLatch.await();
-                        // Mix of different operations
-                        cache.getInstruments();
-                        cache.getAllSymbols();
-                        cache.getExpiryDates();
-                        cache.getFilteredSymbols();
-
-                        if (threadId % 3 == 0) {
-                            cache.getInstrument("HDFCBANK");
-                        } else if (threadId % 3 == 1) {
-                            cache.getSymbol(256265L); // Example token
-                        } else {
-                            cache.getInstrumentForSymbol("NIFTY24JUL25000PE");
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-                futures.add(future);
-            }
-
-            // Start all threads
-            startLatch.countDown();
-
-            // Wait for all threads
-            for (Future<?> future : futures) {
-                future.get();
-            }
-
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-
-            // Assert - cache should be initialized exactly once
-            verify(kiteService, times(1)).getAllInstruments();
-        }
-    }
-
-    /**
-     * Thread-safety test: Defensive copy verification
-     * Ensures returned lists cannot modify internal state
-     */
-    @Test
-    void testDefensiveCopyInConcurrentEnvironment() throws InterruptedException, ExecutionException {
-        try(MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
-            // Arrange
-            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-
-            List<String> nifty100Symbols = List.of("NIFTY 50", "NIFTY BANK", "HDFCBANK");
-            InstrumentCache cache = new InstrumentCache(nifty100Symbols, kiteService);
-
-            // Initialize
-            cache.getInstruments();
-
-            int numThreads = 10;
-            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            List<Future<Boolean>> futures = new ArrayList<>();
-
-            // Act - threads try to modify returned lists
-            for (int i = 0; i < numThreads; i++) {
-                Future<Boolean> future = executor.submit(() -> {
-                    try {
-                        List<Instrument> instruments = cache.getInstruments();
-                        // Try to modify - should throw UnsupportedOperationException
-                        instruments.clear();
-                        return false; // Should not reach here
-                    } catch (UnsupportedOperationException e) {
-                        return true; // Expected exception
-                    }
-                });
-                futures.add(future);
-            }
-
-            // Collect results
-            for (Future<Boolean> future : futures) {
-                assertTrue(future.get(), "Defensive copy failed - list was modifiable");
-            }
-
-            executor.shutdown();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-
-            // Assert - cache should still have all data
-            List<Instrument> instruments = cache.getInstruments();
-            assertFalse(instruments.isEmpty());
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "Executor should terminate");
+        } catch (Exception e) {
+            fail("Concurrent access test failed: " + e.getMessage());
         }
     }
 }

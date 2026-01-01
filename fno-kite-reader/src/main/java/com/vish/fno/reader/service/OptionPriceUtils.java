@@ -9,7 +9,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static com.vish.fno.util.Constants.*;
+import static com.vish.fno.util.Constants.INDEX_TO_DERIVATIVE;
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -185,12 +185,14 @@ final class OptionPriceUtils {
         return allOptionSymbols;
     }
 
+    /**
+     * Get the derivative trading symbol prefix for an index.
+     * Uses the centralized INDEX_TO_DERIVATIVE mapping from Constants.
+     *
+     * @param indexSymbol the index name (e.g., "NIFTY 50", "NIFTY BANK")
+     * @return the derivative symbol (e.g., "NIFTY", "BANKNIFTY"), or the original symbol if no mapping exists
+     */
     private static String getOptionPrefix(String indexSymbol) {
-        return switch (indexSymbol) {
-            case NIFTY_BANK -> "BANKNIFTY";
-            case NIFTY_50 -> "NIFTY";
-            case NIFTY_FIN_SERVICE -> "FINNIFTY";
-            default -> indexSymbol;
-        };
+        return INDEX_TO_DERIVATIVE.getOrDefault(indexSymbol, indexSymbol);
     }
 }

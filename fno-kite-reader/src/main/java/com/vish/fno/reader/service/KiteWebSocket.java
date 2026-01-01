@@ -176,7 +176,7 @@ public class KiteWebSocket {
         } else {
             if(isConnected) {
                 // WebSocket is connected - subscribe immediately then add to subscribedTokens
-                log.info("WebSocket connected - subscribing to {} new tokens immediately", newTokensToAdd.size());
+                log.info("WebSocket connected - subscribing to {} new tokens immediately: {}", newTokensToAdd.size(), newTokensToAdd);
                 tickerProvider.subscribe(new ArrayList<>(newTokensToAdd));
                 tickerProvider.setMode(new ArrayList<>(newTokensToAdd), KiteTicker.modeFull);
 
@@ -185,7 +185,7 @@ public class KiteWebSocket {
                 log.info("Subscription complete. Total subscribed tokens: {}", subscribedTokens.size());
             } else {
                 // WebSocket not connected - add to queue
-                log.info("WebSocket not connected - adding {} tokens to queue (will subscribe on connect)", newTokensToAdd.size());
+                log.info("WebSocket not connected - adding {} tokens to queue (will subscribe on connect): {}", newTokensToAdd.size(), newTokensToAdd);
                 tokensToSubscribe.addAll(newTokensToAdd);
                 log.info("Total tokens in queue: {}", tokensToSubscribe.size());
             }

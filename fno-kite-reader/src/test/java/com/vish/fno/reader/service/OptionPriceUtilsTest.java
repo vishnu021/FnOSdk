@@ -23,10 +23,10 @@ import static org.mockito.Mockito.*;
 @Slf4j
 class OptionPriceUtilsTest {
 
-    private static final String INSTRUMENT_CACHE_FILE = "/src/test/java/resources/instrument_cache/instruments_2024-07-04.json";
+    private static final String INSTRUMENT_CACHE_FILE = "/src/test/java/resources/instrument_cache/instruments_2025-12-31.json";
+
     @Mock
     private KiteService kiteService;
-
     private InstrumentCache instrumentCache;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -56,7 +56,7 @@ class OptionPriceUtilsTest {
             // Act
             String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol,  instrumentCache.getInstruments()).get();
             // Assert
-            assertEquals(optionSymbol, "NIFTY24JULFUT");
+            assertEquals(optionSymbol, "NIFTY26JANFUT");
         }
     }
 
@@ -70,7 +70,7 @@ class OptionPriceUtilsTest {
             // Act
             String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol,  instrumentCache.getInstruments()).get();
             // Assert
-            assertEquals(optionSymbol, "SENSEX24705FUT");
+            assertEquals(optionSymbol, "SENSEX26JANFUT");
         }
     }
 
@@ -84,7 +84,7 @@ class OptionPriceUtilsTest {
             // Act
             String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol,  instrumentCache.getInstruments()).get();
             // Assert
-            assertEquals(optionSymbol, "BANKEX24708FUT");
+            assertEquals(optionSymbol, "BANKEX26JANFUT");
         }
     }
 
@@ -98,7 +98,7 @@ class OptionPriceUtilsTest {
             // Act
             String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 24952.0, true, instrumentCache.getInstruments());
             // Assert
-            assertEquals(optionSymbols, "NIFTY2470424950CE");
+            assertEquals(optionSymbols, "NIFTY2610624950CE");
         }
     }
 
@@ -112,7 +112,7 @@ class OptionPriceUtilsTest {
             // Act
             String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 24952.0, false, instrumentCache.getInstruments());
             // Assert
-            assertEquals(optionSymbols, "NIFTY2470425000PE");
+            assertEquals(optionSymbols, "NIFTY2610625000PE");
         }
     }
 
@@ -124,9 +124,9 @@ class OptionPriceUtilsTest {
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             String indexSymbol = "SENSEX50";
             // Act
-            String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 24952.0, true, instrumentCache.getInstruments());
+            String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 85352.0, true, instrumentCache.getInstruments());
             // Assert
-            assertEquals(optionSymbols, "SENSEX502470424950CE");
+            assertEquals(optionSymbols, "SENSEX5026JAN28350CE");
         }
     }
 
@@ -138,9 +138,9 @@ class OptionPriceUtilsTest {
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             String indexSymbol = "SENSEX";
             // Act
-            String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 24952.0, false, instrumentCache.getInstruments());
+            String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 85352.0, false, instrumentCache.getInstruments());
             // Assert
-            assertEquals(optionSymbols, "SENSEX2470570200PE");
+            assertEquals(optionSymbols, "SENSEX2610185400PE");
         }
     }
 

@@ -158,6 +158,35 @@ Primary service for order execution, market data, and historical data retrieval.
 | `getSubscribedWebSocketTokens()` | - | `List<Long>` | Returns list of currently subscribed WebSocket instrument tokens |
 | `getSubscribedWebSocketTokensCount()` | - | `int` | Returns count of currently subscribed WebSocket tokens |
 | `isSymbolSubscribed(String)` | symbol | `boolean` | Checks if a symbol is already subscribed to WebSocket |
+| `getLotSizeFromFuture(String)` | indexName | `Integer` | Returns lot size for index by querying future contract (e.g., "NIFTY 50" → 50). Returns null if not found |
+| `getAllFutureLotSizeInfo()` | - | `Map<String, Integer>` | Returns map of index name to lot size for all indices with future contracts |
+
+#### Lot Size Retrieval Example
+
+```java
+import com.vish.fno.reader.service.KiteService;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class LotSizeExample {
+    private final KiteService kiteService;
+
+    public void getLotSizes() {
+        // Get lot size for specific index
+        Integer niftyLotSize = kiteService.getLotSizeFromFuture("NIFTY 50");
+        log.info("NIFTY 50 lot size: {}", niftyLotSize); // 50
+
+        Integer bankNiftyLotSize = kiteService.getLotSizeFromFuture("NIFTY BANK");
+        log.info("NIFTY BANK lot size: {}", bankNiftyLotSize); // 15
+
+        // Get all lot sizes
+        Map<String, Integer> allLotSizes = kiteService.getAllFutureLotSizeInfo();
+        allLotSizes.forEach((index, lotSize) ->
+            log.info("{}: {} units", index, lotSize)
+        );
+    }
+}
+```
 
 #### Complete Trading Application Example
 
@@ -507,6 +536,8 @@ public InstrumentCache(List<String> nifty100Symbols, KiteService kiteService)
 | `getFilteredSymbols()` | - | `Map<String, String>` | Returns symbol to name mapping |
 | `getInstrumentForSymbol(String)` | `symbol` | `List<Instrument>` | Returns all instruments for symbol |
 | `isExpiryDayForOption(String, Date)` | `optionSymbol`, `currentDate` | `boolean` | Checks if option expires today |
+| `getLotSizeFromFuture(String)` | `indexName` | `Integer` | Returns lot size for index from future contract. Uses INDEX_TO_DERIVATIVE mapping. Returns null if not found |
+| `getAllFutureLotSizeInfo()` | - | `Map<String, Integer>` | Returns map of all index names to lot sizes from future contracts |
 
 **Initialization Behavior:**
 - First call to `getInstruments()` fetches from Kite API (network I/O)

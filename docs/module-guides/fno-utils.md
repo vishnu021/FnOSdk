@@ -297,20 +297,43 @@ public class PriceFormattingExample {
 
 **Package:** `com.vish.fno.util`
 
-Interface defining constants for trading symbols, directory paths, and date/time formats.
+Interface defining constants for trading symbols, derivative mappings, directory paths, and date/time formats.
 
-**Trading Symbols:**
+**Index Names (NSE Display):**
 ```java
-String NIFTY_BANK = "NIFTY BANK";
 String NIFTY_50 = "NIFTY 50";
+String NIFTY_BANK = "NIFTY BANK";
 String NIFTY_FIN_SERVICE = "NIFTY FIN SERVICE";
+String NIFTY_MIDCAP_SELECT = "NIFTY MIDCAP SELECT";
 String BANKEX = "BANKEX";
 String SENSEX = "SENSEX";
-String BAJFINANCE = "BAJFINANCE";
-String HDFCBANK = "HDFCBANK";
-String HINDUNILVR = "HINDUNILVR";
-String RELIANCE = "RELIANCE";
 ```
+
+**Derivative Trading Symbols:**
+```java
+String DERIVATIVE_NIFTY = "NIFTY";
+String DERIVATIVE_BANKNIFTY = "BANKNIFTY";
+String DERIVATIVE_FINNIFTY = "FINNIFTY";
+String DERIVATIVE_MIDCPNIFTY = "MIDCPNIFTY";
+String DERIVATIVE_BANKEX = "BANKEX";
+String DERIVATIVE_SENSEX = "SENSEX";
+```
+
+**Index-to-Derivative Mapping:**
+```java
+Map<String, String> INDEX_TO_DERIVATIVE = Map.of(
+    NIFTY_50, DERIVATIVE_NIFTY,
+    NIFTY_BANK, DERIVATIVE_BANKNIFTY,
+    NIFTY_FIN_SERVICE, DERIVATIVE_FINNIFTY,
+    NIFTY_MIDCAP_SELECT, DERIVATIVE_MIDCPNIFTY,
+    BANKEX, DERIVATIVE_BANKEX,
+    SENSEX, DERIVATIVE_SENSEX
+);
+```
+
+Handles the mismatch in Indian Stock Market where index names differ from F&O trading symbols (e.g., "NIFTY 50" trades as "NIFTY" in derivatives).
+
+**Stock Symbols:** `BAJFINANCE`, `HDFCBANK`, `HINDUNILVR`, `RELIANCE`
 
 **Date/Time Formats:**
 ```java
@@ -528,20 +551,52 @@ public class CandleCachingExample {
 
 **Package:** `com.vish.fno.util.helper`
 
-Abstract base class for implementing tick data caching strategies. Not thread-safe.
+Abstract base class for implementing tick data caching strategies with automatic memory management. Thread-safe for tick operations.
+
+**Memory Management:** Automatically limits cache to 100 ticks per symbol using deque-based FIFO eviction.
 
 **Protected Fields:**
 ```java
 protected final Map<String, Ticker> latestTicks;
-protected final Map<String, List<Ticker>> ticksCache;
+protected final Map<String, Deque<Ticker>> ticksCache;
+private static final int MAX_TICKS_PER_SYMBOL = 100;
 ```
 
-**Public Methods (from DataCache):**
-- `appendTick(String symbol, Ticker tick)`: Appends tick to cache
-- `getLatestTick(String symbol)`: Gets most recent tick
-- `getTicks(String symbol)`: Gets all cached ticks
+**Public Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `appendTick(String, Ticker)` | `symbol`, `tick` | `void` | Appends tick, evicts oldest if > 100 ticks. Thread-safe (ConcurrentLinkedDeque) |
+| `getLatestTick(String)` | `symbol` | `Ticker` | Returns most recent tick for symbol |
+| `getTicks(String)` | `symbol` | `List<Ticker>` | Returns all cached ticks as List (converts from Deque, backward compatible) |
+
+**Implementation Details:**
+- Uses `ConcurrentHashMap` for thread-safe tick storage
+- Uses `ConcurrentLinkedDeque` for O(1) append/eviction (addLast/removeFirst)
+- Automatic FIFO eviction when cache exceeds 100 ticks per symbol
+- Returns defensive copy (ArrayList) from getTicks() for backward compatibility
 
 **Subclasses must implement:** `updateAndGetMinuteData()`, `updateAndGetHistoryMinuteData()`, `getNCandles()`
+
+**Example:**
+```java
+import com.vish.fno.model.Ticker;
+import com.vish.fno.util.helper.AbstractDataCache;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class MyDataCache extends AbstractDataCache {
+    public void processIncomingTicks(String symbol, Ticker tick) {
+        appendTick(symbol, tick); // Auto-evicts if > 100 ticks
+
+        Ticker latest = getLatestTick(symbol);
+        log.info("Latest tick for {}: LTP={}", symbol, latest.lastTradedPrice());
+
+        List<Ticker> allTicks = getTicks(symbol);
+        log.info("Cached {} ticks for {}", allTicks.size(), symbol); // Max 100
+    }
+}
+```
 
 ---
 
@@ -781,11 +836,13 @@ public class TrendAnalysisExample {
 
 **Thread-safe (static methods):** CandleUtils, TimeUtils, CandlePatternUtils, Utils, CompressionUtils, JsonUtils, OrderManagerUtils
 
-**Instance-based (not thread-safe):** FileUtils, CandleStickCache, AbstractDataCache, HistoricDataCache
+**Thread-safe (tick operations):** AbstractDataCache (uses ConcurrentHashMap and ConcurrentLinkedDeque)
+
+**Instance-based (not thread-safe):** FileUtils, CandleStickCache, HistoricDataCache
 
 **Thread-safe (instance methods):** TimeProvider
 
-**Note:** Create separate instances for concurrent use if class is not thread-safe.
+**Note:** AbstractDataCache is thread-safe for appendTick(), getLatestTick(), and getTicks() operations. Subclass implementations of updateAndGetMinuteData() may require additional synchronization.
 
 ---
 

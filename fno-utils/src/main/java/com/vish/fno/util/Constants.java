@@ -1,13 +1,41 @@
 package com.vish.fno.util;
 
+import java.util.Map;
+
 @SuppressWarnings("PMD.ConstantsInInterface")
 public interface Constants {
 
+    // Index Names (as displayed in NSE)
     String NIFTY_BANK = "NIFTY BANK";
     String NIFTY_50 = "NIFTY 50";
     String NIFTY_FIN_SERVICE = "NIFTY FIN SERVICE";
+    String NIFTY_MIDCAP_SELECT = "NIFTY MIDCAP SELECT";
     String BANKEX = "BANKEX";
     String SENSEX = "SENSEX";
+
+    // Derivative Symbol Names (as used in F&O contracts)
+    String DERIVATIVE_NIFTY = "NIFTY";
+    String DERIVATIVE_BANKNIFTY = "BANKNIFTY";
+    String DERIVATIVE_FINNIFTY = "FINNIFTY";
+    String DERIVATIVE_MIDCPNIFTY = "MIDCPNIFTY";
+    String DERIVATIVE_BANKEX = "BANKEX";
+    String DERIVATIVE_SENSEX = "SENSEX";
+
+    /**
+     * Mapping from index names (as displayed in NSE) to their derivative trading symbols.
+     * This handles the mismatch in Indian Stock Market where index names differ from
+     * their futures/options trading symbols.
+     *
+     * <p>Example: "NIFTY 50" index trades as "NIFTY" in F&O segment
+     */
+    Map<String, String> INDEX_TO_DERIVATIVE = Map.of(
+            NIFTY_50, DERIVATIVE_NIFTY,
+            NIFTY_BANK, DERIVATIVE_BANKNIFTY,
+            NIFTY_FIN_SERVICE, DERIVATIVE_FINNIFTY,
+            NIFTY_MIDCAP_SELECT, DERIVATIVE_MIDCPNIFTY,
+            BANKEX, DERIVATIVE_BANKEX,
+            SENSEX, DERIVATIVE_SENSEX
+    );
 
     String BAJFINANCE = "BAJFINANCE";
     String HDFCBANK = "HDFCBANK";

@@ -63,7 +63,7 @@ public class KiteService {
             kiteSdk.setPublicToken(user.publicToken);
             addSessionExpiryHook();
 
-            // Add all option symbols for NIFTY 50 and NIFTY BANK BEFORE WebSocket initialization
+            // Add all option symbols for NIFTY 50 BEFORE WebSocket initialization
             // The OnConnectedListener will subscribe to them automatically when WebSocket connects
             appendAllOptionsForIndex(NIFTY_50);
             appendAllOptionsForIndex(NIFTY_BANK);
@@ -396,5 +396,27 @@ public class KiteService {
 
     public List<Instrument> getInstruments() {
         return instrumentCache.getInstruments();
+    }
+
+    /**
+     * Get lot size for an index by searching for its future contract.
+     * This is useful for indices where we want the lot size but only have the index name.
+     * Futures and options for the same underlying have the same lot size.
+     *
+     * @param indexName the index name (e.g., "NIFTY 50", "NIFTY BANK", "SENSEX")
+     * @return lot size from the future contract, or null if not found
+     */
+    public Integer getLotSizeFromFuture(String indexName) {
+        return instrumentCache.getLotSizeFromFuture(indexName);
+    }
+
+    /**
+     * Get lot sizes for all indices with future contracts.
+     * Returns a map with index name as key and lot size as value.
+     *
+     * @return map of index name to lot size
+     */
+    public Map<String, Integer> getAllFutureLotSizeInfo() {
+        return instrumentCache.getAllFutureLotSizeInfo();
     }
 }

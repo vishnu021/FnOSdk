@@ -10,6 +10,8 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.vish.fno.util.Constants.INDEX_TO_DERIVATIVE;
+
 
 /**
  * Cache for Kite instruments, focusing on Nifty 100 stocks and indices.
@@ -22,6 +24,7 @@ class InstrumentCache {
     private static final String NFO = "NFO";
     private static final String BFO = "BFO";
     private static final String BSE = "BSE";
+    private static final String FUT = "FUT";
 
     private final KiteService kiteService;
     private final List<String> nifty100Symbols;
@@ -186,5 +189,58 @@ class InstrumentCache {
         LocalDate localDate1 = date1.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
         LocalDate localDate2 = date2.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
         return localDate1.equals(localDate2);
+    }
+
+    /**
+     * Get lot size for an index by searching for its future contract.
+     * This is useful for indices where we want the lot size but only have the index name.
+     * Futures and options for the same underlying have the same lot size.
+     *
+     * @param indexName the index name (e.g., "NIFTY 50", "NIFTY BANK", "SENSEX")
+     * @return lot size from the future contract, or null if not found
+     */
+    public Integer getLotSizeFromFuture(String indexName) {
+        getInstruments();  // Ensure initialized
+        if (indexName == null) {
+            return null;
+        }
+
+        String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
+
+        // Find any future (FUT) instrument for this index
+        // Futures have the same lot size regardless of expiry
+        return filteredInstruments.stream()
+                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> derivativeName.equals(i.getName()))
+                .findFirst()
+                .map(Instrument::getLot_size)
+                .orElse(null);
+    }
+
+    /**
+     * Get lot sizes for all indices with future contracts.
+     * Returns a map with index name as key and lot size as value.
+     *
+     * @return map of index name to lot size
+     */
+    public Map<String, Integer> getAllFutureLotSizeInfo() {
+        getInstruments();
+
+        Map<String, String> reverseMap = INDEX_TO_DERIVATIVE.entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getValue,
+                        Map.Entry::getKey
+                ));
+
+        return filteredInstruments.stream()
+                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> i.getName() != null)
+                .collect(Collectors.toMap(
+                        i -> reverseMap.getOrDefault(i.getName(), i.getName()),
+                        Instrument::getLot_size,
+                        (existing, replacement) -> existing,
+                        LinkedHashMap::new
+                ));
     }
 }
