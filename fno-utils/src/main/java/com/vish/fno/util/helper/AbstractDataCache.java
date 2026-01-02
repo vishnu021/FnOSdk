@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public abstract class AbstractDataCache implements DataCache {
-    private static final int MAX_TICKS_PER_SYMBOL = 100;
+    private static final int MAX_TICKS_PER_SYMBOL = 500;
 
     protected final Map<String, Ticker> latestTicks;
     protected final Map<String, Deque<Ticker>> ticksCache;

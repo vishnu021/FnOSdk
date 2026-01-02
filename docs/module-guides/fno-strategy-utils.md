@@ -39,7 +39,10 @@ com.vish.fno.strategy
 │   ├── DataAnalyser          # Price action pattern detection
 │   └── Line                  # Line through multiple points
 └── orderflow/
-    └── PartialRevisingStopLoss  # Dynamic stop-loss management
+    ├── TargetAndStopLossStrategy    # Strategy interface for order exits
+    ├── FixedTargetAndStopLossStrategy  # Fixed target/SL implementation
+    ├── PartialRevisingStopLoss      # Dynamic stop-loss management
+    └── OrderManagerUtils            # Order exit condition utilities
 ```
 
 ## Core Components
@@ -418,6 +421,154 @@ For complete API documentation, refer to the [LibGDX Vector2 documentation](http
 
 ## Order Flow Management
 
+### TargetAndStopLossStrategy - Order Exit Strategy Interface
+
+Interface defining the contract for target and stop-loss management strategies.
+
+```java
+public interface TargetAndStopLossStrategy {
+    OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp);
+    OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp);
+}
+```
+
+**Parameters:**
+- `order`: Active order being monitored
+- `ltp`: Last traded price
+
+**Returns:**
+- `OrderSellDetailModel`: Contains sell decision (`sellOrder` boolean), quantity to sell, and sell reason
+
+**Implementations:**
+- `FixedTargetAndStopLossStrategy`: Fixed target/SL without revision
+- `PartialRevisingStopLoss`: Partial booking with dynamic trailing stop-loss
+
+---
+
+### FixedTargetAndStopLossStrategy - Fixed Target/SL Implementation
+
+Simple strategy that exits the full position when target or stop-loss is hit, without any revision.
+
+```java
+@Slf4j
+public class FixedTargetAndStopLossStrategy implements TargetAndStopLossStrategy {
+    public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
+    public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
+}
+```
+
+**Example:**
+
+```java
+import com.vish.fno.strategy.orderflow.FixedTargetAndStopLossStrategy;
+import com.vish.fno.strategy.orderflow.TargetAndStopLossStrategy;
+import com.vish.fno.model.order.OrderSellDetailModel;
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class SimpleOrderManager {
+    private final TargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
+
+    public void checkExit(ActiveOrder order, double currentPrice) {
+        // Check stop-loss first
+        OrderSellDetailModel slResult = strategy.isStopLossHit(order, currentPrice);
+        if (slResult.sellOrder()) {
+            log.info("Stop-loss hit at {}. Exiting {} lots", currentPrice, slResult.getSellQuantity());
+            executeSell(order, slResult.getSellQuantity());
+            return;
+        }
+
+        // Check target
+        OrderSellDetailModel targetResult = strategy.isTargetAchieved(order, currentPrice);
+        if (targetResult.sellOrder()) {
+            log.info("Target achieved at {}. Exiting {} lots", currentPrice, targetResult.getSellQuantity());
+            executeSell(order, targetResult.getSellQuantity());
+        }
+    }
+
+    private void executeSell(ActiveOrder order, int quantity) {
+        // Sell order execution
+    }
+}
+```
+
+**Strategy Behavior:**
+- **Target hit**: Sells entire position (`order.getBuyQuantity()`)
+- **Stop-loss hit**: Sells entire position
+- **No revision**: Target and stop-loss remain fixed throughout
+
+**Thread Safety:** ✅ Stateless - thread-safe
+
+---
+
+### OrderManagerUtils - Order Exit Condition Utility
+
+Static utility for comprehensive exit condition checking including time-based exits, stop-loss, and target.
+
+```java
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class OrderManagerUtils {
+    public static OrderSellDetailModel isExitCondition(
+        TargetAndStopLossStrategy targetAndStopLossStrategy,
+        double ltp,
+        int timestampIndex,
+        ActiveOrder order)
+}
+```
+
+**Parameters:**
+- `targetAndStopLossStrategy`: Strategy implementation to use
+- `ltp`: Last traded price
+- `timestampIndex`: Current intraday minute index (0-375 for 9:15 AM - 3:30 PM)
+- `order`: Active order to check
+
+**Returns:**
+- `OrderSellDetailModel`: Exit decision with quantity and reason
+
+**Example:**
+
+```java
+import com.vish.fno.strategy.orderflow.OrderManagerUtils;
+import com.vish.fno.strategy.orderflow.FixedTargetAndStopLossStrategy;
+import com.vish.fno.model.order.OrderSellDetailModel;
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class IntradayOrderManager {
+    private final TargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
+
+    public void onTick(ActiveOrder order, double ltp, int minuteIndex) {
+        OrderSellDetailModel exitDecision = OrderManagerUtils.isExitCondition(
+            strategy, ltp, minuteIndex, order
+        );
+
+        if (exitDecision.sellOrder()) {
+            log.info("Exit triggered: reason={}, quantity={}, ltp={}",
+                exitDecision.getReason(), exitDecision.getSellQuantity(), ltp);
+            executeSell(order, exitDecision.getSellQuantity());
+        }
+    }
+
+    private void executeSell(ActiveOrder order, int quantity) {
+        // Sell execution
+    }
+}
+```
+
+**Exit Priority:**
+1. **Time-based exit** (index > 368, ~3:23 PM): Sells all remaining quantity
+2. **Stop-loss check**: Uses provided strategy
+3. **Target check**: Uses provided strategy
+
+**Constants:**
+- `INTRADAY_EXIT_POSITION_TIME_INDEX = 368`: Exit time (approximately 3:23 PM)
+
+**Thread Safety:** ✅ Static utility - thread-safe
+
+---
+
 ### PartialRevisingStopLoss - Dynamic Stop Loss Strategy
 
 Implements partial profit booking with trailing stop-loss using Heikin-Ashi lows/highs.
@@ -599,6 +750,8 @@ public class CompleteTradingStrategy {
 | HATrendUtils | ✅ Thread-safe | All static methods, no shared state |
 | CPRUtils | ✅ Thread-safe | Pure calculations, no side effects |
 | DataAnalyser | ✅ Thread-safe | Static methods with no mutable state |
+| OrderManagerUtils | ✅ Thread-safe | Static utility, no mutable state |
+| FixedTargetAndStopLossStrategy | ✅ Thread-safe | Stateless implementation |
 | Point2D | ⚠️ Not thread-safe | Mutable object with setters |
 | Line | ⚠️ Not thread-safe | Mutable points set |
 | PartialRevisingStopLoss | ⚠️ Not thread-safe | Modifies order state, requires external sync |

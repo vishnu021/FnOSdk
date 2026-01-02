@@ -13,6 +13,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Slf4j
 public class OrderCache {
     private final List<OrderRequest> orderRequests;
+    @Getter
     private final List<ActiveOrder> activeOrders;
     @Getter
     private volatile double availableCash;
@@ -93,10 +94,6 @@ public class OrderCache {
 
     public void appendActiveOrder(ActiveOrder activeOrder) {
         this.activeOrders.add(activeOrder);
-    }
-
-    public List<ActiveOrder> getActiveOrders() {
-        return activeOrders;
     }
 
     /**

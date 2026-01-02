@@ -8,7 +8,6 @@ import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.activeorder.OptionBasedActiveOrder;
 import com.vish.fno.util.chart.HeikinAshi;
 import com.vish.fno.util.helper.DataCache;
-import com.vish.fno.util.orderflow.TargetAndStopLossStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

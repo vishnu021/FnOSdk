@@ -1,9 +1,8 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.strategy.orderflow;
 
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
-import com.vish.fno.util.orderflow.TargetAndStopLossStrategy;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

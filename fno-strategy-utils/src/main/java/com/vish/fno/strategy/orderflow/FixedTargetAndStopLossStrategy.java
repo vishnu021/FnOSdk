@@ -1,4 +1,4 @@
-package com.vish.fno.util.orderflow;
+package com.vish.fno.strategy.orderflow;
 
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.OrderSellDetailModel;

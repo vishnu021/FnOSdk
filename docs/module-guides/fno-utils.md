@@ -740,106 +740,6 @@ public class HistoricalDataService {
 
 ---
 
-### OrderManagerUtils
-
-**Package:** `com.vish.fno.util.helper`
-
-Utilities for managing order exits. All methods are static and thread-safe.
-
-**Exit Time:** 3:28 PM (time index 368)
-
-**Method:**
-```java
-public static OrderSellDetailModel isExitCondition(
-    final TargetAndStopLossStrategy targetAndStopLossStrategy,
-    final double ltp,
-    final int timestampIndex,
-    final ActiveOrder order)
-```
-
-**Exit Priority:**
-1. Time-based exit (after 3:28 PM)
-2. Stop-loss hit
-3. Target achieved
-
-**Example:**
-```java
-import com.vish.fno.model.order.activeorder.ActiveOrder;
-import com.vish.fno.model.order.OrderSellDetailModel;
-import com.vish.fno.util.helper.OrderManagerUtils;
-import com.vish.fno.util.orderflow.FixedTargetAndStopLossStrategy;
-import com.vish.fno.util.orderflow.TargetAndStopLossStrategy;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
-public class OrderExitExample {
-    private final TargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
-
-    public void checkOrderExit(ActiveOrder order, double ltp, int timeIndex) {
-        OrderSellDetailModel sellDetail = OrderManagerUtils.isExitCondition(strategy, ltp, timeIndex, order);
-
-        if (sellDetail.sellOrder()) {
-            log.info("Exit: reason={}, quantity={}", sellDetail.sellReason(), sellDetail.quantity());
-        }
-    }
-}
-```
-
----
-
-## Order Flow Strategies
-
-### TargetAndStopLossStrategy
-
-**Package:** `com.vish.fno.util.orderflow`
-
-Interface defining contract for target/stop-loss evaluation.
-
-**Methods:**
-- `OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)`
-- `OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)`
-
----
-
-### FixedTargetAndStopLossStrategy
-
-**Package:** `com.vish.fno.util.orderflow`
-
-Concrete implementation of fixed target and stop-loss strategy. Stateless, thread-safe.
-
-**Methods:**
-- `isTargetAchieved(ActiveOrder order, double ltp)`: Checks if target achieved using `order.isTargetAchieved(ltp)`
-- `isStopLossHit(ActiveOrder order, double ltp)`: Checks if stop-loss hit using `order.isStopLossHit(ltp)`
-
-**Example:**
-```java
-import com.vish.fno.model.order.activeorder.ActiveOrder;
-import com.vish.fno.model.order.OrderSellDetailModel;
-import com.vish.fno.util.orderflow.FixedTargetAndStopLossStrategy;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
-public class OrderManagementExample {
-    private final FixedTargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
-
-    public void manageOrder(ActiveOrder order, double currentPrice) {
-        OrderSellDetailModel targetCheck = strategy.isTargetAchieved(order, currentPrice);
-        if (targetCheck.sellOrder()) {
-            log.info("Target hit! Selling {} units", targetCheck.quantity());
-            return;
-        }
-
-        OrderSellDetailModel slCheck = strategy.isStopLossHit(order, currentPrice);
-        if (slCheck.sellOrder()) {
-            log.info("Stop-loss hit! Selling {} units", slCheck.quantity());
-            return;
-        }
-    }
-}
-```
-
----
-
 ## Enums
 
 ### Trend
@@ -876,7 +776,7 @@ public class TrendAnalysisExample {
 
 ## Thread Safety
 
-**Thread-safe (static methods):** CandleUtils, TimeUtils, CandlePatternUtils, Utils, CompressionUtils, JsonUtils, OrderManagerUtils
+**Thread-safe (static methods):** CandleUtils, TimeUtils, CandlePatternUtils, Utils, CompressionUtils, JsonUtils
 
 **Thread-safe (tick operations):** AbstractDataCache (uses ConcurrentHashMap and ConcurrentLinkedDeque)
 
