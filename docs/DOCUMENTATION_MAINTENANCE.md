@@ -140,7 +140,7 @@ public class StochasticOscillator extends AbstractIndicator {
         // Implementation
     }
 
-    public Map<String, List<Double>> calculate(List<Candlestick> candles) {
+    public Map<String, List<Double>> calculate(List<Candle> candles) {
         // Implementation
     }
 }
@@ -156,7 +156,7 @@ Add a new section:
 ```java
 public class StochasticOscillator extends AbstractIndicator {
     public StochasticOscillator(int kPeriod, int dPeriod)
-    public Map<String, List<Double>> calculate(List<Candlestick> candles)
+    public Map<String, List<Double>> calculate(List<Candle> candles)
 }
 ```
 
@@ -176,7 +176,7 @@ List<Double> dLine = result.get("d");
 
 double currentK = kLine.get(kLine.size() - 1);
 if (currentK < 20) {
-    System.out.println("Oversold");
+    log.info("Oversold");
 }
 ```
 ```
@@ -206,10 +206,10 @@ git commit -m "Add Stochastic Oscillator indicator"
 #### 1. Update the Code
 ```java
 // Old signature
-public List<Double> calculate(List<Candlestick> candles)
+public List<Double> calculate(List<Candle> candles)
 
 // New signature
-public List<Double> calculate(List<Candlestick> candles, boolean weighted)
+public List<Double> calculate(List<Candle> candles, boolean weighted)
 ```
 
 #### 2. Update Documentation in `docs/module-guides/fno-technicals.md`
@@ -219,7 +219,7 @@ public List<Double> calculate(List<Candlestick> candles, boolean weighted)
 #### `SimpleMovingAverage` - SMA Indicator
 ```java
 public SimpleMovingAverage(int period)
-public List<Double> calculate(List<Candlestick> candles)
+public List<Double> calculate(List<Candle> candles)
 ```
 ```
 
@@ -228,8 +228,8 @@ public List<Double> calculate(List<Candlestick> candles)
 #### `SimpleMovingAverage` - SMA Indicator
 ```java
 public SimpleMovingAverage(int period)
-public List<Double> calculate(List<Candlestick> candles)
-public List<Double> calculate(List<Candlestick> candles, boolean weighted)
+public List<Double> calculate(List<Candle> candles)
+public List<Double> calculate(List<Candle> candles, boolean weighted)
 ```
 
 **Parameters:**
@@ -255,7 +255,7 @@ List<Double> weightedSMA = sma.calculate(candles, true);
  * Will be removed in version 2.0.0.
  */
 @Deprecated
-public List<Double> calculate(List<Candlestick> candles) {
+public List<Double> calculate(List<Candle> candles) {
     return calculate(candles, false);
 }
 ```

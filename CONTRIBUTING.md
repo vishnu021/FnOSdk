@@ -91,7 +91,7 @@ package com.vish.fno.technical.indicators;
 
 public class StochasticOscillator extends AbstractIndicator {
     public StochasticOscillator(int kPeriod, int dPeriod) { ... }
-    public Map<String, List<Double>> calculate(List<Candlestick> candles) { ... }
+    public Map<String, List<Double>> calculate(List<Candle> candles) { ... }
 }
 ```
 
@@ -103,7 +103,7 @@ public class StochasticOscillator extends AbstractIndicator {
 public class StochasticOscillator extends AbstractIndicator {
     public StochasticOscillator(int kPeriod, int dPeriod)
 
-    public Map<String, List<Double>> calculate(List<Candlestick> candles)
+    public Map<String, List<Double>> calculate(List<Candle> candles)
 }
 ```
 
@@ -125,7 +125,7 @@ List<Double> dLine = result.get("d");
 
 double currentK = kLine.get(kLine.size() - 1);
 if (currentK < 20) {
-    System.out.println("Oversold signal");
+    log.info("Oversold signal");
 }
 ```
 ```
@@ -189,7 +189,7 @@ public class SimpleMovingAverageTest {
     public void testCalculate_withValidData_returnsCorrectSMA() {
         // Arrange
         SimpleMovingAverage sma = new SimpleMovingAverage(3);
-        List<Candlestick> candles = createTestCandles();
+        List<Candle> candles = createTestCandles();
 
         // Act
         List<Double> result = sma.calculate(candles);

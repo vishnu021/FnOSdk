@@ -1,21 +1,36 @@
 ---
-policy_version: 1.0
+policy_version: 1.1
 auto_trigger: true
 applies_to:
   - fnosdk-doc-watcher
+  - code-reviewer
+  - test-runner
 manual_commands:
   - /update-docs
+  - /review
+  - /test
 ---
 
-# FnOSdk Agent Policy - Automatic Documentation Maintenance
+# FnOSdk Agent Policy - Automated Quality Assurance
 
 ## Overview
 
-This policy ensures that **documentation stays synchronized with code** by automatically triggering the `fnosdk-doc-watcher` agent whenever public Java APIs are modified in FnOSdk.
+This policy ensures **code quality, test coverage, and documentation** stay synchronized with code changes by automatically triggering specialized agents for FnOSdk.
 
-**Principle:** Documentation is not an afterthought—it's part of the code. All public API changes must be reflected in module guides before committing.
+**Principles:**
+- **Quality first:** Code must pass quality checks before committing
+- **Test early:** Run tests as soon as code changes
+- **Document always:** Public API changes must update module guides
+
+## Agents Covered
+
+1. **fnosdk-doc-watcher** - Documentation synchronization
+2. **code-reviewer** - Code quality and PMD analysis
+3. **test-runner** - Automated test execution
 
 ## Automatic Trigger Conditions
+
+### Documentation Agent: `fnosdk-doc-watcher`
 
 The `fnosdk-doc-watcher` agent should be **automatically invoked** when:
 
@@ -164,14 +179,110 @@ Suggested action:
   Review and manually update SimpleMovingAverage documentation
 ```
 
+---
+
+### Code Quality Agent: `code-reviewer`
+
+The `code-reviewer` agent should be **automatically invoked** when:
+
+#### Trigger Conditions:
+
+1. **Before Committing**
+   - User stages Java files with `git add`
+   - User explicitly mentions "review code" or "check quality"
+   - Before running `/update-docs` (quality gate)
+
+2. **File Modifications**
+   Any changes to files matching:
+   - **Include:** `fno-*/src/main/java/**/*.java`
+   - **Exclude:** `**/src/test/**` (unless explicitly requested)
+
+3. **Pull Request Preparation**
+   - Before creating a pull request
+   - After addressing review feedback
+   - Before merging to main branch
+
+4. **Explicit User Request**
+   When the user asks to:
+   - "Review code quality"
+   - "Check for PMD violations"
+   - "Analyze code issues"
+   - Uses `/review` command
+
+#### Execution Order:
+
+**Recommended workflow:**
+1. ✅ Code changes made
+2. ✅ `/review` - Check code quality
+3. ✅ Fix any critical issues
+4. ✅ `/test` - Run tests
+5. ✅ `/update-docs` - Update documentation
+6. ✅ `git commit` - Commit changes
+
+#### Success Criteria:
+
+- Zero critical PMD violations (Priority 1)
+- All FnOSdk patterns validated
+- No security issues detected
+
+**Note:** Warnings (Priority 2-3) should be fixed but won't block commits.
+
+---
+
+### Test Automation Agent: `test-runner`
+
+The `test-runner` agent should be **automatically invoked** when:
+
+#### Trigger Conditions:
+
+1. **After Code Changes**
+   - Java source files modified in `fno-*/src/main/java/**`
+   - After fixing code review issues
+   - After modifying public APIs
+
+2. **Before Committing**
+   - User stages Java files
+   - Before documentation updates (verify examples work)
+   - Before creating pull requests
+
+3. **Dependency Changes**
+   - `pom.xml` files modified
+   - Module dependencies updated
+   - Transitive dependency changes
+
+4. **Explicit User Request**
+   When the user asks to:
+   - "Run tests"
+   - "Check if tests pass"
+   - "Validate my changes"
+   - Uses `/test` command
+
+#### Smart Execution:
+
+**Dependency-aware testing:**
+- `fno-models` changed → Test all modules
+- `fno-utils` changed → Test utils + dependent modules
+- `fno-technicals` changed → Test technicals + strategy-utils + phase-analyzer
+- Other modules → Test only that module
+
+#### Success Criteria:
+
+- All tests pass (0 failures)
+- No compilation errors
+- Coverage meets threshold (if configured)
+
+**Note:** Failed tests will block commits. Fix failures before proceeding.
+
+---
+
 ## Integration with Git Workflow
 
 This policy integrates with the three-layer defense system:
 
 ### Layer 1: Proactive (This Policy)
-- **Real-time** documentation updates during development
-- **Automatic** invocation when code changes
-- **First line of defense**
+- **Real-time** quality checks during development
+- **Automatic** invocation of code-reviewer, test-runner, and doc-watcher
+- **First line of defense** before commits
 
 ### Layer 2: Pre-Commit Hook
 - **Local verification** before commit
@@ -183,7 +294,7 @@ This policy integrates with the three-layer defense system:
 - **Fails build** if docs incomplete
 - **Final gate** before merge (in `.github/workflows/documentation-check.yml`)
 
-Together, these layers ensure **zero documentation drift**.
+Together, these layers ensure **zero documentation drift** and **high code quality**.
 
 ## Special Handling
 
@@ -243,35 +354,47 @@ If documentation update takes too long:
 ## Success Criteria
 
 The policy is effective when:
-1. **100% automation rate** - All public API changes trigger doc update
-2. **Zero manual cleanup** - Generated docs are production-ready
-3. **Always synchronized** - Docs match code at commit time
-4. **Downstream success** - OptionsAnalyzer AI generates correct code
-5. **Developer satisfaction** - Minimal friction in development workflow
+1. **100% automation rate** - All code changes trigger appropriate agents
+2. **Zero critical issues** - Code passes quality checks before commit
+3. **All tests pass** - No broken functionality after changes
+4. **Always synchronized** - Docs match code at commit time
+5. **Downstream success** - OptionsAnalyzer AI generates correct code
+6. **Developer satisfaction** - Minimal friction, fast feedback
 
 ## Manual Override
 
 Users can bypass or customize behavior:
 
-### Skip Documentation Update
+### Skip All Checks (Emergency Only)
 ```bash
-# For emergency fixes only
+# Bypass pre-commit hooks - USE SPARINGLY
 git commit --no-verify -m "Emergency fix"
 ```
 
-### Force Full Documentation Rebuild
+### Manual Agent Invocation
+
+**Code Review:**
 ```
-/update-docs --full
+/review                    # Review changed files
+/review --staged          # Review staged files only
+/review fno-technicals    # Review specific module
+/review --full            # Full codebase review
 ```
 
-### Update Specific Module
+**Testing:**
 ```
-/update-docs fno-technicals
+/test                      # Test changed modules
+/test --all               # Test all modules
+/test fno-technicals      # Test specific module
+/test --coverage          # Include coverage report
 ```
 
-### Review Without Writing
+**Documentation:**
 ```
-/update-docs --dry-run
+/update-docs              # Update docs for changes
+/update-docs --staged     # Update for staged files
+/update-docs --full       # Full doc rebuild
+/update-docs fno-technicals  # Specific module
 ```
 
 ## Maintenance and Evolution
@@ -284,13 +407,23 @@ This policy should be reviewed and updated when:
 - Anthropic releases new agent policy guidelines
 
 ### Version History
-- **v1.0** (Current) - Initial comprehensive policy
+- **v1.1** (Current) - Added code-reviewer and test-runner agents
+- **v1.0** - Initial documentation policy with fnosdk-doc-watcher
 
 ## See Also
 
-- `.claude/agents/fnosdk-doc-watcher.md` - Agent implementation
-- `.claude/skills/doc-maintainer.md` - Documentation skill
-- `.claude/commands/update-docs.md` - Manual command interface
-- `docs/DOCUMENTATION_MAINTENANCE.md` - Overall documentation strategy
+### Agent Implementations
+- `.claude/agents/code-reviewer.md` - Code quality agent
+- `.claude/agents/test-runner.md` - Test automation agent
+- `.claude/agents/fnosdk-doc-watcher.md` - Documentation agent
+
+### Manual Commands
+- `.claude/commands/review.md` - `/review` command
+- `.claude/commands/test.md` - `/test` command
+- `.claude/commands/update-docs.md` - `/update-docs` command
+
+### Documentation
+- `docs/DOCUMENTATION_MAINTENANCE.md` - Documentation strategy
+- `.claude/README.md` - Automation system overview
 - `.githooks/pre-commit` - Git pre-commit hook
 - `.github/workflows/documentation-check.yml` - CI/CD check

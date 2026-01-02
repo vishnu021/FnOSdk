@@ -1,4 +1,4 @@
-I have # AI Agent Guide for FnOSdk
+# AI Agent Guide for FnOSdk
 
 ## Overview
 
@@ -116,7 +116,7 @@ When generating code using FnOSdk, AI agents should read the specific module gui
 \`\`\`java
 public class NewIndicator extends AbstractIndicator {
     public NewIndicator(int param1, double param2)
-    public List<Double> calculate(List<Candlestick> candles)
+    public List<Double> calculate(List<Candle> candles)
 }
 \`\`\`
 
@@ -163,16 +163,17 @@ Claude Code will:
 
 ```java
 import com.vish.fno.technical.indicators.RelativeStrengthIndex;
+import com.vish.fno.model.Candle;
 import java.util.List;
 
 public class CandlestickService {
     private final RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
 
-    public List<Double> calculateRSI(List<Candlestick> candles) {
+    public List<Double> calculateRSI(List<Candle> candles) {
         return rsi14.calculate(candles);
     }
 
-    public String getSignal(List<Candlestick> candles) {
+    public String getSignal(List<Candle> candles) {
         List<Double> rsiValues = calculateRSI(candles);
         double currentRSI = rsiValues.get(rsiValues.size() - 1);
 
