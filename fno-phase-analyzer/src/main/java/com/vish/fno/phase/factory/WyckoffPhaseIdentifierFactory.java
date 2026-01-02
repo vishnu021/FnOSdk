@@ -2,6 +2,8 @@ package com.vish.fno.phase.factory;
 
 import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.phase.wyckoff.CompositeWyckoffPhaseIdentifier;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,11 +36,17 @@ import java.util.stream.Stream;
  * };
  * }</pre>
  */
+@Slf4j
 public class WyckoffPhaseIdentifierFactory {
 
-    private static final Logger log = LoggerFactory.getLogger(WyckoffPhaseIdentifierFactory.class);
-
     private final Map<WyckoffIdentifierType, IWyckoffPhaseIdentifier> identifiers;
+    /**
+     * -- GETTER --
+     *  Get the default identifier type enum
+     *
+     * @return Default identifier type
+     */
+    @Getter
     private WyckoffIdentifierType defaultType;
 
     /**
@@ -105,15 +113,6 @@ public class WyckoffPhaseIdentifierFactory {
      */
     public IWyckoffPhaseIdentifier getDefault() {
         return getIdentifier(defaultType);
-    }
-
-    /**
-     * Get the default identifier type enum
-     *
-     * @return Default identifier type
-     */
-    public WyckoffIdentifierType getDefaultType() {
-        return defaultType;
     }
 
     /**

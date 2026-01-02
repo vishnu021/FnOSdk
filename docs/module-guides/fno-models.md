@@ -188,17 +188,14 @@ public interface ActiveOrder
 | `incrementSoldQuantity(int soldQuantity, double sellOptionPrice)` | `soldQuantity`, `sellOptionPrice` | `void` | Tracks partial exits |
 | `getTag()` | - | `String` | Order tag |
 | `isActive()` | - | `boolean` | Checks if order is active |
-| `csvHeader()` | - | `String` | CSV header string |
-| `toCSV()` | - | `String` | CSV representation |
-| `orderLog()` | - | `String` | Log representation |
 | `setActive(boolean active)` | `active` | `void` | Sets active status |
 | `closeOrder(double closePrice, int timeIndex, String timestamp)` | `closePrice`, `timeIndex`, `timestamp` | `void` | Closes the order |
 | `getExtraData()` | - | `Map<String, String>` | Extra metadata |
 | `appendExtraData(String key, String value)` | `key`, `value` | `void` | Adds metadata |
 | `getTradingSymbol()` | - | `String` | Trading symbol |
-| `isTargetAchieved(double ltp)` | `ltp` | `boolean` | Checks if target hit |
-| `isStopLossHit(double ltp)` | `ltp` | `boolean` | Checks if stop loss hit |
 | `getProfit()` | - | `double` | Calculates profit |
+
+**Note:** For CSV export and order logging, use `ActiveOrderFormatter` utility class from fno-utils module (see fno-utils documentation).
 
 ---
 

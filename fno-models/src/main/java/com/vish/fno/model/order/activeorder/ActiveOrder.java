@@ -22,9 +22,6 @@ public interface ActiveOrder {
     void incrementSoldQuantity(int soldQuantity, double sellOptionPrice);
     String getTag();
     boolean isActive();
-    String csvHeader();
-    String toCSV();
-    String orderLog();
     void setActive(boolean active);
     void closeOrder(double closePrice, int timeIndex, String timestamp);
     Map<String, String> getExtraData();

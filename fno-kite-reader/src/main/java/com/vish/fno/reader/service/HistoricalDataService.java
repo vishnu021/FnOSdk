@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.vish.fno.util.FnoConstants.FUT;
 import static com.vish.fno.util.Utils.getTopNLines;
 
 @Slf4j
@@ -19,7 +20,6 @@ import static com.vish.fno.util.Utils.getTopNLines;
 @SuppressWarnings("PMD")
 class HistoricalDataService {
     private static final int ERROR_STACK_TRACE_LINES = 3;
-    private static final String FUTURES_SUFFIX = "FUT";
     private static final String[] MONTH_CODES = {
         "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
         "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
@@ -100,7 +100,7 @@ class HistoricalDataService {
      * Checks if the symbol is a futures contract based on naming pattern.
      */
     private boolean isFuturesSymbol(String symbol) {
-        return symbol != null && (symbol.contains(FUTURES_SUFFIX) || symbol.matches(".*\\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*"));
+        return symbol != null && (symbol.contains(FUT) || symbol.matches(".*\\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*"));
     }
 
     /**
@@ -120,7 +120,7 @@ class HistoricalDataService {
 
         for (String year : years) {
             for (String month : MONTH_CODES) {
-                String candidateSymbol = baseName + year + month + FUTURES_SUFFIX;
+                String candidateSymbol = baseName + year + month + FUT;
                 if (instrumentCache.getInstrument(candidateSymbol) != null) {
                     log.debug("Found potential current contract: {}", candidateSymbol);
                     return candidateSymbol;
@@ -160,7 +160,7 @@ class HistoricalDataService {
         if (symbol == null) return null;
 
         // Pattern for symbols like NIFTY25AUGFUT, BANKNIFTY25SEPFUT
-        String patternString = "^([A-Z]+)\\d{2}[A-Z]{3}" + FUTURES_SUFFIX + "$";
+        String patternString = String.format("^([A-Z]+)\\d{2}[A-Z]{3}%s$", FUT);
         Pattern pattern = Pattern.compile(patternString);
         Matcher matcher = pattern.matcher(symbol);
 

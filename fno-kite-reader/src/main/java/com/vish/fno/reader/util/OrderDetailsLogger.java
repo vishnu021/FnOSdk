@@ -11,16 +11,17 @@ import org.jetbrains.annotations.NotNull;
 import java.util.List;
 import java.util.Map;
 
+import static com.vish.fno.util.FnoConstants.BUY;
+import static com.vish.fno.util.FnoConstants.COMPLETE;
+import static com.vish.fno.util.FnoConstants.KITE_ORDER_ID;
+import static com.vish.fno.util.FnoConstants.SELL;
 import static com.vish.fno.util.JsonUtils.getFormattedObject;
 import static com.vish.fno.util.JsonUtils.getNonFormattedObject;
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
+@SuppressWarnings("PMD.TooManyStaticImports")
 public final class OrderDetailsLogger {
-    private static final String BUY = "BUY";
-    private static final String COMPLETE = "COMPLETE";
-    private static final String SELL = "SELL";
-    private static final String KITE_ORDER_ID = "kiteOrderId";
 
     public static void logMarketDepth(Ticker tick) {
         Map<String, List<Ticker.Depth>> marketDepth = tick.depth();

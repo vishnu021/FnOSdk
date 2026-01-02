@@ -16,6 +16,16 @@ public interface FnoConstants {
     String PE = "PE";
     String FUT = "FUT";
 
+    // Order Transaction Types
+    String BUY = "BUY";
+    String SELL = "SELL";
+
+    // Order Status
+    String COMPLETE = "COMPLETE";
+
+    // Order Metadata Keys
+    String KITE_ORDER_ID = "kiteOrderId";
+
     // Account/Position Types
     String EQUITY = "equity";
     String NET = "net";

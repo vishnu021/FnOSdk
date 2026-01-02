@@ -11,7 +11,6 @@ public class SimpleMovingAverage extends AbstractIndicator {
 
     private final int duration;
 
-
     public SimpleMovingAverage() {
         this.duration = 14;
     }

@@ -6,11 +6,11 @@ import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
 import com.vish.fno.phase.factory.WyckoffPhaseIdentifierFactory;
 import com.vish.fno.phase.factory.WyckoffIdentifierType;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,9 +23,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Service for Wyckoff phase identification and strategy recommendation.
  * Thread-safe implementation using concurrent collections.
  */
+@Slf4j
 public class WyckoffPhaseService {
 
-    private static final Logger logger = LoggerFactory.getLogger(WyckoffPhaseService.class);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final int MINUTE_BUFFER = 60; // Keep 60 minutes of data for analysis
 
@@ -38,7 +38,7 @@ public class WyckoffPhaseService {
         // Use default identifier from factory
         this.phaseIdentifier = identifierFactory.getDefault();
         this.identifierType = identifierFactory.getDefaultType();
-        logger.info("WyckoffPhaseService initialized with identifier: {} - {}",
+        log.info("WyckoffPhaseService initialized with identifier: {} - {}",
                    phaseIdentifier.getIdentifierType(), phaseIdentifier.getDescription());
     }
 
@@ -79,7 +79,7 @@ public class WyckoffPhaseService {
 
             currentHourTracker.put(symbol, currentHour);
 
-            logger.debug("New hour {} for {}: Phase = {}", currentHour, symbol, phase.getPhaseName());
+            log.debug("New hour {} for {}: Phase = {}", currentHour, symbol, phase.getPhaseName());
 
             return phase;
         }
@@ -413,7 +413,7 @@ public class WyckoffPhaseService {
         recentDataCache.clear();
         hourlyPhaseCache.clear();
         currentHourTracker.clear();
-        logger.info("Switched to identifier: {} - {}",
+        log.info("Switched to identifier: {} - {}",
                    newIdentifier.getIdentifierType(), newIdentifier.getDescription());
     }
 
@@ -429,7 +429,7 @@ public class WyckoffPhaseService {
         if (type != null) {
             switchIdentifier(type);
         } else {
-            logger.warn("Unknown identifier key: '{}', keeping current identifier", identifierKey);
+            log.warn("Unknown identifier key: '{}', keeping current identifier", identifierKey);
         }
     }
 

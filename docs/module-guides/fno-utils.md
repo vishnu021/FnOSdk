@@ -394,6 +394,57 @@ public class ConstantsUsageExample {
 
 ---
 
+### ActiveOrderFormatter
+
+**Package:** `com.vish.fno.util`
+
+Utility class for formatting ActiveOrder instances to CSV and log formats. Handles type-specific formatting for all ActiveOrder implementations. All methods are static and thread-safe.
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `csvHeader(ActiveOrder order)` | `order` | `String` | CSV header with extra data keys from order |
+| `toCSV(ActiveOrder order)` | `order` | `String` | CSV row with type-specific formatting (ActiveIndexOrder, TickBasedActiveOrder, OptionBasedActiveOrder) |
+| `orderLog(ActiveOrder order)` | `order` | `String` | Formatted log string with type-specific formatting |
+
+**Type-Specific Formatting:**
+- **ActiveIndexOrder**: Includes index, timestamps, prices, call/put flag, profit calculation based on direction
+- **TickBasedActiveOrder**: Similar to ActiveIndexOrder with tick-specific formatting
+- **OptionBasedActiveOrder**: Includes index, timestamps, prices, always calculates profit as `(sellPrice - buyPrice) * quantity`
+
+**Example:**
+```java
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.vish.fno.model.order.activeorder.ActiveOrderFactory;
+import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import com.vish.fno.util.ActiveOrderFormatter;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OrderFormattingExample {
+    public void formatOrders(IndexOrderRequest orderRequest) {
+        ActiveOrder activeOrder = ActiveOrderFactory.createOrder(
+            orderRequest, 19505.0, 920, "2024-10-28 09:20:00", 50, 50
+        );
+
+        // Generate CSV header
+        String header = ActiveOrderFormatter.csvHeader(activeOrder);
+        log.info("CSV Header: {}", header);
+
+        // Convert to CSV row
+        String csvRow = ActiveOrderFormatter.toCSV(activeOrder);
+        log.info("CSV: {}", csvRow);
+
+        // Generate order log
+        String orderLog = ActiveOrderFormatter.orderLog(activeOrder);
+        log.info("{}", orderLog);
+    }
+}
+```
+
+---
+
 ## Chart Utilities
 
 ### HeikinAshi
