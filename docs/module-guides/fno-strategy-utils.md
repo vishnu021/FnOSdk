@@ -39,10 +39,11 @@ com.vish.fno.strategy
 │   ├── DataAnalyser          # Price action pattern detection
 │   └── Line                  # Line through multiple points
 └── orderflow/
-    ├── TargetAndStopLossStrategy    # Strategy interface for order exits
-    ├── FixedTargetAndStopLossStrategy  # Fixed target/SL implementation
-    ├── PartialRevisingStopLoss      # Dynamic stop-loss management
-    └── OrderManagerUtils            # Order exit condition utilities
+    ├── TargetAndStopLossStrategy          # Strategy interface for order exits
+    ├── AbstractTargetAndStopLossStrategy  # Base class with common logic
+    ├── FixedTargetAndStopLossStrategy     # Fixed target/SL implementation
+    ├── PartialRevisingStopLoss            # Dynamic stop-loss management
+    └── OrderManagerUtils                  # Order exit condition utilities
 ```
 
 ## Core Components
@@ -445,13 +446,43 @@ public interface TargetAndStopLossStrategy {
 
 ---
 
-### FixedTargetAndStopLossStrategy - Fixed Target/SL Implementation
+### AbstractTargetAndStopLossStrategy - Base Strategy Class
 
-Simple strategy that exits the full position when target or stop-loss is hit, without any revision.
+Abstract base class that provides common logic for checking target and stop-loss conditions based on order type (call/put).
 
 ```java
 @Slf4j
-public class FixedTargetAndStopLossStrategy implements TargetAndStopLossStrategy {
+public abstract class AbstractTargetAndStopLossStrategy implements TargetAndStopLossStrategy {
+    protected boolean checkTargetAchieved(ActiveOrder order, double ltp)
+    protected boolean checkStopLossHit(ActiveOrder order, double ltp)
+}
+```
+
+**Protected Helper Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `checkTargetAchieved` | order, ltp | `boolean` | Checks if target is achieved based on order type |
+| `checkStopLossHit` | order, ltp | `boolean` | Checks if stop-loss is hit based on order type |
+
+**Logic:**
+- **Call orders**: Target achieved when `ltp > target`, stop-loss hit when `ltp < stopLoss`
+- **Put orders**: Target achieved when `ltp < target`, stop-loss hit when `ltp > stopLoss`
+- **Order type detection**: Automatically detects call/put from `ActiveIndexOrder`, `TickBasedActiveOrder`, or defaults to call for `OptionBasedActiveOrder`
+
+**Design Pattern:** Template Method - concrete strategies extend this class and use helper methods
+
+**Thread Safety:** ✅ Stateless - thread-safe
+
+---
+
+### FixedTargetAndStopLossStrategy - Fixed Target/SL Implementation
+
+Simple strategy that exits the full position when target or stop-loss is hit, without any revision. Extends `AbstractTargetAndStopLossStrategy` to use shared target/stop-loss logic.
+
+```java
+@Slf4j
+public class FixedTargetAndStopLossStrategy extends AbstractTargetAndStopLossStrategy {
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
     public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
 }
@@ -497,6 +528,7 @@ public class SimpleOrderManager {
 - **Target hit**: Sells entire position (`order.getBuyQuantity()`)
 - **Stop-loss hit**: Sells entire position
 - **No revision**: Target and stop-loss remain fixed throughout
+- **Logic**: Uses `checkTargetAchieved()` and `checkStopLossHit()` from abstract base class
 
 **Thread Safety:** ✅ Stateless - thread-safe
 
@@ -571,12 +603,12 @@ public class IntradayOrderManager {
 
 ### PartialRevisingStopLoss - Dynamic Stop Loss Strategy
 
-Implements partial profit booking with trailing stop-loss using Heikin-Ashi lows/highs.
+Implements partial profit booking with trailing stop-loss using Heikin-Ashi lows/highs. Extends `AbstractTargetAndStopLossStrategy` to use shared target/stop-loss logic.
 
 ```java
 @Slf4j
 @RequiredArgsConstructor
-public class PartialRevisingStopLoss implements TargetAndStopLossStrategy {
+public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     private final DataCache dataCache;
 
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)

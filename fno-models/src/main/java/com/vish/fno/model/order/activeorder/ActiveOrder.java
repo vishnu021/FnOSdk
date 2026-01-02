@@ -30,7 +30,5 @@ public interface ActiveOrder {
     Map<String, String> getExtraData();
     void appendExtraData(String key, String value);
     String getTradingSymbol();
-    boolean isTargetAchieved(double ltp);
-    boolean isStopLossHit(double ltp);
     double getProfit();
 }

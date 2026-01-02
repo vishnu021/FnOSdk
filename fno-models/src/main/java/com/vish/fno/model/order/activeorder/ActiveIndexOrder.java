@@ -76,21 +76,6 @@ public class ActiveIndexOrder extends AbstractActiveOrder {
         return this.getOptionSymbol();
     }
 
-    @Override
-    @SuppressWarnings("PMD.SimplifyBooleanReturns")
-    public boolean isTargetAchieved(double ltp) {
-        if(isCallOrder() && getTarget() < ltp) {
-            return true;
-        }
-        return !isCallOrder() && getTarget() > ltp;
-    }
-
-    @Override
-    public boolean isStopLossHit(double ltp) {
-        return (this.isCallOrder() && this.getStopLoss() > ltp)
-                || (!this.isCallOrder() && this.getStopLoss() < ltp);
-    }
-
     public double getProfit() {
         if(isCallOrder()) {
             return (getSellPrice() - getBuyPrice()) * this.getBuyQuantity();

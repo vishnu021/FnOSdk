@@ -163,19 +163,5 @@ public class OptionBasedActiveOrder extends AbstractActiveOrder {
     public String getTradingSymbol() {
         return this.getIndex();
     }
-
-    @Override
-    public boolean isTargetAchieved(double ltp) {
-        return getTarget() < ltp;
-    }
-
-    @Override
-    public boolean isStopLossHit(double ltp) {
-        if(this.getStopLoss() > ltp) {
-            log.info("StopLoss hit for order : {} ltp: {}", this, ltp);
-            return true;
-        }
-        return false;
-    }
 }
 // CPD-ON

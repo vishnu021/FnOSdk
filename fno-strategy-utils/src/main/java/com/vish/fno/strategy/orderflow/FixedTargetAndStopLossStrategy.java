@@ -5,12 +5,17 @@ import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Fixed target and stop-loss strategy that exits the full position
+ * when either target or stop-loss is hit, without any revision.
+ */
 @Slf4j
-public class FixedTargetAndStopLossStrategy implements TargetAndStopLossStrategy {
+public class FixedTargetAndStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
     @Override
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp) {
-        if(order.isTargetAchieved(ltp)) {
+        if(checkTargetAchieved(order, ltp)) {
+            log.info("Target achieved for order: {} ltp: {}", order, ltp);
             return new OrderSellDetailModel(true, order.getBuyQuantity(), OrderSellReason.TARGET_HIT, order);
         }
         return new OrderSellDetailModel(false);
@@ -18,12 +23,8 @@ public class FixedTargetAndStopLossStrategy implements TargetAndStopLossStrategy
 
     @Override
     public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp) {
-        if(order.isStopLossHit(ltp)) {
-            log.info("Call stopLoss hit for order : {} ltp: {}", order, ltp);
-            return new OrderSellDetailModel(true, order.getBuyQuantity(), OrderSellReason.STOP_LOSS_HIT, order);
-        }
-        if(order.isStopLossHit(ltp)) {
-            log.info("Put stopLoss hit for order : {} ltp: {}", order, ltp);
+        if(checkStopLossHit(order, ltp)) {
+            log.info("StopLoss hit for order: {} ltp: {}", order, ltp);
             return new OrderSellDetailModel(true, order.getBuyQuantity(), OrderSellReason.STOP_LOSS_HIT, order);
         }
         return new OrderSellDetailModel(false);

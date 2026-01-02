@@ -16,13 +16,13 @@ import java.util.List;
 // CPD-OFF
 @Slf4j
 @RequiredArgsConstructor
-public class PartialRevisingStopLoss implements TargetAndStopLossStrategy {
+public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     private static final int TIMEFRAME = 1;
     private final DataCache dataCache;
 
     @Override
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp) {
-        if(order.isTargetAchieved(ltp)) {
+        if(checkTargetAchieved(order, ltp)) {
             int totalLots = getTotalLots(order.getBuyQuantity(), order.getLotSize());
 
             // if low quantity was bought initially
@@ -91,7 +91,7 @@ public class PartialRevisingStopLoss implements TargetAndStopLossStrategy {
 
     @Override
     public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp) {
-        if(order.isStopLossHit(ltp)) {
+        if(checkStopLossHit(order, ltp)) {
             int quantitiesRemaining = order.getBuyQuantity() - order.getSoldQuantity();
             log.info("StopLoss hit for order : {} ltp: {}, selling remaining {} orders", order, ltp, quantitiesRemaining);
             return new OrderSellDetailModel(true, quantitiesRemaining, OrderSellReason.STOP_LOSS_HIT, order);
