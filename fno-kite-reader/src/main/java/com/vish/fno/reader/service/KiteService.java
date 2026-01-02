@@ -17,7 +17,6 @@ import com.zerodhatech.ticker.OnTicks;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 
 import java.io.IOException;
@@ -26,7 +25,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static com.vish.fno.reader.util.OrderUtils.createMarketOrderWithParameters;
 import static com.vish.fno.util.FnoConstants.BANKEX;
@@ -271,7 +269,7 @@ public class KiteService {
             return Optional.of(new KiteOpenOrder(null, false, e.code, e.message));
         } catch (JSONException | IOException e) {
             log.error("Error occurred while placing order", e);
-            return Optional.of(buildUnsuccessfulKiteOrder());
+            return Optional.of(buildUnsuccessfulKiteOrder(e));
         }
         return Optional.of(new KiteOpenOrder(order, true, null, null));
     }
@@ -337,12 +335,14 @@ public class KiteService {
         return kiteWebSocket.isSymbolSubscribed(symbol);
     }
 
-    @NotNull
+    private KiteOpenOrder buildUnsuccessfulKiteOrder(Exception e) {
+        return new KiteOpenOrder(null, false, null, e.getMessage());
+    }
+
     private KiteOpenOrder buildUnsuccessfulKiteOrder() {
         return new KiteOpenOrder(null, false, null, null);
     }
 
-    @NotNull
     private KiteOpenOrder buildSuccessfulKiteTestOrder() {
         return new KiteOpenOrder(null, true, null, null);
     }
