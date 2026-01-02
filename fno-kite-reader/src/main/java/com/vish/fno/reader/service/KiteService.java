@@ -5,7 +5,13 @@ import com.vish.fno.util.JsonUtils;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
-import com.zerodhatech.models.*;
+import com.zerodhatech.models.HistoricalData;
+import com.zerodhatech.models.Instrument;
+import com.zerodhatech.models.Margin;
+import com.zerodhatech.models.Order;
+import com.zerodhatech.models.OrderParams;
+import com.zerodhatech.models.Position;
+import com.zerodhatech.models.User;
 import com.zerodhatech.ticker.OnOrderUpdate;
 import com.zerodhatech.ticker.OnTicks;
 import lombok.AccessLevel;
@@ -15,10 +21,22 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static com.vish.fno.reader.util.OrderUtils.createMarketOrderWithParameters;
-import static com.vish.fno.util.Constants.*;
+import static com.vish.fno.util.FnoConstants.BANKEX;
+import static com.vish.fno.util.FnoConstants.DAY;
+import static com.vish.fno.util.FnoConstants.EQUITY;
+import static com.vish.fno.util.FnoConstants.MINUTE;
+import static com.vish.fno.util.FnoConstants.NET;
+import static com.vish.fno.util.FnoConstants.NIFTY_50;
+import static com.vish.fno.util.FnoConstants.NIFTY_BANK;
+import static com.vish.fno.util.FnoConstants.SENSEX;
 import static com.vish.fno.util.JsonUtils.getFormattedObject;
 import static com.vish.fno.util.TimeUtils.getClosingTime;
 import static com.vish.fno.util.TimeUtils.getOpeningTime;
@@ -27,9 +45,6 @@ import static com.vish.fno.util.TimeUtils.getOpeningTime;
 @SuppressWarnings({"PMD.LooseCoupling", "PMD.TooManyStaticImports"})
 public class KiteService {
     private final static List<String> defaultIndices = List.of(NIFTY_50, NIFTY_BANK, BANKEX, SENSEX);
-    private static final String EQUITY = "equity";
-    private static final String NET = "net";
-    private static final String DAY = "day";
 
     @Getter(AccessLevel.PACKAGE)
     private final KiteConnect kiteSdk;

@@ -293,11 +293,33 @@ public class PriceFormattingExample {
 
 ---
 
-### Constants
+### FnoConstants
 
 **Package:** `com.vish.fno.util`
 
-Interface defining constants for trading symbols, derivative mappings, directory paths, and date/time formats.
+Interface defining constants for exchanges, instruments, trading symbols, derivative mappings, directory paths, and date/time formats.
+
+**Exchange Names:**
+```java
+String NSE = "NSE";
+String NFO = "NFO";
+String BFO = "BFO";
+String BSE = "BSE";
+```
+
+**Instrument Types:**
+```java
+String CE = "CE";   // Call Option
+String PE = "PE";   // Put Option
+String FUT = "FUT"; // Futures
+```
+
+**Account/Position Types:**
+```java
+String EQUITY = "equity";
+String NET = "net";
+String DAY = "day";
+```
 
 **Index Names (NSE Display):**
 ```java
@@ -349,6 +371,26 @@ String YEAR_FORMAT = "yy";
 **Chart Types:** `MINUTE`, `CANDLESTICK`, `VOLUME`, `LINE`, `BAR`
 
 **Directory Names:** `directory = "instrument_cache"`, `tick_directory = "tick"`
+
+**Usage Example:**
+```java
+import static com.vish.fno.util.FnoConstants.NSE;
+import static com.vish.fno.util.FnoConstants.NFO;
+import static com.vish.fno.util.FnoConstants.CE;
+import static com.vish.fno.util.FnoConstants.NIFTY_50;
+import static com.vish.fno.util.FnoConstants.DERIVATIVE_NIFTY;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class ConstantsUsageExample {
+    public void useConstants() {
+        log.info("Trading on exchange: {}", NFO);
+        log.info("Option type: {}", CE);
+
+        String derivativeSymbol = FnoConstants.INDEX_TO_DERIVATIVE.get(NIFTY_50);
+        log.info("NIFTY 50 trades as: {}", derivativeSymbol); // "NIFTY"
+    }
+}
 
 ---
 

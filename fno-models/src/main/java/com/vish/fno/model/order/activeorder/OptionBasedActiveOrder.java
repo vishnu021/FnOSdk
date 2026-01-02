@@ -7,12 +7,16 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.vish.fno.model.util.ModelUtils.*;
+import static com.vish.fno.model.util.ModelUtils.INDENTED_TAB;
 import static com.vish.fno.model.util.ModelUtils.getStringDate;
+import static com.vish.fno.model.util.ModelUtils.getStringDateTime;
+import static com.vish.fno.model.util.ModelUtils.round;
+import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 
 // CPD-OFF
 @Slf4j
 @Getter
+@SuppressWarnings("PMD.TooManyStaticImports")
 public class OptionBasedActiveOrder extends AbstractActiveOrder {
     private static final int estimated_buffer_size = 125;
     private final Task task;

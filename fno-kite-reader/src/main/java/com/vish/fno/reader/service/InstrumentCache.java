@@ -7,10 +7,25 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static com.vish.fno.util.Constants.INDEX_TO_DERIVATIVE;
+import static com.vish.fno.util.FnoConstants.BFO;
+import static com.vish.fno.util.FnoConstants.BSE;
+import static com.vish.fno.util.FnoConstants.FUT;
+import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
+import static com.vish.fno.util.FnoConstants.NFO;
+import static com.vish.fno.util.FnoConstants.NSE;
 
 
 /**
@@ -18,13 +33,8 @@ import static com.vish.fno.util.Constants.INDEX_TO_DERIVATIVE;
  * Thread-safe lazy initialization using double-checked locking pattern.
  */
 @Slf4j
-@SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
+@SuppressWarnings({"PMD.AvoidThrowingRawExceptionTypes", "PMD.TooManyStaticImports"})
 class InstrumentCache {
-    private static final String NSE = "NSE";
-    private static final String NFO = "NFO";
-    private static final String BFO = "BFO";
-    private static final String BSE = "BSE";
-    private static final String FUT = "FUT";
 
     private final KiteService kiteService;
     private final List<String> nifty100Symbols;

@@ -152,7 +152,8 @@ List<Candle> fifteenMin = TimeFrameUtils.mergeCandle(oneMinCandles, 15);
 **Read**: [fno-technicals.md - Options Greeks](module-guides/fno-technicals.md#options-greeks)
 
 ```java
-import com.vish.fno.technical.greeks.*;
+import com.vish.fno.technical.greeks.Delta;
+import com.vish.fno.technical.greeks.Theta;
 
 double delta = Delta.calculateDelta(spot, strike, tte, rfr, iv, true);  // true for call
 double theta = Theta.calculateTheta(spot, strike, tte, rfr, iv, true);  // true for call

@@ -15,10 +15,10 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.Constants.NIFTY_50;
+import static com.vish.fno.util.FnoConstants.NIFTY_50;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @Slf4j
 class OptionPriceUtilsTest {

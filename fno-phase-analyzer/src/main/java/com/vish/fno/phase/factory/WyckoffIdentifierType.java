@@ -1,7 +1,14 @@
 package com.vish.fno.phase.factory;
 
 import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
-import com.vish.fno.phase.wyckoff.*;
+import com.vish.fno.phase.wyckoff.ClassicalWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.CompositeWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.DerivativesFuturesOIWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.HeikinAshiWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.MarketProfileTPOWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.RenkoWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.StructureSwingWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.VolumeBasedWyckoffPhaseIdentifier;
 
 import java.util.function.Supplier;
 

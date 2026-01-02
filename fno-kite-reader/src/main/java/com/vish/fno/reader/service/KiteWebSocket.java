@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.LooseCoupling", "PMD.AvoidCatchingGenericException"})
 public class KiteWebSocket {
+
     private KiteTicker tickerProvider;
     private final InstrumentCache instrumentCache;
     @Getter

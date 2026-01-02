@@ -100,7 +100,9 @@ public static TickBasedOrderRequestBuilder builder(String tag, String index, Tas
 
 **Usage Example:**
 ```java
-import com.vish.fno.model.order.orderrequest.*;
+import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
+import com.vish.fno.model.order.orderrequest.TickBasedOrderRequest;
 import com.vish.fno.model.Task;
 import lombok.extern.slf4j.Slf4j;
 import java.util.Date;
@@ -313,7 +315,8 @@ public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int
 
 **Usage Example:**
 ```java
-import com.vish.fno.model.order.activeorder.*;
+import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.vish.fno.model.order.activeorder.ActiveOrderFactory;
 import com.vish.fno.model.order.orderrequest.OrderRequest;
 import lombok.extern.slf4j.Slf4j;
 

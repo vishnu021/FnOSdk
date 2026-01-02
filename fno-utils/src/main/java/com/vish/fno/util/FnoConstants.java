@@ -3,7 +3,23 @@ package com.vish.fno.util;
 import java.util.Map;
 
 @SuppressWarnings("PMD.ConstantsInInterface")
-public interface Constants {
+public interface FnoConstants {
+
+    // Exchange Names
+    String NSE = "NSE";
+    String NFO = "NFO";
+    String BFO = "BFO";
+    String BSE = "BSE";
+
+    // Instrument Types
+    String CE = "CE";
+    String PE = "PE";
+    String FUT = "FUT";
+
+    // Account/Position Types
+    String EQUITY = "equity";
+    String NET = "net";
+    String DAY = "day";
 
     // Index Names (as displayed in NSE)
     String NIFTY_BANK = "NIFTY BANK";

@@ -5,16 +5,30 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.text.ParseException;
-import java.time.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-import static com.vish.fno.util.Constants.*;
+import static com.vish.fno.util.FnoConstants.DATE_FORMAT;
+import static com.vish.fno.util.FnoConstants.DATE_TIME_FORMAT;
+import static com.vish.fno.util.FnoConstants.DATE_TIME_MS_FORMAT;
+import static com.vish.fno.util.FnoConstants.DATE_TIME_SEC_T_FORMAT;
+import static com.vish.fno.util.FnoConstants.TIME_FORMAT;
+import static com.vish.fno.util.FnoConstants.YEAR_FORMAT;
 
 @Slf4j
-@SuppressWarnings("PMD.AvoidCatchingGenericException")
+@SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.TooManyStaticImports"})
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class TimeUtils {
 

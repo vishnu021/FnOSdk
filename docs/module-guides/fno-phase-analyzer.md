@@ -107,7 +107,7 @@ public interface IWyckoffPhaseIdentifier {
 ### Example Usage Pattern (Applies to ALL Identifiers)
 
 ```java
-import com.vish.fno.phase.wyckoff.*;
+import com.vish.fno.phase.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
 import lombok.extern.slf4j.Slf4j;
@@ -543,7 +543,9 @@ public class IntradayAnalyzer {
 ### Multi-Strategy Analysis
 
 ```java
-import com.vish.fno.phase.wyckoff.*;
+import com.vish.fno.phase.wyckoff.ClassicalWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.DerivativesFuturesOIWyckoffPhaseIdentifier;
+import com.vish.fno.phase.wyckoff.MarketProfileTPOWyckoffPhaseIdentifier;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
 

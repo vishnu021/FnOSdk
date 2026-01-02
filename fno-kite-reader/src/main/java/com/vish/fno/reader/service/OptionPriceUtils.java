@@ -5,20 +5,27 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static com.vish.fno.util.Constants.INDEX_TO_DERIVATIVE;
+import static com.vish.fno.util.FnoConstants.BFO;
+import static com.vish.fno.util.FnoConstants.CE;
+import static com.vish.fno.util.FnoConstants.FUT;
+import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
+import static com.vish.fno.util.FnoConstants.NFO;
+import static com.vish.fno.util.FnoConstants.PE;
 
 @Slf4j
+@SuppressWarnings("PMD.TooManyStaticImports")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class OptionPriceUtils {
-    private static final String BFO = "BFO";
-    private static final String CE = "CE";
-    private static final String FUT = "FUT";
-    private static final String NFO = "NFO";
-    private static final String PE = "PE";
 
     public static Optional<String> getNextExpiryFutureSymbol(String symbol, List<Instrument> instruments) {
         String symbolPrefix = getOptionPrefix(symbol);

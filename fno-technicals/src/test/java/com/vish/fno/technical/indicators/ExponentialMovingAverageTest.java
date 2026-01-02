@@ -11,8 +11,9 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.CandleUtils.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static com.vish.fno.util.CandleUtils.getCandleData;
+import static com.vish.fno.util.CandleUtils.getEmaData;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
 class ExponentialMovingAverageTest {

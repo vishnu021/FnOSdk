@@ -7,7 +7,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import static com.vish.fno.model.util.ModelUtils.*;
+import static com.vish.fno.model.util.ModelUtils.getStringTime;
+import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)

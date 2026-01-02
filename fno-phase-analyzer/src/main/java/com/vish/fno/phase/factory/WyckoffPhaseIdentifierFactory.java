@@ -1,7 +1,7 @@
 package com.vish.fno.phase.factory;
 
 import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
-import com.vish.fno.phase.wyckoff.*;
+import com.vish.fno.phase.wyckoff.CompositeWyckoffPhaseIdentifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

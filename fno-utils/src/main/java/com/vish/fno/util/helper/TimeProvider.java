@@ -7,7 +7,8 @@ import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Locale;
 
-import static com.vish.fno.util.Constants.*;
+import static com.vish.fno.util.FnoConstants.DATE_FORMAT;
+import static com.vish.fno.util.FnoConstants.DATE_TIME_SEC_FORMAT;
 
 public class TimeProvider {
 

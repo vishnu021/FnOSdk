@@ -199,6 +199,42 @@ PMD static analysis enforces strict rules (configured in `ruleset/pmd-custom-rul
 
 PMD runs automatically during `mvn package` phase and will fail the build on violations.
 
+### Import Standards
+
+**CRITICAL RULE**: NEVER use wildcard imports for ANY package or class.
+
+- ✅ **DO**: Use explicit imports for everything
+  ```java
+  // Static imports
+  import static com.vish.fno.util.FnoConstants.NIFTY_50;
+  import static com.vish.fno.util.FnoConstants.NIFTY_BANK;
+  import static com.vish.fno.util.FnoConstants.EQUITY;
+
+  // Standard imports
+  import java.util.List;
+  import java.util.Map;
+  import java.util.ArrayList;
+  import java.util.HashMap;
+  import java.util.Date;
+  ```
+
+- ❌ **DON'T**: Use wildcard imports (applies to ALL packages)
+  ```java
+  import java.util.*;                              // NEVER
+  import static com.vish.fno.util.FnoConstants.*;  // NEVER
+  import com.zerodhatech.models.*;                 // NEVER
+  ```
+
+**Rationale**:
+- Explicit imports improve code readability
+- Makes dependencies clear at a glance
+- Prevents naming conflicts
+- Easier to track which classes are actually used
+- Better IDE support for refactoring and unused import detection
+- Industry best practice for maintainable code
+
+**Exceptions**: None. This rule applies to all Java code in the project.
+
 ## Testing Conventions
 
 - Tests follow naming pattern: `*Test.java` (e.g., `SimpleMovingAverageTest`)

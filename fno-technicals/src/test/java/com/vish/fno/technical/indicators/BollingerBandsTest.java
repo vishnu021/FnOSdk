@@ -11,7 +11,7 @@ import java.io.File;
 import java.util.List;
 
 import static com.vish.fno.util.CandleUtils.getBBData;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
 class BollingerBandsTest {
