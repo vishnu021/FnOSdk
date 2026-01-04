@@ -751,6 +751,104 @@ Interface defining contract for data caching implementations.
 
 ---
 
+### CandlestickDataProvider
+
+**Package:** `com.vish.fno.util.helper`
+
+Interface for providing candlestick data. Abstracts data source for production (Kite API) and backtest (file-based) environments.
+
+**Implementations:**
+- `CandlestickService` (OrderManager) - Production implementation using Kite API
+- `BacktestCandlestickService` (Backtest) - Backtest implementation using file-based data
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getEntireDayHistoryData(String date, String symbol)` | `date` (yyyy-MM-dd), `symbol` | `Optional<SymbolData>` | Gets entire day's candlestick data (default minute interval) |
+| `getEntireDayHistoryData(String date, String symbol, String interval)` | `date`, `symbol`, `interval` (e.g., "minute", "5minute", "day") | `Optional<SymbolData>` | Gets entire day's candlestick data with specified interval |
+
+---
+
+### HolidayCalendar
+
+**Package:** `com.vish.fno.util.helper`
+
+Interface for holiday calendar operations. Abstracts holiday lookup for production and backtest environments.
+
+**Implementations:**
+- `CalendarService` (OrderManager) - Production implementation
+- `CalendarService` (BacktestRunner) - Backtest implementation
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getPreviousNonHolidayDate(Date date)` | `date` | `Date` | Gets previous trading date (excludes weekends and holidays) |
+| `getHolidays()` | - | `List<String>` | Gets list of holiday dates in yyyy-MM-dd format |
+
+---
+
+### DataCacheImpl
+
+**Package:** `com.vish.fno.util.helper`
+
+Consolidated DataCache implementation that works with both production and backtest environments. Extends `AbstractDataCache` (tick caching) and adds candlestick data caching using interface abstractions.
+
+**Usage:**
+- **OrderManager (Production):** Inject `CandlestickService` and `CalendarService`
+- **BacktestRunner:** Inject `BacktestCandlestickService` and `CalendarService`
+
+**Constructor:**
+```java
+public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
+                     HolidayCalendar holidayCalendar,
+                     TimeProvider timeProvider)
+```
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `updateAndGetMinuteData(String symbol)` | `symbol` | `List<Candle>` | Updates intraday cache and returns minute data for today |
+| `updateAndGetHistoryMinuteData(String date, String symbol)` | `date` (yyyy-MM-dd), `symbol` | `List<Candle>` | Retrieves historical minute data with caching |
+| `getNCandles(String symbol, Date date, int n)` | `symbol`, `date`, `n` | `List<Candle>` | Gets N most recent candles, spanning multiple days if needed (max 5 days lookback) |
+| `getNCandles(String symbol, Date date, int n, List<Candle> todaysCandles)` | `symbol`, `date`, `n`, `todaysCandles` | `List<Candle>` | Delegates to `getNCandles(symbol, date, n)` |
+
+**Example:**
+```java
+import com.vish.fno.model.Candle;
+import com.vish.fno.util.helper.CandlestickDataProvider;
+import com.vish.fno.util.helper.DataCacheImpl;
+import com.vish.fno.util.helper.HolidayCalendar;
+import com.vish.fno.util.helper.TimeProvider;
+import lombok.extern.slf4j.Slf4j;
+import java.util.Date;
+
+@Slf4j
+public class DataCacheExample {
+    public void useDataCache(CandlestickDataProvider dataProvider,
+                             HolidayCalendar holidayCalendar,
+                             TimeProvider timeProvider) {
+        DataCacheImpl cache = new DataCacheImpl(dataProvider, holidayCalendar, timeProvider);
+
+        // Get today's minute data
+        List<Candle> todaysCandles = cache.updateAndGetMinuteData("NIFTY50");
+        log.info("Today's candles: {}", todaysCandles.size());
+
+        // Get historical data
+        List<Candle> historicalCandles = cache.updateAndGetHistoryMinuteData("2025-01-15", "NIFTY50");
+        log.info("Historical candles: {}", historicalCandles.size());
+
+        // Get last 100 candles spanning multiple days
+        List<Candle> last100 = cache.getNCandles("NIFTY50", new Date(), 100);
+        log.info("Last 100 candles: {}", last100.size());
+    }
+}
+```
+
+---
+
 ### HistoricDataCache
 
 **Package:** `com.vish.fno.util.helper`

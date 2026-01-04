@@ -116,17 +116,19 @@ fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, an
 
 **fno-models** - Foundation layer with core POJOs and interfaces:
 - Order models: `OrderRequest` interface with implementations (`IndexOrderRequest`, `OptionBasedOrderRequest`, `TickBasedOrderRequest`)
-- Active order tracking: `ActiveOrder` interface and `AbstractActiveOrder` base class
+- Active order tracking: `ActiveOrder` interface and `AbstractActiveOrder` base class (core order state only)
 - Market data structures: `Candle`, `Ticker`, `CompressedTicker`
 - Trading instruments: `SymbolData`, `OptionSymbolData`, `OptionMetaData`
+- Caching utilities: `LimitedCache` (thread-safe cache with size limits)
 - Uses MongoDB integration (spring-boot-starter-data-mongodb)
 
 **fno-utils** - Business logic utilities (depends on fno-models):
-- Candlestick utilities: `CandleUtils`, `HeikinAshi` transformations
+- Candlestick utilities: `CandleUtils`, `CandlePatternUtils`, `HeikinAshi` transformations
 - Time utilities: `TimeUtils`, `TimeFrameUtils`
 - File operations: `FileUtils`, compression via `CompressionUtils`
-- Order flow strategies: `TargetAndStopLossStrategy` (target/stop-loss management)
+- Order formatting: `ActiveOrderFormatter` (CSV export, logging utilities)
 - JSON serialization: `JsonUtils`
+- Data caching: `AbstractDataCache` (thread-safe tick caching)
 
 **fno-technicals** - Technical analysis and mathematical calculations (depends on fno-utils, fno-models):
 - Base indicator framework: `Indicator` interface → `AbstractIndicator` base class
@@ -147,7 +149,9 @@ fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, an
 - CPR utilities: `CPRUtils` (Central Pivot Range calculations)
 - PCR utilities: `PCRUtils` (Put-Call Ratio analysis)
 - Trend analysis: `HATrendUtils` (Heikin Ashi trend detection)
-- Order flow management: `PartialRevisingStopLoss` (dynamic stop-loss strategies)
+- Order flow management: `TargetAndStopLossStrategy` interface, `AbstractTargetAndStopLossStrategy` base class
+- Strategy implementations: `FixedTargetAndStopLossStrategy`, `PartialRevisingStopLoss` (dynamic stop-loss strategies)
+- Order utilities: `OrderManagerUtils`
 
 **fno-phase-analyzer** - Wyckoff phase analysis and market regime identification (depends on fno-strategy-utils, fno-technicals, fno-utils, fno-models):
 - Wyckoff phase models: `WyckoffPhase` (enum), `IWyckoffPhaseIdentifier` (interface), `WyckoffIndicators`
@@ -180,6 +184,8 @@ Orders follow an interface-based design:
 - Concrete implementations: `IndexOrderRequest`, `OptionBasedOrderRequest`, `TickBasedOrderRequest`
 - Factory pattern: `ActiveOrderFactory` converts requests to active orders
 - Active orders use inheritance: `AbstractActiveOrder` → specific implementations
+- Target/stop-loss logic extracted to `TargetAndStopLossStrategy` (Strategy pattern in fno-strategy-utils)
+- Order formatting separated into `ActiveOrderFormatter` utility (fno-utils)
 
 ### Configuration & Integration
 - Spring Boot 3.2.2 as parent POM
@@ -257,6 +263,8 @@ All API documentation, usage examples, and integration patterns are maintained i
 - Start with `docs/SDK_USAGE.md` for SDK consumer guide
 - See `docs/module-guides/*.md` for detailed API references
 - Check `docs/AI_AGENT_GUIDE.md` for AI agent integration instructions
+- Review `docs/CODEBASE_IMPROVEMENT_RECOMMENDATIONS.md` for code quality analysis and enhancement suggestions
+- Read `docs/DOCUMENTATION_MAINTENANCE.md` for documentation strategy and maintenance guidelines
 
 ---
 

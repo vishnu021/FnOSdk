@@ -2,7 +2,6 @@ package com.vish.fno.model.order.activeorder;
 
 import com.vish.fno.model.Task;
 import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
-import com.vish.fno.model.util.ModelUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Objects;
 
 import static com.vish.fno.model.util.ModelUtils.INDENTED_TAB;
-import static com.vish.fno.model.util.ModelUtils.getStringDate;
-import static com.vish.fno.model.util.ModelUtils.getStringDateTime;
 import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 
 // CPD-OFF

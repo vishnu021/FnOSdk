@@ -68,6 +68,8 @@ For each change, update the corresponding module guide:
 | fno-utils | `docs/module-guides/fno-utils.md` |
 | fno-technicals | `docs/module-guides/fno-technicals.md` |
 | fno-kite-reader | `docs/module-guides/fno-kite-reader.md` |
+| fno-strategy-utils | `docs/module-guides/fno-strategy-utils.md` |
+| fno-phase-analyzer | `docs/module-guides/fno-phase-analyzer.md` |
 
 #### What to Include in Documentation
 

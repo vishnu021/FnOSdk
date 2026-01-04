@@ -14,3 +14,4 @@ public interface OrderRequest {
     Task getTask();
     Optional<OrderRequest> verifyBuyThreshold(Ticker tick);
 }
+

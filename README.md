@@ -44,9 +44,10 @@ Provides essential helper utilities and reusable patterns for trading operations
 **Key Features:**
 
 * Date/time handling, file utilities, and compression
-* Order management helpers (target/stop-loss strategies)
+* Order formatting utilities (CSV export, logging)
 * Heikin-Ashi transformations and candle conversions
 * Thread-safe caching utilities
+* Candle pattern detection utilities
 
 **Example Usage:**
 
@@ -134,11 +135,12 @@ Advanced strategy utilities for trend analysis, price action, and order flow man
 
 **Key Features:**
 
+* Target/stop-loss strategies (Fixed, Partial Revising)
 * Heikin-Ashi trend detection with weighted scoring
 * Central Pivot Range (CPR) calculations
 * Support/Resistance level detection
 * Price action analysis (maxima/minima, trendlines)
-* Partial profit booking with dynamic stop-loss
+* Order flow management utilities
 
 **Example:**
 
