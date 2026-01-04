@@ -423,6 +423,62 @@ OrderParams params = OrderUtils.createMarketOrderWithParameters(
 
 ---
 
+### KiteITMResolver - ITM/OTM Symbol Resolution Service
+
+**Package:** `com.vish.fno.reader.service`
+
+Production implementation of `ITMResolver` interface (from `fno-models`). Delegates to `KiteService` for live option symbol resolution.
+
+```java
+import com.vish.fno.reader.service.KiteITMResolver;
+import com.vish.fno.model.helper.ITMResolver;
+
+// Bean configuration
+@Bean
+public ITMResolver itmResolver(KiteService kiteService) {
+    return new KiteITMResolver(kiteService);
+}
+```
+
+**Constructor:**
+```java
+public KiteITMResolver(KiteService kiteService)
+```
+
+**Methods (from ITMResolver interface):**
+
+| Method | Parameters | Returns | Description |
+|--------|-----------|---------|-------------|
+| `resolveITMSymbol(String, double, boolean)` | `index`, `price`, `isCall` | `String` | Resolves ITM option symbol via `kiteService.getITMStock()` |
+| `resolveOTMSymbol(String, double, boolean)` | `index`, `price`, `isCall` | `String` | Resolves OTM option symbol via `kiteService.getOTMStock()` |
+| `prepareSymbols()` | - | `void` | Calls `kiteService.appendIndexITMOptions()` to refresh symbol mappings |
+
+**Usage with StrategyExecutor:**
+```java
+import com.vish.fno.reader.service.KiteITMResolver;
+import com.vish.fno.model.helper.ITMResolver;
+
+// Create resolver
+ITMResolver itmResolver = new KiteITMResolver(kiteService);
+
+// Use in strategy executor
+StrategyExecutor executor = new StrategyExecutor(
+    kiteService,
+    orderCache,
+    strategies,
+    timeSource,
+    indexHandler,
+    optionHandler,  // Uses itmResolver internally
+    startTradingHour,
+    endTradingHour,
+    true  // requiresInitializationCheck
+);
+```
+
+**Note:** For backtesting, use `BacktestITMResolver` (from OptionsAnalyzer Backtest module) with pre-configured symbol mappings.
+
+---
+
 ### OptionPriceUtils - Option Symbol Resolution
 
 **Package:** `com.vish.fno.reader.service` (package-private)

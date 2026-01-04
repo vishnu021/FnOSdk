@@ -464,6 +464,64 @@ public interface OrderFlowHandler
 
 ---
 
+### ITMResolver Interface
+
+Interface for resolving ITM (In-The-Money) and OTM (Out-of-The-Money) option symbols.
+
+```java
+public interface ITMResolver
+```
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `resolveITMSymbol(String index, double price, boolean isCall)` | `index`, `price`, `isCall` | `String` | Resolves ITM option symbol for given index at current price |
+| `resolveOTMSymbol(String index, double price, boolean isCall)` | `index`, `price`, `isCall` | `String` | Resolves OTM option symbol for given index at current price |
+| `prepareSymbols()` | - | `void` | Prepares/refreshes option symbols (e.g., fetches from broker API) |
+
+**Implementations:**
+- **KiteITMResolver** (in `fno-kite-reader`): Production implementation using Kite Connect API
+- **BacktestITMResolver** (in consumer projects): Backtest implementation with pre-configured symbol mappings
+
+**Usage Example:**
+```java
+import com.vish.fno.model.helper.ITMResolver;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class OptionSymbolResolver {
+    private final ITMResolver itmResolver;
+
+    public OptionSymbolResolver(ITMResolver itmResolver) {
+        this.itmResolver = itmResolver;
+    }
+
+    public void resolveOptionSymbols(String index, double currentPrice) {
+        // Prepare symbols (e.g., fetch latest from broker)
+        itmResolver.prepareSymbols();
+
+        // Resolve ITM CALL
+        String itmCall = itmResolver.resolveITMSymbol(index, currentPrice, true);
+        log.info("ITM CALL for {} at {}: {}", index, currentPrice, itmCall);
+
+        // Resolve ITM PUT
+        String itmPut = itmResolver.resolveITMSymbol(index, currentPrice, false);
+        log.info("ITM PUT for {} at {}: {}", index, currentPrice, itmPut);
+
+        // Resolve OTM CALL
+        String otmCall = itmResolver.resolveOTMSymbol(index, currentPrice, true);
+        log.info("OTM CALL for {} at {}: {}", index, currentPrice, otmCall);
+
+        // Resolve OTM PUT
+        String otmPut = itmResolver.resolveOTMSymbol(index, currentPrice, false);
+        log.info("OTM PUT for {} at {}: {}", index, currentPrice, otmPut);
+    }
+}
+```
+
+---
+
 ## Cache Package
 
 ### LimitedCache

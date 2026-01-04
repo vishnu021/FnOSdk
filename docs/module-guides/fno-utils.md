@@ -693,11 +693,15 @@ public class MyDataCache extends AbstractDataCache {
 
 ---
 
-### TimeProvider
+### TimeSource Interface
 
 **Package:** `com.vish.fno.util.helper`
 
-Testable time operations for trading applications. Thread-safe.
+Interface for time-providing functionality. Enables composition-based time injection for production, backtesting, and unit testing scenarios.
+
+**Implementations:**
+- `TimeProvider` (fno-utils): Real system time for production
+- `BacktestTimeProvider` (consumer projects): Controllable time for backtesting
 
 **Methods:**
 
@@ -705,31 +709,57 @@ Testable time operations for trading applications. Thread-safe.
 |--------|---------|-------------|
 | `now()` | `LocalDateTime` | Current LocalDateTime |
 | `todayDate()` | `Date` | Today's date |
-| `currentTimeStampIndex()` | `int` | Current time index (0-375) |
+| `currentTimeStampIndex()` | `int` | Trading minute index (0=9:15 AM, 375=3:30 PM) |
 | `getTodaysDateString()` | `String` | Today's date ("yyyy-MM-dd") |
 | `getCurrentStringDateTime()` | `String` | Current datetime ("yyyy-MM-dd HH:mm:ss") |
 
 **Example:**
 ```java
+import com.vish.fno.util.helper.TimeSource;
 import com.vish.fno.util.helper.TimeProvider;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class TimeProviderExample {
-    private final TimeProvider timeProvider;
+public class TimeSourceExample {
+    private final TimeSource timeSource;
 
-    public TimeProviderExample(TimeProvider timeProvider) {
-        this.timeProvider = timeProvider;
+    // Production: inject TimeProvider
+    // Backtest: inject BacktestTimeProvider
+    // Unit test: inject mock
+    public TimeSourceExample(TimeSource timeSource) {
+        this.timeSource = timeSource;
     }
 
     public void logCurrentTime() {
-        int timeIndex = timeProvider.currentTimeStampIndex();
+        int timeIndex = timeSource.currentTimeStampIndex();
         log.info("Current time index: {}", timeIndex);
 
-        String dateStr = timeProvider.getTodaysDateString();
+        String dateStr = timeSource.getTodaysDateString();
         log.info("Today: {}", dateStr);
     }
 }
+```
+
+---
+
+### TimeProvider
+
+**Package:** `com.vish.fno.util.helper`
+
+Real-time implementation of `TimeSource`. Provides actual system time for production use. Thread-safe.
+
+**Implements:** `TimeSource`
+
+**Methods:** See `TimeSource` interface for method signatures.
+
+**Example:**
+```java
+import com.vish.fno.util.helper.TimeSource;
+import com.vish.fno.util.helper.TimeProvider;
+
+// Production usage
+TimeSource timeSource = new TimeProvider();
+int currentIndex = timeSource.currentTimeStampIndex();
 ```
 
 ---
@@ -803,7 +833,7 @@ Consolidated DataCache implementation that works with both production and backte
 ```java
 public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
                      HolidayCalendar holidayCalendar,
-                     TimeProvider timeProvider)
+                     TimeSource timeSource)
 ```
 
 **Methods:**
@@ -821,7 +851,7 @@ import com.vish.fno.model.Candle;
 import com.vish.fno.util.helper.CandlestickDataProvider;
 import com.vish.fno.util.helper.DataCacheImpl;
 import com.vish.fno.util.helper.HolidayCalendar;
-import com.vish.fno.util.helper.TimeProvider;
+import com.vish.fno.util.helper.TimeSource;
 import lombok.extern.slf4j.Slf4j;
 import java.util.Date;
 
@@ -829,8 +859,8 @@ import java.util.Date;
 public class DataCacheExample {
     public void useDataCache(CandlestickDataProvider dataProvider,
                              HolidayCalendar holidayCalendar,
-                             TimeProvider timeProvider) {
-        DataCacheImpl cache = new DataCacheImpl(dataProvider, holidayCalendar, timeProvider);
+                             TimeSource timeSource) {
+        DataCacheImpl cache = new DataCacheImpl(dataProvider, holidayCalendar, timeSource);
 
         // Get today's minute data
         List<Candle> todaysCandles = cache.updateAndGetMinuteData("NIFTY50");
@@ -931,7 +961,7 @@ public class TrendAnalysisExample {
 
 **Instance-based (not thread-safe):** FileUtils, CandleStickCache, HistoricDataCache
 
-**Thread-safe (instance methods):** TimeProvider
+**Thread-safe (instance methods):** TimeProvider (implements TimeSource)
 
 **Note:** AbstractDataCache is thread-safe for appendTick(), getLatestTick(), and getTicks() operations. Subclass implementations of updateAndGetMinuteData() may require additional synchronization.
 

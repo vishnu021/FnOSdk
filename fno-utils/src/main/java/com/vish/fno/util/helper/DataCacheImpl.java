@@ -36,17 +36,17 @@ public class DataCacheImpl extends AbstractDataCache {
     private final CandleStickCache minuteDataCache; // today's cache
     private final HistoricDataCache historicDataCache; // historical cache
     private final HolidayCalendar holidayCalendar;
-    private final TimeProvider timeProvider;
+    private final TimeSource timeSource;
 
     public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
                          HolidayCalendar holidayCalendar,
-                         TimeProvider timeProvider) {
+                         TimeSource timeSource) {
         this.candlestickDataProvider = candlestickDataProvider;
         this.holidayCalendar = holidayCalendar;
-        this.timeProvider = timeProvider;
+        this.timeSource = timeSource;
         this.minuteDataCache = new CandleStickCache();
         this.historicDataCache = new HistoricDataCache();
-        this.todaysDate = timeProvider.getTodaysDateString();
+        this.todaysDate = timeSource.getTodaysDateString();
     }
 
     @Override
@@ -120,7 +120,7 @@ public class DataCacheImpl extends AbstractDataCache {
             return false;
         }
         int latestIndexOfTime = TimeUtils.getIndexOfTimeStamp(TimeUtils.getDateTimeForZonedDateString(latestCandle.time()));
-        int currentIndexOfTime = timeProvider.currentTimeStampIndex();
+        int currentIndexOfTime = timeSource.currentTimeStampIndex();
         return latestIndexOfTime == currentIndexOfTime - 1;
     }
 
