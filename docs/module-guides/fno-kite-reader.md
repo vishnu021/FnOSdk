@@ -160,6 +160,7 @@ Primary service for order execution, market data, and historical data retrieval.
 | `isSymbolSubscribed(String)` | symbol | `boolean` | Checks if a symbol is already subscribed to WebSocket |
 | `getLotSizeFromFuture(String)` | indexName | `Integer` | Returns lot size for index by querying future contract (e.g., "NIFTY 50" → 50). Returns null if not found |
 | `getAllFutureLotSizeInfo()` | - | `Map<String, Integer>` | Returns map of index name to lot size for all indices with future contracts |
+| `getInstrumentCacheSize()` | - | `int` | Returns size of instrument cache (token to symbol mapping). Returns 0 if not initialized. Useful for diagnostics |
 
 #### Lot Size Retrieval Example
 
@@ -184,6 +185,32 @@ public class LotSizeExample {
         allLotSizes.forEach((index, lotSize) ->
             log.info("{}: {} units", index, lotSize)
         );
+    }
+}
+```
+
+#### Diagnostics Example
+
+```java
+import com.vish.fno.reader.service.KiteService;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class DiagnosticsExample {
+    private final KiteService kiteService;
+
+    public void verifyInstrumentCache() {
+        int cacheSize = kiteService.getInstrumentCacheSize();
+
+        if (cacheSize == 0) {
+            log.warn("Instrument cache not initialized - call authenticate() first");
+        } else {
+            log.info("Instrument cache populated with {} symbols", cacheSize);
+        }
+
+        // Also verify WebSocket subscriptions
+        int subscribedCount = kiteService.getSubscribedWebSocketTokensCount();
+        log.info("WebSocket subscribed to {} tokens", subscribedCount);
     }
 }
 ```
@@ -594,6 +621,7 @@ public InstrumentCache(List<String> nifty100Symbols, KiteService kiteService)
 | `isExpiryDayForOption(String, Date)` | `optionSymbol`, `currentDate` | `boolean` | Checks if option expires today |
 | `getLotSizeFromFuture(String)` | `indexName` | `Integer` | Returns lot size for index from future contract. Uses INDEX_TO_DERIVATIVE mapping. Returns null if not found |
 | `getAllFutureLotSizeInfo()` | - | `Map<String, Integer>` | Returns map of all index names to lot sizes from future contracts |
+| `getInstrumentMapSize()` | - | `int` | Returns size of instrument map (token to symbol mapping). Returns 0 if cache not initialized. Useful for diagnostics |
 
 **Initialization Behavior:**
 - First call to `getInstruments()` fetches from Kite API (network I/O)

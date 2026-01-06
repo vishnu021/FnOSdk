@@ -8,11 +8,12 @@ This document serves as the entry point for consuming FnOSdk modules in your tra
 
 ```
 docs/module-guides/
-├── fno-models.md          - Core data models (orders, candles, instruments)
-├── fno-utils.md           - Utility functions (candle ops, time utils, options utils)
+├── fno-models.md          - Core data models (orders, candles, instruments, Task interface)
+├── fno-utils.md           - Utility functions (candle ops, time utils, order formatting)
 ├── fno-technicals.md      - Technical indicators and Greeks
-├── fno-kite-reader.md     - Kite Connect API integration
-└── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
+├── fno-kite-reader.md     - Kite Connect API integration (diagnostics, WebSocket)
+├── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
+└── fno-phase-analyzer.md  - Wyckoff phase identification and market regime analysis
 ```
 
 **For AI Coding Assistants**: Each module guide contains:
@@ -35,6 +36,9 @@ docs/module-guides/
 | **Trend Analysis & CPR** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 | **Price Action Trading** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
 | **Partial Profit Booking** | fno-models, fno-utils, fno-strategy-utils | [fno-strategy-utils.md](module-guides/fno-strategy-utils.md) |
+| **Wyckoff Phase Analysis** | fno-models, fno-utils, fno-phase-analyzer | [fno-phase-analyzer.md](module-guides/fno-phase-analyzer.md) |
+| **Market Regime Detection** | fno-models, fno-utils, fno-phase-analyzer | [fno-phase-analyzer.md](module-guides/fno-phase-analyzer.md) |
+| **Multi-Lot Strategy** | fno-models (Task.getLots()) | [fno-models.md](module-guides/fno-models.md#task-interface) |
 
 ## Module Dependencies
 
@@ -56,9 +60,18 @@ fno-strategy-utils
     ├── fno-utils
     │   └── fno-models
     └── fno-models
+
+fno-phase-analyzer
+    ├── fno-strategy-utils
+    │   └── (all fno-strategy-utils dependencies)
+    ├── fno-technicals
+    │   └── (all fno-technicals dependencies)
+    ├── fno-utils
+    │   └── fno-models
+    └── fno-models
 ```
 
-**Rule**: Adding fno-kite-reader or fno-technicals automatically includes all dependencies.
+**Rule**: Adding fno-kite-reader, fno-phase-analyzer, or fno-strategy-utils automatically includes all dependencies.
 
 ## Installation
 
@@ -82,6 +95,13 @@ fno-strategy-utils
     <dependency>
         <groupId>com.vish.fno</groupId>
         <artifactId>fno-strategy-utils</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- For Wyckoff phase analysis and market regime detection -->
+    <dependency>
+        <groupId>com.vish.fno</groupId>
+        <artifactId>fno-phase-analyzer</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
 
@@ -218,6 +238,47 @@ if (sellDecision.isSell()) {
 }
 ```
 
+### Scenario 9: Identify Wyckoff Market Phase
+
+**Read**: [fno-phase-analyzer.md - Phase Identification](module-guides/fno-phase-analyzer.md#example-usage-pattern-applies-to-all-identifiers)
+
+```java
+import com.vish.fno.phase.factory.WyckoffPhaseIdentifierFactory;
+import com.vish.fno.phase.factory.WyckoffIdentifierType;
+import com.vish.fno.model.wyckoff.WyckoffPhase;
+
+WyckoffPhaseIdentifierFactory factory = new WyckoffPhaseIdentifierFactory();
+IWyckoffPhaseIdentifier identifier = factory.getIdentifier(WyckoffIdentifierType.STRUCTURE_SWING);
+
+WyckoffPhase phase = identifier.identifyPhase(candles, candles.size() - 1);
+double confidence = identifier.getPhaseConfidence(candles, candles.size() - 1);
+
+if (confidence > 0.7 && phase.isAccumulation()) {
+    // Consider long positions
+}
+```
+
+### Scenario 10: Configure Multi-Lot Trading
+
+**Read**: [fno-models.md - Task Interface](module-guides/fno-models.md#task-interface)
+
+```java
+import com.vish.fno.model.Task;
+
+// Implement Task interface with getLots() for multi-lot trading
+public class TradingTask implements Task {
+    private final int lots;  // Number of lots multiplier
+
+    @Override
+    public int getLots() {
+        return lots > 0 ? lots : 1;  // Default to 1
+    }
+}
+
+// Usage: total quantity = task.getLots() * lotSize
+int quantity = tradingTask.getLots() * 50;  // 3 lots * 50 = 150
+```
+
 ## For Project Integration
 
 ### Add to your project's CLAUDE.md:
@@ -235,6 +296,7 @@ This project uses FnOSdk for trading operations.
 - Utility functions → [fno-utils.md](../FnOSdk/docs/module-guides/fno-utils.md)
 - Kite Connect API → [fno-kite-reader.md](../FnOSdk/docs/module-guides/fno-kite-reader.md)
 - Strategy utilities → [fno-strategy-utils.md](../FnOSdk/docs/module-guides/fno-strategy-utils.md)
+- Wyckoff phases → [fno-phase-analyzer.md](../FnOSdk/docs/module-guides/fno-phase-analyzer.md)
 
 When generating code using FnOSdk modules, reference the appropriate guide above for:
 - Exact API signatures

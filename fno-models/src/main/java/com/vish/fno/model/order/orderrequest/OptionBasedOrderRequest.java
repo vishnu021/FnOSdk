@@ -38,7 +38,7 @@ public class OptionBasedOrderRequest implements OrderRequest {
                                    int expirationTimestamp, double buyThreshold, double target, double stopLoss,
                                    Map<String, String> extraData) {
         this.task = task;
-        this.tag = tag == null ? "" : tag.replaceAll("[a-z]", "");
+        this.tag = tag == null ? "" : tag;
         this.index = index;
         this.date = date;
         this.timestamp = timestamp;

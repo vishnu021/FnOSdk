@@ -17,10 +17,12 @@ Located in `docs/`, this document provides:
 ### 2. Module-Specific Guides: `docs/module-guides/`
 
 Each module has a comprehensive guide with complete API documentation:
-- **fno-models.md** - Core data models (orders, candles, instruments)
-- **fno-utils.md** - Utility functions (candle ops, time utils, options utils)
+- **fno-models.md** - Core data models (orders, candles, instruments, Task interface with getLots())
+- **fno-utils.md** - Utility functions (candle ops, time utils, order formatting)
 - **fno-technicals.md** - Technical indicators and Greeks
-- **fno-kite-reader.md** - Kite Connect API integration
+- **fno-kite-reader.md** - Kite Connect API integration (diagnostics, WebSocket)
+- **fno-strategy-utils.md** - Strategy utilities (trend analysis, CPR, price action, partial profit booking)
+- **fno-phase-analyzer.md** - Wyckoff phase identification and market regime detection
 
 ### 3. Developer Guide: `CLAUDE.md`
 
@@ -36,6 +38,9 @@ When an AI agent needs to:
 - Calculate technical indicators → Read `docs/module-guides/fno-technicals.md`
 - Integrate Kite API → Read `docs/module-guides/fno-kite-reader.md`
 - Use utilities → Read `docs/module-guides/fno-utils.md`
+- Trend analysis / CPR → Read `docs/module-guides/fno-strategy-utils.md`
+- Wyckoff phase identification → Read `docs/module-guides/fno-phase-analyzer.md`
+- Multi-lot strategy configuration → Read `docs/module-guides/fno-models.md#task-interface`
 
 ### 4. Project-Specific Integration
 
@@ -52,6 +57,8 @@ For projects using FnOSdk (like OptionsAnalyzer), reference module guides direct
 - Order models → `/path/to/FnOSdk/docs/module-guides/fno-models.md`
 - Utilities → `/path/to/FnOSdk/docs/module-guides/fno-utils.md`
 - Kite integration → `/path/to/FnOSdk/docs/module-guides/fno-kite-reader.md`
+- Strategy utilities → `/path/to/FnOSdk/docs/module-guides/fno-strategy-utils.md`
+- Wyckoff phases → `/path/to/FnOSdk/docs/module-guides/fno-phase-analyzer.md`
 
 When generating code using FnOSdk, AI agents should read the specific module guide for exact API signatures and examples.
 ```
@@ -227,9 +234,11 @@ FnOSdk's **modular documentation** (`docs/module-guides/*.md`) serves as a compr
 
 **Key Documentation Files:**
 - `docs/SDK_USAGE.md` - Entry point with quick reference
-- `docs/module-guides/fno-models.md` - Order models and market data structures
+- `docs/module-guides/fno-models.md` - Order models, market data structures, Task interface (getLots())
 - `docs/module-guides/fno-utils.md` - Utility functions and helpers
 - `docs/module-guides/fno-technicals.md` - Technical indicators and Greeks
-- `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration
+- `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration (diagnostics, WebSocket)
+- `docs/module-guides/fno-strategy-utils.md` - Strategy utilities (CPR, trend analysis, partial profit booking)
+- `docs/module-guides/fno-phase-analyzer.md` - Wyckoff phase identification and market regime detection
 
 This modular approach turns AI coding assistants into **domain experts** for F&O trading applications using FnOSdk, while keeping documentation maintainable and always in sync with the code.

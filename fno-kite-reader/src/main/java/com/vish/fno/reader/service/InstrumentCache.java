@@ -164,6 +164,16 @@ class InstrumentCache {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * Get the size of the instrument map (token to symbol mapping).
+     * Useful for diagnostics to verify instrument cache is populated.
+     *
+     * @return size of instrument map, 0 if not initialized
+     */
+    public int getInstrumentMapSize() {
+        return instrumentMap != null ? instrumentMap.size() : 0;
+    }
+
     public Map<String, String> getFilteredSymbols() {
         return getInstruments().stream()
                 .sorted(Comparator.comparing(Instrument::getName))

@@ -414,6 +414,16 @@ public class KiteService {
     }
 
     /**
+     * Get the size of the instrument cache (token to symbol mapping).
+     * Useful for diagnostics to verify instrument cache is populated.
+     *
+     * @return size of instrument map, 0 if not initialized
+     */
+    public int getInstrumentCacheSize() {
+        return instrumentCache.getInstrumentMapSize();
+    }
+
+    /**
      * Get lot size for an index by searching for its future contract.
      * This is useful for indices where we want the lot size but only have the index name.
      * Futures and options for the same underlying have the same lot size.

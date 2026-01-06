@@ -9,6 +9,7 @@ import java.util.Map;
 
 @Getter
 public abstract class AbstractActiveOrder implements ActiveOrder {
+    @Getter
     protected final String tag;
     protected final Date date;
     protected final int entryTimeStamp;
@@ -56,10 +57,5 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     @Override
     public void appendExtraData(String key, String value) {
         extraData.put(key, value);
-    }
-
-    @Override
-    public String getTag() {
-        return tag.replaceAll("[a-z]", "");
     }
 }

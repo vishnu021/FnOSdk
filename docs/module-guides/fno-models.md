@@ -220,7 +220,8 @@ public AbstractActiveOrder(String tag, Date date, int entryTimeStamp, double buy
 **Protected Methods:**
 - `updateStopLoss(double stopLoss)`: Updates stop loss and maintains revision history
 - `appendExtraData(String key, String value)`: Adds or updates metadata
-- `getTag()`: Returns tag with lowercase letters removed
+
+**Note:** The `tag` field is now a standard Lombok `@Getter` and preserves the original value without transformation.
 
 ---
 
@@ -827,6 +828,75 @@ symbolDataRepository.save(symbolData);
 
 ## Strategy Interfaces
 
+### Task Interface
+
+Core interface for trading task configuration.
+
+```java
+public interface Task
+```
+
+**Methods:**
+
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| `getIndex()` | - | `String` | Trading index/symbol for this task |
+| `isEnabled()` | - | `boolean` | Whether the task is active |
+| `isExpiryDayOrders()` | - | `boolean` | Whether to place orders on expiry day |
+| `getLots()` | - | `int` | Number of lots to trade (default: 1) |
+
+**Default Method:**
+```java
+default int getLots() {
+    return 1;
+}
+```
+
+The `getLots()` method allows strategies to specify a lot multiplier. This value is applied to the standard lot size to calculate total quantity.
+
+**Usage Example:**
+```java
+import com.vish.fno.model.Task;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Getter
+@Builder
+public class TradingTask implements Task {
+    private final String index;
+    private final boolean enabled;
+    private final boolean expiryDayOrders;
+    private final int lots;  // Optional: defaults to 1 if not set
+
+    @Override
+    public int getLots() {
+        return lots > 0 ? lots : 1;
+    }
+}
+
+// Usage
+Task singleLotTask = TradingTask.builder()
+    .index("NIFTY 50")
+    .enabled(true)
+    .expiryDayOrders(false)
+    .build();  // getLots() returns 1 (default)
+
+Task multiLotTask = TradingTask.builder()
+    .index("NIFTY 50")
+    .enabled(true)
+    .expiryDayOrders(false)
+    .lots(3)
+    .build();  // getLots() returns 3
+
+int lotSize = 50;  // NIFTY lot size
+int totalQuantity = multiLotTask.getLots() * lotSize;  // 150
+log.info("Trading {} lots = {} quantity", multiLotTask.getLots(), totalQuantity);
+```
+
+---
+
 ### Strategy - Base Strategy Interface
 
 ```java
@@ -995,7 +1065,7 @@ public void exitOrder(ActiveOrder order, double currentPrice) {
 ## Edge Cases
 
 **OrderRequest:**
-- `tag` field strips lowercase letters; null becomes empty string
+- `tag` field preserves original value; null becomes empty string
 - Equality based on tag, index, and callOrder (not all fields)
 
 **ActiveOrder:**

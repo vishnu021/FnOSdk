@@ -42,7 +42,7 @@ public class TickBasedOrderRequest implements OrderRequest {
                                  int expirationTimestamp, double buyThreshold, double target, double stopLoss,
                                  boolean callOrder, Map<String, String> extraData) {
         this.task = task;
-        this.tag = tag == null ? "" : tag.replaceAll("[a-z]", "");
+        this.tag = tag == null ? "" : tag;
         this.index = index;
         this.optionSymbol = optionSymbol;
         this.date = date;

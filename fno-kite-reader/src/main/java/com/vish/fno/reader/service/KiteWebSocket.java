@@ -143,10 +143,11 @@ public class KiteWebSocket {
 
         allSymbols.addAll(symbols);
 
-        // Separate into new tokens and already existing tokens
+        // Separate into new tokens and already existing tokens (filter out nulls from unknown symbols)
         List<Long> allTokens = allSymbols
                 .stream()
                 .map(instrumentCache::getInstrument)
+                .filter(java.util.Objects::nonNull)
                 .toList();
 
         List<Long> alreadySubscribed = allTokens
