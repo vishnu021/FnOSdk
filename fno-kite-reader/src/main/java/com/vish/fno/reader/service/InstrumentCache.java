@@ -6,7 +6,6 @@ import com.zerodhatech.models.Instrument;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,7 +25,7 @@ import static com.vish.fno.util.FnoConstants.FUT;
 import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
 import static com.vish.fno.util.FnoConstants.NFO;
 import static com.vish.fno.util.FnoConstants.NSE;
-
+import static com.vish.fno.util.TimeUtils.getLocalDateFromDate;
 
 /**
  * Cache for Kite instruments, focusing on Nifty 100 stocks and indices.
@@ -38,8 +37,8 @@ class InstrumentCache {
 
     private final KiteService kiteService;
     private final List<String> nifty100Symbols;
-    private final Object initLock = new Object();
 
+    private final Object initLock;
     // Volatile for safe publication in double-checked locking
     private volatile List<Instrument> filteredInstruments;
     private volatile Map<String, Long> symbolMap;
@@ -48,6 +47,7 @@ class InstrumentCache {
     public InstrumentCache(List<String> nifty100Symbols, KiteService kiteService) {
         this.nifty100Symbols = nifty100Symbols;
         this.kiteService = kiteService;
+        this.initLock = new Object();
     }
 
     /**
@@ -85,38 +85,17 @@ class InstrumentCache {
         InstrumentFileUtils.saveInstrumentCache(allInstruments);
 
         // Filter instruments
-        List<Instrument> filtered = allInstruments.stream()
-                .filter(i -> i.getName() != null)
-                .filter(i -> i.getExchange().contentEquals(NSE)
-                        || (i.getExchange().contentEquals(NFO) && i.expiry != null)
-                        || i.getExchange().contentEquals(BSE)
-                        || (i.getExchange().contentEquals(BFO) && i.expiry != null))
-                .filter(i -> nifty100Symbols.contains(i.getTradingsymbol())
-                        || nifty100Symbols.contains(i.getName()))
-                .toList();
+        List<Instrument> filtered = filterInstruments(allInstruments);
 
         // Build symbol map
-        Map<String, Long> symbols = filtered.stream()
-                .collect(Collectors.toMap(
-                        Instrument::getTradingsymbol,
-                        Instrument::getInstrument_token,
-                        (token, symbol) -> token,
-                        TreeMap::new));
+        Map<String, Long> symbols = buildSymbolMap(filtered);
+        // Build instrument map (reverse of symbol map)
+        Map<Long, String> instruments = buildInstrumentMap(symbols);
 
         InstrumentFileUtils.saveFilteredInstrumentCache(symbols);
         log.info("Filtered instrument count: {}", symbols.size());
 
-        // Build instrument map (reverse of symbol map)
-        Map<Long, String> instruments = symbols.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
-
-        // Log expiry dates (before assignment to avoid race condition)
-        Set<String> expiryDates = filtered.stream()
-                .map(Instrument::getExpiry)
-                .filter(Objects::nonNull)
-                .map(TimeUtils::getStringDate)
-                .collect(Collectors.toSet());
-        log.info("Filtered instrument expiry dates: {}", expiryDates);
+        logExpiryDates(filtered);
 
         // Assign to volatile fields (ensures visibility to other threads)
         this.symbolMap = symbols;
@@ -144,13 +123,13 @@ class InstrumentCache {
                 .collect(Collectors.toSet());
     }
 
-    public Long getInstrument(String script) {
+    public Long getInstrument(String symbol) {
         getInstruments();  // Ensure initialized
-        if (script == null) {
+        if (symbol == null) {
             return null;
         }
 
-        return this.symbolMap.get(script.toUpperCase(Locale.ENGLISH));
+        return this.symbolMap.get(symbol.toUpperCase(Locale.ENGLISH));
     }
 
     public String getSymbol(long instrument) {
@@ -205,12 +184,6 @@ class InstrumentCache {
         return false;
     }
 
-    private boolean isSameDay(Date date1, Date date2) {
-        LocalDate localDate1 = date1.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-        LocalDate localDate2 = date2.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-        return localDate1.equals(localDate2);
-    }
-
     /**
      * Get lot size for an index by searching for its future contract.
      * This is useful for indices where we want the lot size but only have the index name.
@@ -262,5 +235,54 @@ class InstrumentCache {
                         (existing, replacement) -> existing,
                         LinkedHashMap::new
                 ));
+    }
+
+    private List<Instrument> filterInstruments(List<Instrument> allInstruments) {
+        return allInstruments.stream()
+                .filter(i -> i.getName() != null)
+                .filter(this::isNSEOrBSEFNO)
+                .filter(this::isInTheTrackingList)
+                .toList();
+    }
+
+    private boolean isInTheTrackingList(Instrument i) {
+        return nifty100Symbols.contains(i.getTradingsymbol())
+                || nifty100Symbols.contains(i.getName());
+    }
+
+    private boolean isNSEOrBSEFNO(Instrument i) {
+        return i.getExchange().contentEquals(NSE)
+                || (i.getExchange().contentEquals(NFO) && i.expiry != null)
+                || i.getExchange().contentEquals(BSE)
+                || (i.getExchange().contentEquals(BFO) && i.expiry != null);
+    }
+
+    private Map<String, Long> buildSymbolMap(List<Instrument> filtered) {
+        return filtered.stream()
+                .collect(Collectors.toMap(
+                        Instrument::getTradingsymbol,
+                        Instrument::getInstrument_token,
+                        (token, symbol) -> token,
+                        TreeMap::new));
+    }
+
+    private Map<Long, String> buildInstrumentMap(Map<String, Long> symbols) {
+        return symbols.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    }
+
+    private void logExpiryDates(List<Instrument> filtered) {
+        Set<String> expiryDates = filtered.stream()
+                .map(Instrument::getExpiry)
+                .filter(Objects::nonNull)
+                .map(TimeUtils::getStringDate)
+                .collect(Collectors.toSet());
+        log.info("Filtered instrument expiry dates: {}", expiryDates);
+    }
+
+    private boolean isSameDay(Date date1, Date date2) {
+        final LocalDate localDate1 = getLocalDateFromDate(date1);
+        final LocalDate localDate2 = getLocalDateFromDate(date2);
+        return localDate1.equals(localDate2);
     }
 }

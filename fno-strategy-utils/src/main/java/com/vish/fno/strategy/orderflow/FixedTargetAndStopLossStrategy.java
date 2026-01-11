@@ -20,13 +20,4 @@ public class FixedTargetAndStopLossStrategy extends AbstractTargetAndStopLossStr
         }
         return new OrderSellDetailModel(false);
     }
-
-    @Override
-    public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp) {
-        if(checkStopLossHit(order, ltp)) {
-            log.info("StopLoss hit for order: {} ltp: {}", order, ltp);
-            return new OrderSellDetailModel(true, order.getBuyQuantity(), OrderSellReason.STOP_LOSS_HIT, order);
-        }
-        return new OrderSellDetailModel(false);
-    }
 }

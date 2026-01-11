@@ -432,4 +432,8 @@ public final class TimeUtils {
             Instant.ofEpochMilli(timestamp).atZone(SYSTEM_ZONE)
         );
     }
+
+    public static LocalDate getLocalDateFromDate(Date date) {
+        return date.toInstant().atZone(IST_ZONE).toLocalDate();
+    }
 }

@@ -1,5 +1,7 @@
 package com.vish.fno.strategy.orderflow;
 
+import com.vish.fno.model.order.OrderSellDetailModel;
+import com.vish.fno.model.order.OrderSellReason;
 import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.activeorder.TickBasedActiveOrder;
@@ -31,6 +33,16 @@ public abstract class AbstractTargetAndStopLossStrategy implements TargetAndStop
             // For put orders: target achieved when LTP < target
             return ltp < target;
         }
+    }
+
+    @Override
+    public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp) {
+        if(checkStopLossHit(order, ltp)) {
+            int quantitiesRemaining = order.getBuyQuantity() - order.getSoldQuantity();
+            log.info("StopLoss hit for order : {} ltp: {}, selling remaining {} orders", order, ltp, quantitiesRemaining);
+            return new OrderSellDetailModel(true, quantitiesRemaining, OrderSellReason.STOP_LOSS_HIT, order);
+        }
+        return new OrderSellDetailModel(false);
     }
 
     /**

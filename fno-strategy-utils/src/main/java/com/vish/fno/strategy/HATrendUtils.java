@@ -239,8 +239,8 @@ public final class HATrendUtils {
             // consolidation logic starts
             if(existingTrend == Trend.CONSOLIDATION) {
                 List<Candle> consolidationCandles = haCandles.subList(consolidationStartIndex, i);
-                double consolidationHigh = consolidationCandles.stream().mapToDouble(c -> c.high()).max().getAsDouble();
-                double consolidationLow = consolidationCandles.stream().mapToDouble(c -> c.low()).min().getAsDouble();
+                double consolidationHigh = consolidationCandles.stream().mapToDouble(Candle::high).max().getAsDouble();
+                double consolidationLow = consolidationCandles.stream().mapToDouble(Candle::low).min().getAsDouble();
 
                 if(consolidationHigh < lastCandle.high() && isStronglyBullish(lastCandle)) {
                     existingTrend = Trend.UPTREND;

@@ -8,9 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
@@ -36,6 +36,7 @@ public final class InstrumentFileUtils {
 
     public static void saveInstrumentCache(List<Instrument> instruments) {
         try {
+            ensureDirectoryExists();
             final String instrumentFilePath = FILE_PATH.resolve(getInstrumentFileName(0)).toString();
             MAPPER.writeValue(new File(instrumentFilePath), instruments);
         } catch (IOException e) {
@@ -45,10 +46,18 @@ public final class InstrumentFileUtils {
 
     public static void saveFilteredInstrumentCache(Object instruments) {
         try {
+            ensureDirectoryExists();
             final String instrumentFilePath = FILE_PATH.resolve("filtered_" + getInstrumentFileName(0)).toString();
             MAPPER.writerWithDefaultPrettyPrinter().writeValue(new File(instrumentFilePath), instruments);
         } catch (IOException e) {
             log.error("Failed to save instrument cache.", e);
+        }
+    }
+
+    private static void ensureDirectoryExists() throws IOException {
+        if (!Files.exists(FILE_PATH)) {
+            Files.createDirectories(FILE_PATH);
+            log.info("Created instrument cache directory: {}", FILE_PATH);
         }
     }
 

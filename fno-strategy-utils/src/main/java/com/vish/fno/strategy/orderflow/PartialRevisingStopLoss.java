@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
-// CPD-OFF
 @Slf4j
 @RequiredArgsConstructor
 public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
@@ -89,16 +88,6 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
         }
     }
 
-    @Override
-    public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp) {
-        if(checkStopLossHit(order, ltp)) {
-            int quantitiesRemaining = order.getBuyQuantity() - order.getSoldQuantity();
-            log.info("StopLoss hit for order : {} ltp: {}, selling remaining {} orders", order, ltp, quantitiesRemaining);
-            return new OrderSellDetailModel(true, quantitiesRemaining, OrderSellReason.STOP_LOSS_HIT, order);
-        }
-        return new OrderSellDetailModel(false);
-    }
-
     private int getLotsToSell(int totalLots) {
         return switch (totalLots) {
             case 1 -> 1;
@@ -116,4 +105,3 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
         return quantity / lotSize;
     }
 }
-// CPD-ON
