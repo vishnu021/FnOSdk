@@ -136,17 +136,7 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
             }
             
             if (indicators.daysInRange() > 3) {  // Reduced from 10 for intraday
-                if (wasInDowntrend(data, currentIndex)) {
-                    if (indicators.volumeAnalysis() > VOLUME_SPIKE_THRESHOLD && indicators.pricePosition() < 0.3) {
-                        return WyckoffPhase.ACCUMULATION_PHASE_A;
-                    }
-                    return WyckoffPhase.ACCUMULATION_PHASE_B;
-                } else if (wasInUptrend(data, currentIndex)) {
-                    if (indicators.volumeAnalysis() > VOLUME_SPIKE_THRESHOLD && indicators.pricePosition() > 0.7) {
-                        return WyckoffPhase.DISTRIBUTION_PHASE_A;
-                    }
-                    return WyckoffPhase.DISTRIBUTION_PHASE_B;
-                }
+                return determineAccumulationOrDistributionPhase(data, currentIndex, indicators);
             }
             
             // Default to consolidation for sideways movement
@@ -171,14 +161,34 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
         // If we can't determine, check simple price action with ultra sensitivity
         if (currentIndex > 0) {
             double priceChange = (data.get(currentIndex).close() - data.get(currentIndex - 1).close()) / data.get(currentIndex - 1).close();
-            if (priceChange > MICRO_TREND_THRESHOLD) return WyckoffPhase.MARKUP;
-            if (priceChange < -MICRO_TREND_THRESHOLD) return WyckoffPhase.MARKDOWN;
+            if (priceChange > MICRO_TREND_THRESHOLD) {
+                return WyckoffPhase.MARKUP;
+            }
+            if (priceChange < -MICRO_TREND_THRESHOLD) {
+                return WyckoffPhase.MARKDOWN;
+            }
             return WyckoffPhase.CONSOLIDATION;
         }
         
         return WyckoffPhase.UNKNOWN;
     }
-    
+
+    private WyckoffPhase determineAccumulationOrDistributionPhase(List<Candle> data, int currentIndex,
+                                                                   WyckoffIndicators indicators) {
+        if (wasInDowntrend(data, currentIndex)) {
+            if (indicators.volumeAnalysis() > VOLUME_SPIKE_THRESHOLD && indicators.pricePosition() < 0.3) {
+                return WyckoffPhase.ACCUMULATION_PHASE_A;
+            }
+            return WyckoffPhase.ACCUMULATION_PHASE_B;
+        } else if (wasInUptrend(data, currentIndex)) {
+            if (indicators.volumeAnalysis() > VOLUME_SPIKE_THRESHOLD && indicators.pricePosition() > 0.7) {
+                return WyckoffPhase.DISTRIBUTION_PHASE_A;
+            }
+            return WyckoffPhase.DISTRIBUTION_PHASE_B;
+        }
+        return WyckoffPhase.CONSOLIDATION;
+    }
+
     private double findSupport(List<Candle> data) {
         return data.stream()
             .mapToDouble(Candle::low)
@@ -202,16 +212,20 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private double calculateTrendStrength(List<Candle> data) {
-        if (data.size() < 2) return 0;
-        
+        if (data.size() < 2) {
+            return 0;
+        }
+
         double firstPrice = data.get(0).close();
         double lastPrice = data.get(data.size() - 1).close();
         return (lastPrice - firstPrice) / firstPrice;
     }
     
     private double calculateMomentum(List<Candle> data) {
-        if (data.size() < 5) return 0;
-        
+        if (data.size() < 5) {
+            return 0;
+        }
+
         int recentIndex = data.size() - 1;
         int pastIndex = data.size() - 5;
         
@@ -222,7 +236,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private double calculateVolatility(List<Candle> data) {
-        if (data.isEmpty()) return 0;
+        if (data.isEmpty()) {
+            return 0;
+        }
         
         double avgRange = data.stream()
             .mapToDouble(c -> c.high() - c.low())
@@ -238,7 +254,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private boolean detectSpring(List<Candle> data, double support) {
-        if (data.size() < 3) return false;
+        if (data.size() < 3) {
+            return false;
+        }
         
         for (int i = data.size() - 3; i < data.size() - 1; i++) {
             Candle candle = data.get(i);
@@ -254,7 +272,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private boolean detectUpthrust(List<Candle> data, double resistance) {
-        if (data.size() < 3) return false;
+        if (data.size() < 3) {
+            return false;
+        }
         
         for (int i = data.size() - 3; i < data.size() - 1; i++) {
             Candle candle = data.get(i);
@@ -270,7 +290,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private boolean detectSignOfStrength(List<Candle> data, double resistance) {
-        if (data.size() < 2) return false;
+        if (data.size() < 2) {
+            return false;
+        }
         
         Candle recent = data.get(data.size() - 1);
         Candle previous = data.get(data.size() - 2);
@@ -281,7 +303,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private boolean detectSignOfWeakness(List<Candle> data, double support) {
-        if (data.size() < 2) return false;
+        if (data.size() < 2) {
+            return false;
+        }
         
         Candle recent = data.get(data.size() - 1);
         Candle previous = data.get(data.size() - 2);
@@ -304,13 +328,17 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
         }
         
         double total = buyVolume + sellVolume;
-        if (total == 0) return 0;
+        if (total == 0) {
+            return 0;
+        }
         
         return (buyVolume - sellVolume) / total;
     }
     
     private double calculateRelativeStrength(List<Candle> data) {
-        if (data.size() < 2) return 0;
+        if (data.size() < 2) {
+            return 0;
+        }
         
         double gains = 0;
         double losses = 0;
@@ -324,7 +352,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
             }
         }
         
-        if (losses == 0) return 100;
+        if (losses == 0) {
+            return 100;
+        }
         double rs = gains / losses;
         return 100 - (100 / (1 + rs));
     }
@@ -346,7 +376,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private boolean wasInUptrend(List<Candle> data, int currentIndex) {
-        if (currentIndex < 3) return false;  // Ultra short for hourly
+        if (currentIndex < 3) {
+            return false;  // Ultra short for hourly
+        }
         
         int startIdx = Math.max(0, currentIndex - 3);
         int endIdx = Math.max(0, currentIndex - 1);
@@ -358,7 +390,9 @@ public class ClassicalWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     }
     
     private boolean wasInDowntrend(List<Candle> data, int currentIndex) {
-        if (currentIndex < 3) return false;  // Ultra short for hourly
+        if (currentIndex < 3) {
+            return false;  // Ultra short for hourly
+        }
         
         int startIdx = Math.max(0, currentIndex - 3);
         int endIdx = Math.max(0, currentIndex - 1);

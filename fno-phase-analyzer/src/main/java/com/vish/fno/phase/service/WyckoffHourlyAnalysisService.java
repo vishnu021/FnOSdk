@@ -35,18 +35,13 @@ public class WyckoffHourlyAnalysisService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final DateTimeFormatter HOUR_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
-    private final WyckoffPhaseService wyckoffPhaseService;
-    private final WyckoffPhaseIdentifierFactory identifierFactory;
     private final ObjectMapper objectMapper;
     private final ResourceLoader resourceLoader;
     private final IWyckoffPhaseIdentifier phaseIdentifier;
 
-    public WyckoffHourlyAnalysisService(WyckoffPhaseService wyckoffPhaseService,
-                                       WyckoffPhaseIdentifierFactory identifierFactory,
+    public WyckoffHourlyAnalysisService(WyckoffPhaseIdentifierFactory identifierFactory,
                                        ObjectMapper objectMapper,
                                        ResourceLoader resourceLoader) {
-        this.wyckoffPhaseService = wyckoffPhaseService;
-        this.identifierFactory = identifierFactory;
         this.objectMapper = objectMapper;
         this.resourceLoader = resourceLoader;
         this.phaseIdentifier = identifierFactory.getDefault();
@@ -63,7 +58,7 @@ public class WyckoffHourlyAnalysisService {
         logger.info("Starting hourly Wyckoff phase analysis for symbol: {} from {} to {}", symbol, startDate, endDate);
         
         Map<LocalDateTime, WyckoffPhase> hourlyPhases = new TreeMap<>();
-        List<Candle> allData = loadDataForDateRange(symbol, startDate, endDate);
+        List<Candle> allData = loadDataForDateRange(startDate, endDate);
         
         if (allData.isEmpty()) {
             logger.warn("No data found for symbol: {}", symbol);
@@ -92,9 +87,9 @@ public class WyckoffHourlyAnalysisService {
         return hourlyPhases;
     }
     
-    private List<Candle> loadDataForDateRange(String symbol, LocalDate startDate, LocalDate endDate) throws IOException {
+    private List<Candle> loadDataForDateRange(LocalDate startDate, LocalDate endDate) throws IOException {
         List<Candle> allData = new ArrayList<>();
-        
+
         // Load August data
         String[] dataFiles = {
             "NIFTY 50_2025-08-01.json"
@@ -148,7 +143,9 @@ public class WyckoffHourlyAnalysisService {
         
         for (Map.Entry<LocalDateTime, List<Candle>> entry : hourlyData.entrySet()) {
             List<Candle> hourCandles = entry.getValue();
-            if (hourCandles.isEmpty()) continue;
+            if (hourCandles.isEmpty()) {
+                continue;
+            }
             
             hourCandles.sort(Comparator.comparing(c -> ZonedDateTime.parse(c.time(), TIME_FORMATTER)));
             
@@ -263,13 +260,12 @@ public class WyckoffHourlyAnalysisService {
             WyckoffPhase previousPhase = null;
             for (Map.Entry<LocalDateTime, WyckoffPhase> hourEntry : dayPhases) {
                 WyckoffPhase currentPhase = hourEntry.getValue();
-                if (previousPhase != null && !currentPhase.equals(previousPhase)) {
-                    if (isSignificantTransition(previousPhase, currentPhase)) {
-                        logger.info("  KEY TRANSITION at {}: {} → {}", 
-                            hourEntry.getKey().format(HOUR_FORMATTER),
-                            previousPhase.getPhaseName(),
-                            currentPhase.getPhaseName());
-                    }
+                if (previousPhase != null && !currentPhase.equals(previousPhase)
+                        && isSignificantTransition(previousPhase, currentPhase)) {
+                    logger.info("  KEY TRANSITION at {}: {} -> {}",
+                        hourEntry.getKey().format(HOUR_FORMATTER),
+                        previousPhase.getPhaseName(),
+                        currentPhase.getPhaseName());
                 }
                 previousPhase = currentPhase;
             }
@@ -306,13 +302,7 @@ public class WyckoffHourlyAnalysisService {
         }
         
         // Accumulation/Distribution phase transitions
-        if (from.isAccumulation() && to.isMarkup()) {
-            return true;
-        }
-        if (from.isDistribution() && to.isMarkdown()) {
-            return true;
-        }
-        
-        return false;
+        return (from.isAccumulation() && to.isMarkup())
+                || (from.isDistribution() && to.isMarkdown());
     }
 }

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 
 /**
@@ -35,14 +36,14 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
     private static final double IB_RANGE_PERCENT = 0.20; // Initial Balance is first 20% of session
     
     // Market Profile state
-    private TreeMap<Double, Integer> tpoCount = new TreeMap<>();
-    private Map<Double, Long> volumeAtPrice = new TreeMap<>();
-    private double pointOfControl = 0; // POC - highest TPO count
-    private double valueAreaHigh = 0; // VAH
-    private double valueAreaLow = 0; // VAL
-    private double sessionHigh = 0;
+    private final NavigableMap<Double, Integer> tpoCount = new TreeMap<>();
+    private final Map<Double, Long> volumeAtPrice = new TreeMap<>();
+    private double pointOfControl; // POC - highest TPO count
+    private double valueAreaHigh; // VAH
+    private double valueAreaLow; // VAL
+    private double sessionHigh;
     private double sessionLow = Double.MAX_VALUE;
-    private double initialBalanceHigh = 0;
+    private double initialBalanceHigh;
     private double initialBalanceLow = Double.MAX_VALUE;
     
     @Override
@@ -108,7 +109,9 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
     }
     
     private void calculateValueArea() {
-        if (tpoCount.isEmpty()) return;
+        if (tpoCount.isEmpty()) {
+            return;
+        }
         
         // Find Point of Control (highest TPO count)
         int maxTPOs = 0;
@@ -258,10 +261,6 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
         List<Integer> tpoCounts = new ArrayList<>(tpoCount.values());
         Collections.sort(tpoCounts);
         
-        int maxTPO = tpoCounts.get(tpoCounts.size() - 1);
-        int medianTPO = tpoCounts.get(tpoCounts.size() / 2);
-        int minTPO = tpoCounts.get(0);
-        
         // Determine shape based on distribution
         double topHeavy = 0;
         double bottomHeavy = 0;
@@ -299,7 +298,9 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
     }
     
     private boolean detectSinglePrints() {
-        if (tpoCount.isEmpty()) return false;
+        if (tpoCount.isEmpty()) {
+            return false;
+        }
         
         int modeTPO = Collections.max(tpoCount.values());
         int singlePrintThreshold = (int)(modeTPO * SINGLE_PRINT_THRESHOLD);
@@ -314,7 +315,9 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
     }
     
     private boolean detectExcess(boolean atTop) {
-        if (tpoCount.isEmpty()) return false;
+        if (tpoCount.isEmpty()) {
+            return false;
+        }
         
         double range = sessionHigh - sessionLow;
         double threshold = range * TAIL_THRESHOLD;
@@ -323,14 +326,12 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
             double price = entry.getKey();
             int tpos = entry.getValue();
             
-            if (atTop && price > sessionHigh - threshold) {
-                if (tpos == 1) { // Single TPO at extreme
-                    return true;
-                }
-            } else if (!atTop && price < sessionLow + threshold) {
-                if (tpos == 1) { // Single TPO at extreme
-                    return true;
-                }
+            if (atTop && price > sessionHigh - threshold && tpos == 1) {
+                // Single TPO at extreme
+                return true;
+            } else if (!atTop && price < sessionLow + threshold && tpos == 1) {
+                // Single TPO at extreme
+                return true;
             }
         }
         

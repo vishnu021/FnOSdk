@@ -3,6 +3,7 @@ package com.vish.fno.phase.wyckoff;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
+import com.vish.fno.phase.util.ATRCalculator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +31,8 @@ public class RenkoWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
     private static final int LOOKBACK_BRICKS = 10; // Number of bricks to analyze
     
     // Renko state
-    private List<RenkoBrick> renkoBricks = new ArrayList<>();
-    private double currentBrickSize = 0;
+    private final List<RenkoBrick> renkoBricks = new ArrayList<>();
+    private double currentBrickSize;
     
     @Override
     public WyckoffPhase identifyPhase(List<Candle> data, int currentIndex) {
@@ -65,7 +66,7 @@ public class RenkoWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
             // Calculate ATR for dynamic brick size
             int startIdx = Math.max(0, currentIndex - ATR_PERIOD);
             List<Candle> atrData = data.subList(startIdx, currentIndex + 1);
-            double atr = calculateATR(atrData, ATR_PERIOD);
+            double atr = ATRCalculator.calculateATR(atrData, ATR_PERIOD);
             currentBrickSize = atr * BRICK_SIZE_MULTIPLIER;
         }
         
@@ -199,17 +200,15 @@ public class RenkoWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
             RenkoBrick secondLast = recentBricks.get(recentBricks.size() - 2);
             
             // Check for spring pattern (down then up)
-            if (secondLast.direction == Direction.DOWN && lastBrick.direction == Direction.UP) {
-                if (consecutiveDown <= 2) { // Brief excursion
-                    return WyckoffPhase.ACCUMULATION_PHASE_C;
-                }
+            if (secondLast.direction == Direction.DOWN && lastBrick.direction == Direction.UP
+                    && consecutiveDown <= 2) { // Brief excursion
+                return WyckoffPhase.ACCUMULATION_PHASE_C;
             }
-            
+
             // Check for upthrust pattern (up then down)
-            if (secondLast.direction == Direction.UP && lastBrick.direction == Direction.DOWN) {
-                if (consecutiveUp <= 2) { // Brief excursion
-                    return WyckoffPhase.DISTRIBUTION_PHASE_C;
-                }
+            if (secondLast.direction == Direction.UP && lastBrick.direction == Direction.DOWN
+                    && consecutiveUp <= 2) { // Brief excursion
+                return WyckoffPhase.DISTRIBUTION_PHASE_C;
             }
         }
         
@@ -245,7 +244,9 @@ public class RenkoWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
     }
     
     private boolean wasInUptrend(List<RenkoBrick> bricks) {
-        if (bricks.size() < 5) return false;
+        if (bricks.size() < 5) {
+            return false;
+        }
         
         // Check first half of bricks
         int midPoint = bricks.size() / 2;
@@ -259,7 +260,9 @@ public class RenkoWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
     }
     
     private boolean wasInDowntrend(List<RenkoBrick> bricks) {
-        if (bricks.size() < 5) return false;
+        if (bricks.size() < 5) {
+            return false;
+        }
         
         // Check first half of bricks
         int midPoint = bricks.size() / 2;
@@ -328,33 +331,13 @@ public class RenkoWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
         renkoBricks.clear();
         currentBrickSize = 0;
     }
-    
-    private double calculateATR(List<Candle> candles, int period) {
-        if (candles.size() < period + 1) return 0.0;
-        
-        double atr = 0.0;
-        for (int i = 1; i < candles.size(); i++) {
-            Candle current = candles.get(i);
-            Candle previous = candles.get(i - 1);
-            
-            double tr = Math.max(
-                current.high() - current.low(),
-                Math.max(
-                    Math.abs(current.high() - previous.close()),
-                    Math.abs(current.low() - previous.close())
-                )
-            );
-            atr += tr;
-        }
-        return atr / (candles.size() - 1);
-    }
-    
+
     // Inner classes
     private enum Direction {
         UP, DOWN, NONE
     }
     
-    private static class RenkoBrick {
+    private static final class RenkoBrick {
         double open;
         double close;
         double high;

@@ -38,20 +38,21 @@ import static org.mockito.Mockito.when;
 @Slf4j
 class InstrumentCacheTest {
     private static final String INSTRUMENT_CACHE_FILE = "/src/test/java/resources/instrument_cache/instruments_2025-12-31.json";
+    private static final List<String> NIFTY_100_SYMBOLS = List.of("NIFTY", "BANKNIFTY", "HDFCBANK", "RELIANCE", "SBIN", "SENSEX", "BANKEX");
 
     @Mock
     private KiteService kiteService;
-    private InstrumentCache underTest;
     private final ObjectMapper mapper = new ObjectMapper();
-
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        List<String> nifty100Symbols = List.of("NIFTY", "BANKNIFTY", "HDFCBANK", "RELIANCE", "SBIN", "SENSEX", "BANKEX");
-        underTest = new InstrumentCache(nifty100Symbols, kiteService);
+    }
+
+    private InstrumentCache createInstrumentCache() {
         List<Instrument> instruments = mockInstrumentCache();
         when(kiteService.getAllInstruments()).thenReturn(instruments);
+        return new InstrumentCache(NIFTY_100_SYMBOLS, kiteService);
     }
 
     @SneakyThrows
@@ -73,7 +74,7 @@ class InstrumentCacheTest {
             calendar.set(2024, Calendar.DECEMBER, 28, 0, 0, 0);
             Date date = calendar.getTime();
             // Act
-            boolean isExpiryDayForOption = underTest.isExpiryDayForOption(optionSymbol, date);
+            boolean isExpiryDayForOption = createInstrumentCache().isExpiryDayForOption(optionSymbol, date);
             // Assert
             assertFalse(isExpiryDayForOption);
         }
@@ -91,7 +92,7 @@ class InstrumentCacheTest {
             calendar.set(2026, Calendar.JANUARY, 6, 0, 0, 0);
             Date date = calendar.getTime();
             // Act
-            boolean isExpiryDayForOption = underTest.isExpiryDayForOption(optionSymbol, date);
+            boolean isExpiryDayForOption = createInstrumentCache().isExpiryDayForOption(optionSymbol, date);
             // Assert
             assertTrue(isExpiryDayForOption);
         }
@@ -110,7 +111,7 @@ class InstrumentCacheTest {
 
             Date date = calendar.getTime();
             // Act
-            boolean isExpiryDayForOption = underTest.isExpiryDayForOption(optionSymbol, date);
+            boolean isExpiryDayForOption = createInstrumentCache().isExpiryDayForOption(optionSymbol, date);
             // Assert
             assertFalse(isExpiryDayForOption);
         }
@@ -126,11 +127,11 @@ class InstrumentCacheTest {
             // Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexName = "NIFTY";
 
             // Act
-            Integer lotSize = underTest.getLotSizeFromFuture(indexName);
+            Integer lotSize = instrumentCache.getLotSizeFromFuture(indexName);
 
             // Assert
             assertNotNull(lotSize, "Lot size should not be null for NIFTY futures");
@@ -149,11 +150,11 @@ class InstrumentCacheTest {
             // Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
-
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexName = "INVALID_INDEX";
 
             // Act
-            Integer lotSize = underTest.getLotSizeFromFuture(indexName);
+            Integer lotSize = instrumentCache.getLotSizeFromFuture(indexName);
 
             // Assert
             assertNull(lotSize, "Lot size should be null for invalid index name");
@@ -169,9 +170,10 @@ class InstrumentCacheTest {
             // Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
 
             // Act
-            Integer lotSize = underTest.getLotSizeFromFuture(null);
+            Integer lotSize = instrumentCache.getLotSizeFromFuture(null);
 
             // Assert
             assertNull(lotSize, "Lot size should be null for null index name");
@@ -188,9 +190,10 @@ class InstrumentCacheTest {
             // Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
 
             // Act
-            Map<String, Integer> allFutureLotSizes = underTest.getAllFutureLotSizeInfo();
+            Map<String, Integer> allFutureLotSizes = instrumentCache.getAllFutureLotSizeInfo();
 
             // Assert
             assertNotNull(allFutureLotSizes, "Future lot sizes map should not be null");
@@ -223,6 +226,7 @@ class InstrumentCacheTest {
             // Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
 
             int threadCount = 10;
             ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -235,7 +239,7 @@ class InstrumentCacheTest {
                     try {
                         latch.countDown();
                         latch.await(); // Wait for all threads to be ready
-                        return underTest.getLotSizeFromFuture("NIFTY");
+                        return instrumentCache.getLotSizeFromFuture("NIFTY");
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         return null;

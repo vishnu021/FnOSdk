@@ -14,7 +14,7 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 // CPD-OFF
 @Slf4j
 @Getter
-public class ActiveIndexOrder extends AbstractActiveOrder {
+public final class ActiveIndexOrder extends AbstractActiveOrder {
     private static final int estimated_buffer_size = 125;
     private final Task task;
     private final String index;

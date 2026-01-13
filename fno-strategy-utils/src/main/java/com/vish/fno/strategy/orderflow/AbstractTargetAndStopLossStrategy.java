@@ -4,6 +4,7 @@ import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
 import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.vish.fno.model.order.activeorder.OptionBasedActiveOrder;
 import com.vish.fno.model.order.activeorder.TickBasedActiveOrder;
 import lombok.extern.slf4j.Slf4j;
 
@@ -66,24 +67,23 @@ public abstract class AbstractTargetAndStopLossStrategy implements TargetAndStop
     }
 
     /**
-     * Determines if the order is a call order.
-     * Handles different order types:
+     * Determines if the order is a call order using pattern matching (Java 17+).
+     * Handles sealed ActiveOrder hierarchy:
      * - ActiveIndexOrder: has isCallOrder() method
      * - TickBasedActiveOrder: has isCallOrder() method
      * - OptionBasedActiveOrder: always treated as call
-     * - Default: treated as call
      *
      * @param order Active order to check
      * @return true if call order, false if put order
      */
     private boolean isCallOrder(ActiveOrder order) {
-        if (order instanceof ActiveIndexOrder) {
-            return ((ActiveIndexOrder) order).isCallOrder();
-        } else if (order instanceof TickBasedActiveOrder) {
-            return ((TickBasedActiveOrder) order).isCallOrder();
-        } else {
-            // OptionBasedActiveOrder and others default to call
-            return true;
+        if (order instanceof ActiveIndexOrder indexOrder) {
+            return indexOrder.isCallOrder();
         }
+        if (order instanceof TickBasedActiveOrder tickOrder) {
+            return tickOrder.isCallOrder();
+        }
+        // OptionBasedActiveOrder: always treated as call
+        return true;
     }
 }

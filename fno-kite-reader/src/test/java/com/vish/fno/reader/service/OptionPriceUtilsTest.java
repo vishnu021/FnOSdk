@@ -25,18 +25,21 @@ class OptionPriceUtilsTest {
 
     private static final String INSTRUMENT_CACHE_FILE = "/src/test/java/resources/instrument_cache/instruments_2025-12-31.json";
 
+    private static final List<String> NIFTY_100_SYMBOLS = List.of("NIFTY", "NIFTY 50", "BANKNIFTY", "NIFTY BANK", "NIFTYNXT50", "FINNIFTY", "NIFTY FIN SERVICE", "BANKEX", "SENSEX", "SENSEX50");
+
     @Mock
     private KiteService kiteService;
-    private InstrumentCache instrumentCache;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        List<Instrument>  instruments = mockInstrumentCache();
-        List<String> nifty100Symbols = List.of("NIFTY", "NIFTY 50", "BANKNIFTY", "NIFTY BANK", "NIFTYNXT50", "FINNIFTY", "NIFTY FIN SERVICE", "BANKEX", "SENSEX", "SENSEX50");
-        instrumentCache = new InstrumentCache(nifty100Symbols, kiteService);
+    }
+
+    private InstrumentCache createInstrumentCache() {
+        List<Instrument> instruments = mockInstrumentCache();
         when(kiteService.getAllInstruments()).thenReturn(instruments);
+        return new InstrumentCache(NIFTY_100_SYMBOLS, kiteService);
     }
 
     @SneakyThrows
@@ -52,9 +55,10 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = NIFTY_50;
             // Act
-            String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol,  instrumentCache.getInstruments()).get();
+            String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol, instrumentCache.getInstruments()).get();
             // Assert
             assertEquals(optionSymbol, "NIFTY26JANFUT");
         }
@@ -66,9 +70,10 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = "SENSEX";
             // Act
-            String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol,  instrumentCache.getInstruments()).get();
+            String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol, instrumentCache.getInstruments()).get();
             // Assert
             assertEquals(optionSymbol, "SENSEX26JANFUT");
         }
@@ -80,9 +85,10 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = "BANKEX";
             // Act
-            String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol,  instrumentCache.getInstruments()).get();
+            String optionSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(indexSymbol, instrumentCache.getInstruments()).get();
             // Assert
             assertEquals(optionSymbol, "BANKEX26JANFUT");
         }
@@ -94,6 +100,7 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = NIFTY_50;
             // Act
             String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 24952.0, true, instrumentCache.getInstruments());
@@ -108,6 +115,7 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = NIFTY_50;
             // Act
             String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 24952.0, false, instrumentCache.getInstruments());
@@ -122,6 +130,7 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = "SENSEX50";
             // Act
             String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 85352.0, true, instrumentCache.getInstruments());
@@ -136,6 +145,7 @@ class OptionPriceUtilsTest {
             //Arrange
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
             String indexSymbol = "SENSEX";
             // Act
             String optionSymbols = OptionPriceUtils.getITMStock(indexSymbol, 85352.0, false, instrumentCache.getInstruments());

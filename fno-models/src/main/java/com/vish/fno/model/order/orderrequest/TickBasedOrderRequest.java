@@ -20,7 +20,7 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 @Slf4j
 @Getter
 @Builder
-public class TickBasedOrderRequest implements OrderRequest {
+public final class TickBasedOrderRequest implements OrderRequest {
     private static final int estimated_buffer_size = 100;
     private final Task task;
     private final String tag;

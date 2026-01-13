@@ -17,6 +17,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.vish.fno.util.FnoConstants.MARKET_OPEN_HOUR;
+import static com.vish.fno.util.FnoConstants.MARKET_OPEN_MINUTE;
+import static com.vish.fno.util.FnoConstants.MINUTES_IN_HOUR;
+import static com.vish.fno.util.FnoConstants.TOTAL_TRADING_MINUTES;
+
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
@@ -26,12 +31,12 @@ public final class CandleUtils {
     public static final List<String> timeArray = new ArrayList<>();
 
     static {
-        int hour = 9;
-        int minute = 15;
-        for (int i = 0; i <= 375; i++) {
+        int hour = MARKET_OPEN_HOUR;
+        int minute = MARKET_OPEN_MINUTE;
+        for (int i = 0; i <= TOTAL_TRADING_MINUTES; i++) {
             timeArray.add(toTimeValue(hour) + ":" + toTimeValue(minute));
             minute++;
-            if (minute == 60) {
+            if (minute == MINUTES_IN_HOUR) {
                 hour++;
                 minute = 0;
             }

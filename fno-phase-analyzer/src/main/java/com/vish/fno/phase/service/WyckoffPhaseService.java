@@ -29,6 +29,21 @@ public class WyckoffPhaseService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final int MINUTE_BUFFER = 60; // Keep 60 minutes of data for analysis
 
+    // Strategy name constants to avoid duplicate literals
+    private static final String PULLBACK_BUYING_STRATEGY = "PullbackBuyingStrategy";
+    private static final String MEAN_REVERSION_STRATEGY = "MeanReversionStrategy";
+    private static final String PROTECTIVE_EXIT_STRATEGY = "ProtectiveExitStrategy";
+    private static final String CONTINUATION_SHORTING_STRATEGY = "ContinuationShortingStrategy";
+
+    // Cache for storing recent price data per symbol (thread-safe)
+    private final Map<String, List<Candle>> recentDataCache = new ConcurrentHashMap<>();
+
+    // Cache for storing identified phases per symbol and hour (thread-safe)
+    private final Map<String, Map<Integer, WyckoffPhase>> hourlyPhaseCache = new ConcurrentHashMap<>();
+
+    // Current hour tracking (thread-safe)
+    private final Map<String, Integer> currentHourTracker = new ConcurrentHashMap<>();
+
     private final WyckoffPhaseIdentifierFactory identifierFactory;
     private IWyckoffPhaseIdentifier phaseIdentifier;
     private WyckoffIdentifierType identifierType;
@@ -41,17 +56,6 @@ public class WyckoffPhaseService {
         log.info("WyckoffPhaseService initialized with identifier: {} - {}",
                    phaseIdentifier.getIdentifierType(), phaseIdentifier.getDescription());
     }
-
-    // Cache for storing recent price data per symbol (thread-safe)
-    // CopyOnWriteArrayList provides thread-safe modifications without external synchronization
-    private final Map<String, CopyOnWriteArrayList<Candle>> recentDataCache = new ConcurrentHashMap<>();
-
-    // Cache for storing identified phases per symbol and hour (thread-safe)
-    // Both outer and inner maps use ConcurrentHashMap for thread safety
-    private final Map<String, Map<Integer, WyckoffPhase>> hourlyPhaseCache = new ConcurrentHashMap<>();
-
-    // Current hour tracking (thread-safe)
-    private final Map<String, Integer> currentHourTracker = new ConcurrentHashMap<>();
 
 
     /**
@@ -115,7 +119,7 @@ public class WyckoffPhaseService {
                     case 0:
                         return "WyckoffBreakoutStrategy"; // Sign of Strength breakouts
                     case 1:
-                        return "PullbackBuyingStrategy"; // Last Point of Support entries
+                        return PULLBACK_BUYING_STRATEGY; // Last Point of Support entries
                     case 2:
                         return "MarkupTrendFollowingStrategy"; // Trend continuation
                     default:
@@ -130,7 +134,7 @@ public class WyckoffPhaseService {
                     case 0:
                         return "BreakdownTradingStrategy"; // Sign of Weakness breakdowns
                     case 1:
-                        return "ContinuationShortingStrategy"; // Bear trend continuation
+                        return CONTINUATION_SHORTING_STRATEGY; // Bear trend continuation
                     case 2:
                         return "MomentumShortingStrategy"; // Momentum shorting
                     default:
@@ -148,7 +152,7 @@ public class WyckoffPhaseService {
                 if (accumBRotation == 0) {
                     return "AccumulationRangeStrategy"; // Range trading
                 } else if (accumBRotation == 1) {
-                    return "MeanReversionStrategy"; // Statistical mean reversion
+                    return MEAN_REVERSION_STRATEGY; // Statistical mean reversion
                 } else {
                     return "StatisticalArbitrageStrategy"; // Price inefficiency capture
                 }
@@ -164,12 +168,12 @@ public class WyckoffPhaseService {
             // DISTRIBUTION PHASE STRATEGIES - Smart money distributing to public
             case DISTRIBUTION_PHASE_A:
                 // Early distribution - buying climax, initial weakness
-                return "ProtectiveExitStrategy"; // Protect long positions
+                return PROTECTIVE_EXIT_STRATEGY; // Protect long positions
 
             case DISTRIBUTION_PHASE_B:
                 // Range development at highs - multiple resistance tests
                 int distBRotation = (int)(System.currentTimeMillis() / 3600000) % 2;
-                return distBRotation == 0 ? "DistributionRangeFadingStrategy" : "ProtectiveExitStrategy";
+                return distBRotation == 0 ? "DistributionRangeFadingStrategy" : PROTECTIVE_EXIT_STRATEGY;
 
             case DISTRIBUTION_PHASE_C:
                 // Testing phase - upthrusts and failures
@@ -183,15 +187,15 @@ public class WyckoffPhaseService {
             case CONSOLIDATION:
                 // Neutral phase - use range-bound strategies
                 int consRotation = (int)(System.currentTimeMillis() / 3600000) % 2;
-                return consRotation == 0 ? "AccumulationRangeStrategy" : "MeanReversionStrategy";
+                return consRotation == 0 ? "AccumulationRangeStrategy" : MEAN_REVERSION_STRATEGY;
 
             case REACCUMULATION:
                 // Continuation of uptrend after pause - bullish bias
-                return "PullbackBuyingStrategy"; // Buy pullbacks in uptrend
+                return PULLBACK_BUYING_STRATEGY; // Buy pullbacks in uptrend
 
             case REDISTRIBUTION:
                 // Continuation of downtrend after pause - bearish bias
-                return "ContinuationShortingStrategy"; // Short rallies in downtrend
+                return CONTINUATION_SHORTING_STRATEGY; // Short rallies in downtrend
 
             // UNKNOWN OR TRANSITIONAL PHASES
             case UNKNOWN:
@@ -208,17 +212,17 @@ public class WyckoffPhaseService {
     public String getAlternativeStrategyForPhase(WyckoffPhase phase) {
         switch (phase) {
             case MARKUP:
-                return "PullbackBuyingStrategy";
+                return PULLBACK_BUYING_STRATEGY;
             case MARKDOWN:
                 return "MomentumShortingStrategy";
             case ACCUMULATION_PHASE_B:
                 return "StatisticalArbitrageStrategy";
             case ACCUMULATION_PHASE_C:
-                return "MeanReversionStrategy";
+                return MEAN_REVERSION_STRATEGY;
             case DISTRIBUTION_PHASE_A:
                 return "UpthrustTradingStrategy";
             case DISTRIBUTION_PHASE_B:
-                return "ProtectiveExitStrategy";
+                return PROTECTIVE_EXIT_STRATEGY;
             default:
                 return getStrategyForPhase(phase);
         }
@@ -279,7 +283,7 @@ public class WyckoffPhaseService {
      * Uses CopyOnWriteArrayList for thread-safe modifications.
      */
     private void updateDataCache(String symbol, Ticker tick) {
-        CopyOnWriteArrayList<Candle> dataList = recentDataCache.computeIfAbsent(
+        List<Candle> dataList = recentDataCache.computeIfAbsent(
             symbol, k -> new CopyOnWriteArrayList<>()
         );
 
@@ -301,9 +305,8 @@ public class WyckoffPhaseService {
         dataList.add(candle);
 
         // Keep only recent data (last 60 minutes)
-        // CopyOnWriteArrayList handles concurrent modifications safely
         while (dataList.size() > MINUTE_BUFFER) {
-            dataList.remove(0);  // Remove first element
+            dataList.remove(0);
         }
     }
 
@@ -311,7 +314,7 @@ public class WyckoffPhaseService {
      * Calculate the hourly phase based on accumulated minute data
      */
     private WyckoffPhase calculateHourlyPhase(String symbol) {
-        CopyOnWriteArrayList<Candle> dataList = recentDataCache.get(symbol);
+        List<Candle> dataList = recentDataCache.get(symbol);
 
         if (dataList == null || dataList.isEmpty()) {
             return WyckoffPhase.UNKNOWN;

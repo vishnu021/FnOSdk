@@ -183,7 +183,7 @@ public enum WyckoffIdentifierType {
             return null;
         }
 
-        String normalized = key.toLowerCase().trim();
+        String normalized = key.toLowerCase(java.util.Locale.ROOT).trim();
         for (WyckoffIdentifierType type : values()) {
             if (type.key.equals(normalized)) {
                 return type;

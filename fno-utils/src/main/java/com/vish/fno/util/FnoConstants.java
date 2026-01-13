@@ -5,6 +5,14 @@ import java.util.Map;
 @SuppressWarnings("PMD.ConstantsInInterface")
 public interface FnoConstants {
 
+    // NSE Market Hours (IST)
+    int MARKET_OPEN_HOUR = 9;
+    int MARKET_OPEN_MINUTE = 15;
+    int MARKET_CLOSE_HOUR = 15;
+    int MARKET_CLOSE_MINUTE = 30;
+    int TOTAL_TRADING_MINUTES = 375;  // 6 hours 15 minutes (from 9:15 to 15:30)
+    int MINUTES_IN_HOUR = 60;
+
     // Exchange Names
     String NSE = "NSE";
     String NFO = "NFO";

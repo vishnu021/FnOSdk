@@ -3,6 +3,7 @@ package com.vish.fno.phase.wyckoff;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
+import com.vish.fno.phase.util.ATRCalculator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,8 +35,8 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     // Swing structure tracking
     private List<SwingPoint> swingHighs = new ArrayList<>();
     private List<SwingPoint> swingLows = new ArrayList<>();
-    private double boxTop = 0;
-    private double boxBottom = 0;
+    private double boxTop;
+    private double boxBottom;
     
     @Override
     public WyckoffPhase identifyPhase(List<Candle> data, int currentIndex) {
@@ -142,7 +143,7 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
         
         int startIdx = Math.max(0, currentIndex - 14);
         List<Candle> atrData = data.subList(startIdx, currentIndex + 1);
-        double atr = calculateATR(atrData, 14);
+        double atr = ATRCalculator.calculateATR(atrData, 14);
         return atr * MIN_SWING_SIZE_MULTIPLIER;
     }
     
@@ -256,7 +257,9 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     }
     
     private boolean checkFailedBreakout(List<Candle> data, int currentIndex, boolean checkUpside) {
-        if (currentIndex < 5) return false;
+        if (currentIndex < 5) {
+            return false;
+        }
         
         // Look for breakout and quick reversal in last 5 bars
         for (int i = currentIndex - 4; i <= currentIndex - 1; i++) {
@@ -344,7 +347,9 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     }
     
     private boolean hasSwingFailureAtTop(Candle current) {
-        if (swingHighs.isEmpty()) return false;
+        if (swingHighs.isEmpty()) {
+            return false;
+        }
         
         SwingPoint lastHigh = swingHighs.get(swingHighs.size() - 1);
         return current.close() < lastHigh.price * 0.995 && 
@@ -352,7 +357,9 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     }
     
     private boolean hasSwingFailureAtBottom(Candle current) {
-        if (swingLows.isEmpty()) return false;
+        if (swingLows.isEmpty()) {
+            return false;
+        }
         
         SwingPoint lastLow = swingLows.get(swingLows.size() - 1);
         return current.close() > lastLow.price * 1.005 && 
@@ -360,7 +367,9 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     }
     
     private boolean wasInUptrend(List<Candle> data, int currentIndex) {
-        if (currentIndex < 20) return false;
+        if (currentIndex < 20) {
+            return false;
+        }
         
         double oldPrice = data.get(currentIndex - 20).close();
         double recentPrice = data.get(currentIndex - 5).close();
@@ -369,7 +378,9 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     }
     
     private boolean wasInDowntrend(List<Candle> data, int currentIndex) {
-        if (currentIndex < 20) return false;
+        if (currentIndex < 20) {
+            return false;
+        }
         
         double oldPrice = data.get(currentIndex - 20).close();
         double recentPrice = data.get(currentIndex - 5).close();
@@ -425,29 +436,9 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
         boxTop = 0;
         boxBottom = 0;
     }
-    
-    private double calculateATR(List<Candle> candles, int period) {
-        if (candles.size() < period + 1) return 0.0;
-        
-        double atr = 0.0;
-        for (int i = 1; i < candles.size(); i++) {
-            Candle current = candles.get(i);
-            Candle previous = candles.get(i - 1);
-            
-            double tr = Math.max(
-                current.high() - current.low(),
-                Math.max(
-                    Math.abs(current.high() - previous.close()),
-                    Math.abs(current.low() - previous.close())
-                )
-            );
-            atr += tr;
-        }
-        return atr / (candles.size() - 1);
-    }
-    
+
     // Inner class for swing points
-    private static class SwingPoint {
+    private static final class SwingPoint {
         double price;
         int index;
         String timestamp;

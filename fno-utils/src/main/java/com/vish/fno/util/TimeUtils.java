@@ -24,7 +24,13 @@ import static com.vish.fno.util.FnoConstants.DATE_FORMAT;
 import static com.vish.fno.util.FnoConstants.DATE_TIME_FORMAT;
 import static com.vish.fno.util.FnoConstants.DATE_TIME_MS_FORMAT;
 import static com.vish.fno.util.FnoConstants.DATE_TIME_SEC_T_FORMAT;
+import static com.vish.fno.util.FnoConstants.MARKET_CLOSE_HOUR;
+import static com.vish.fno.util.FnoConstants.MARKET_CLOSE_MINUTE;
+import static com.vish.fno.util.FnoConstants.MARKET_OPEN_HOUR;
+import static com.vish.fno.util.FnoConstants.MARKET_OPEN_MINUTE;
+import static com.vish.fno.util.FnoConstants.MINUTES_IN_HOUR;
 import static com.vish.fno.util.FnoConstants.TIME_FORMAT;
+import static com.vish.fno.util.FnoConstants.TOTAL_TRADING_MINUTES;
 import static com.vish.fno.util.FnoConstants.YEAR_FORMAT;
 
 @Slf4j
@@ -55,12 +61,12 @@ public final class TimeUtils {
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
 
     static {
-        int hour = 9;
-        int minute = 15;
-        for (int i = 0; i <= 375; i++) {
+        int hour = MARKET_OPEN_HOUR;
+        int minute = MARKET_OPEN_MINUTE;
+        for (int i = 0; i <= TOTAL_TRADING_MINUTES; i++) {
             timeArray.add(toTimeValue(hour) + ":" + toTimeValue(minute));
             minute++;
-            if (minute == 60) {
+            if (minute == MINUTES_IN_HOUR) {
                 hour++;
                 minute = 0;
             }
@@ -115,8 +121,8 @@ public final class TimeUtils {
     public static Date appendOpeningTimeToDate(Date day) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(day);
-        calendar.set(Calendar.HOUR_OF_DAY, 9);
-        calendar.set(Calendar.MINUTE, 15);
+        calendar.set(Calendar.HOUR_OF_DAY, MARKET_OPEN_HOUR);
+        calendar.set(Calendar.MINUTE, MARKET_OPEN_MINUTE);
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         return calendar.getTime();
@@ -125,8 +131,8 @@ public final class TimeUtils {
     public static Date appendClosingTimeToDate(Date day) {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(day);
-        calendar.set(Calendar.HOUR_OF_DAY, 15);
-        calendar.set(Calendar.MINUTE, 30);
+        calendar.set(Calendar.HOUR_OF_DAY, MARKET_CLOSE_HOUR);
+        calendar.set(Calendar.MINUTE, MARKET_CLOSE_MINUTE);
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         return calendar.getTime();
@@ -226,8 +232,8 @@ public final class TimeUtils {
 
     public static Date getOpeningTime() {
         Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, 9);
-        calendar.set(Calendar.MINUTE, 15);
+        calendar.set(Calendar.HOUR_OF_DAY, MARKET_OPEN_HOUR);
+        calendar.set(Calendar.MINUTE, MARKET_OPEN_MINUTE);
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         return calendar.getTime();
@@ -235,8 +241,8 @@ public final class TimeUtils {
 
     public static Date getClosingTime() {
         Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, 15);
-        calendar.set(Calendar.MINUTE, 30);
+        calendar.set(Calendar.HOUR_OF_DAY, MARKET_CLOSE_HOUR);
+        calendar.set(Calendar.MINUTE, MARKET_CLOSE_MINUTE);
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
         return calendar.getTime();
@@ -355,9 +361,9 @@ public final class TimeUtils {
         int minute = dateTime.getMinute();
 
         // Trading hours: 9:15 AM to 3:30 PM
-        int totalMinutes = hour * 60 + minute;
-        int marketOpen = 9 * 60 + 15;  // 9:15 AM
-        int marketClose = 15 * 60 + 30; // 3:30 PM
+        int totalMinutes = hour * MINUTES_IN_HOUR + minute;
+        int marketOpen = MARKET_OPEN_HOUR * MINUTES_IN_HOUR + MARKET_OPEN_MINUTE;
+        int marketClose = MARKET_CLOSE_HOUR * MINUTES_IN_HOUR + MARKET_CLOSE_MINUTE;
 
         return totalMinutes >= marketOpen && totalMinutes <= marketClose;
     }

@@ -173,7 +173,9 @@ public class WyckoffPhaseIdentifierFactory {
         var types = Stream.of(keys)
             .map(WyckoffIdentifierType::fromKey)
             .peek(type -> {
-                if (type == null) throw new IllegalArgumentException("Invalid identifier key");
+                if (type == null) {
+                    throw new IllegalArgumentException("Invalid identifier key");
+                }
             })
             .toArray(WyckoffIdentifierType[]::new);
 

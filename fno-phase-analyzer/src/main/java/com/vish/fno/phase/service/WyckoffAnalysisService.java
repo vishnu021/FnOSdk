@@ -34,18 +34,13 @@ public class WyckoffAnalysisService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
 
-    private final WyckoffPhaseService wyckoffPhaseService;
-    private final WyckoffPhaseIdentifierFactory identifierFactory;
     private final ObjectMapper objectMapper;
     private final ResourceLoader resourceLoader;
     private final IWyckoffPhaseIdentifier phaseIdentifier;
 
-    public WyckoffAnalysisService(WyckoffPhaseService wyckoffPhaseService,
-                                 WyckoffPhaseIdentifierFactory identifierFactory,
+    public WyckoffAnalysisService(WyckoffPhaseIdentifierFactory identifierFactory,
                                  ObjectMapper objectMapper,
                                  ResourceLoader resourceLoader) {
-        this.wyckoffPhaseService = wyckoffPhaseService;
-        this.identifierFactory = identifierFactory;
         this.objectMapper = objectMapper;
         this.resourceLoader = resourceLoader;
         this.phaseIdentifier = identifierFactory.getDefault();
@@ -145,7 +140,9 @@ public class WyckoffAnalysisService {
         
         for (Map.Entry<LocalDate, List<Candle>> entry : dailyData.entrySet()) {
             List<Candle> dayCandles = entry.getValue();
-            if (dayCandles.isEmpty()) continue;
+            if (dayCandles.isEmpty()) {
+                continue;
+            }
             
             dayCandles.sort(Comparator.comparing(c -> ZonedDateTime.parse(c.time(), TIME_FORMATTER)));
             
@@ -226,26 +223,23 @@ public class WyckoffAnalysisService {
     
     private void identifyPhaseTransitions(Map<LocalDate, WyckoffPhase> dailyPhases) {
         logger.info("\nSignificant Phase Transitions:");
-        
+
         WyckoffPhase previousPhase = null;
-        LocalDate previousDate = null;
-        
+
         for (Map.Entry<LocalDate, WyckoffPhase> entry : dailyPhases.entrySet()) {
             WyckoffPhase currentPhase = entry.getValue();
             LocalDate currentDate = entry.getKey();
-            
-            if (previousPhase != null && !currentPhase.equals(previousPhase)) {
-                if (isSignificantTransition(previousPhase, currentPhase)) {
-                    logger.info("  {} -> {} on {}", 
-                        previousPhase.getPhaseName(),
-                        currentPhase.getPhaseName(),
-                        currentDate.format(DATE_FORMATTER)
-                    );
-                }
+
+            if (previousPhase != null && !currentPhase.equals(previousPhase)
+                    && isSignificantTransition(previousPhase, currentPhase)) {
+                logger.info("  {} -> {} on {}",
+                    previousPhase.getPhaseName(),
+                    currentPhase.getPhaseName(),
+                    currentDate.format(DATE_FORMATTER)
+                );
             }
-            
+
             previousPhase = currentPhase;
-            previousDate = currentDate;
         }
     }
     
@@ -266,13 +260,7 @@ public class WyckoffAnalysisService {
         if (from.isDistribution() && to.isMarkdown()) {
             return true;
         }
-        if (from.isAccumulation() && to.isDistribution()) {
-            return true;
-        }
-        if (from.isDistribution() && to.isAccumulation()) {
-            return true;
-        }
-        
-        return false;
+        return (from.isAccumulation() && to.isDistribution())
+                || (from.isDistribution() && to.isAccumulation());
     }
 }

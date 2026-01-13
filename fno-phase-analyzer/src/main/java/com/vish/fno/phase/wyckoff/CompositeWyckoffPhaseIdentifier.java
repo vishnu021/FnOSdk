@@ -23,7 +23,7 @@ public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
         if (identifiers == null || identifiers.length == 0) {
             throw new IllegalArgumentException("At least one identifier must be provided");
         }
-        this.identifiers = identifiers;
+        this.identifiers = identifiers.clone();
     }
     
     @Override
@@ -77,7 +77,9 @@ public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     public String getDescription() {
         StringBuilder desc = new StringBuilder("Composite identifier combining: ");
         for (int i = 0; i < identifiers.length; i++) {
-            if (i > 0) desc.append(", ");
+            if (i > 0) {
+                desc.append(", ");
+            }
             desc.append(identifiers[i].getIdentifierType());
         }
         return desc.toString();

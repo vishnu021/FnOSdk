@@ -18,7 +18,7 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 @Slf4j
 @Getter
 @Builder
-public class OptionBasedOrderRequest implements OrderRequest {
+public final class OptionBasedOrderRequest implements OrderRequest {
     private static final int estimated_buffer_size = 100;
 
     private final Task task;

@@ -74,7 +74,9 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
     }
     
     private double calculateVolumeTrend(List<Candle> data, int startIdx, int endIdx) {
-        if (endIdx - startIdx < 2) return 0;
+        if (endIdx - startIdx < 2) {
+            return 0;
+        }
         
         double firstHalfVolume = 0;
         double secondHalfVolume = 0;
@@ -88,7 +90,9 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
             secondHalfVolume += data.get(i).volume();
         }
         
-        if (firstHalfVolume == 0) return 0;
+        if (firstHalfVolume == 0) {
+            return 0;
+        }
         return (secondHalfVolume - firstHalfVolume) / firstHalfVolume;
     }
     
@@ -112,16 +116,16 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
         }
         
         double totalVolume = buyVolume + sellVolume;
-        if (totalVolume == 0) return 0.5;
+        if (totalVolume == 0) {
+            return 0.5;
+        }
         
         return buyVolume / totalVolume;
     }
     
-    private WyckoffPhase identifyPhaseFromVolumePatterns(VolumeMetrics metrics, 
-                                                         List<Candle> data, 
+    private WyckoffPhase identifyPhaseFromVolumePatterns(VolumeMetrics metrics,
+                                                         List<Candle> data,
                                                          int currentIndex) {
-        Candle current = data.get(currentIndex);
-        
         // High volume with price advance = Markup or Sign of Strength
         if (metrics.hasVolumeSpike && metrics.priceChange > PRICE_CHANGE_THRESHOLD) {
             if (metrics.buyingPressure > 0.65) {
@@ -183,7 +187,9 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
     }
     
     private boolean wasInUptrend(List<Candle> data, int currentIndex) {
-        if (currentIndex < 10) return false;
+        if (currentIndex < 10) {
+            return false;
+        }
         
         int lookback = Math.min(20, currentIndex);
         double startPrice = data.get(currentIndex - lookback).close();
@@ -193,7 +199,9 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
     }
     
     private boolean wasInDowntrend(List<Candle> data, int currentIndex) {
-        if (currentIndex < 10) return false;
+        if (currentIndex < 10) {
+            return false;
+        }
         
         int lookback = Math.min(20, currentIndex);
         double startPrice = data.get(currentIndex - lookback).close();

@@ -31,7 +31,7 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     private static final int TREND_CONFIRMATION_BARS = 3; // Bars needed for trend confirmation
     
     // OI analysis state
-    private List<OIDataPoint> oiHistory = new ArrayList<>();
+    private final List<OIDataPoint> oiHistory = new ArrayList<>();
     
     @Override
     public WyckoffPhase identifyPhase(List<Candle> data, int currentIndex) {
@@ -127,12 +127,13 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
                 case SHORT_COVERING: shortCoveringCount++; break;
                 case SHORT_BUILDUP: shortBuildupCount++; break;
                 case LONG_UNWINDING: longUnwindingCount++; break;
+                default: break;
             }
         }
         
         // Check for OI spikes (Phase C indicators)
         boolean hasOISpike = detectOISpike();
-        boolean hasFailedBreakout = detectFailedBreakoutWithOI(data, currentIndex);
+        boolean hasFailedBreakout = detectFailedBreakoutWithOI(currentIndex);
         
         // Analyze trend alignment
         TrendAlignment trendAlignment = analyzeTrendAlignment();
@@ -220,16 +221,19 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     }
     
     private boolean detectOISpike() {
-        if (oiHistory.size() < 2) return false;
-        
+        if (oiHistory.size() < 2) {
+            return false;
+        }
+
         OIDataPoint current = oiHistory.get(oiHistory.size() - 1);
-        OIDataPoint previous = oiHistory.get(oiHistory.size() - 2);
-        
+
         return Math.abs(current.oiChange) > OI_SPIKE_THRESHOLD;
     }
     
-    private boolean detectFailedBreakoutWithOI(List<Candle> data, int currentIndex) {
-        if (currentIndex < 5 || oiHistory.size() < 5) return false;
+    private boolean detectFailedBreakoutWithOI(int currentIndex) {
+        if (currentIndex < 5 || oiHistory.size() < 5) {
+            return false;
+        }
         
         // Look for price breakout with OI spike, then reversal
         double highestHigh = Double.MIN_VALUE;
@@ -294,7 +298,9 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     }
     
     private boolean isFlatOI() {
-        if (oiHistory.size() < 5) return false;
+        if (oiHistory.size() < 5) {
+            return false;
+        }
         
         double totalOIChange = 0;
         for (int i = oiHistory.size() - 5; i < oiHistory.size(); i++) {
@@ -305,7 +311,9 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     }
     
     private boolean isSidewaysPrice() {
-        if (oiHistory.size() < 5) return false;
+        if (oiHistory.size() < 5) {
+            return false;
+        }
         
         double maxPrice = Double.MIN_VALUE;
         double minPrice = Double.MAX_VALUE;
@@ -331,7 +339,9 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     }
     
     private boolean wasInUptrend() {
-        if (oiHistory.size() < 10) return false;
+        if (oiHistory.size() < 10) {
+            return false;
+        }
         
         double oldPrice = oiHistory.get(oiHistory.size() - 10).price;
         double recentPrice = oiHistory.get(oiHistory.size() - 3).price;
@@ -340,7 +350,9 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     }
     
     private boolean wasInDowntrend() {
-        if (oiHistory.size() < 10) return false;
+        if (oiHistory.size() < 10) {
+            return false;
+        }
         
         double oldPrice = oiHistory.get(oiHistory.size() - 10).price;
         double recentPrice = oiHistory.get(oiHistory.size() - 3).price;
@@ -349,7 +361,9 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
     }
     
     private OIDivergence detectOIDivergence() {
-        if (oiHistory.size() < 5) return OIDivergence.NONE;
+        if (oiHistory.size() < 5) {
+            return OIDivergence.NONE;
+        }
         
         // Calculate average price and OI changes
         double avgPriceChange = 0;
@@ -447,7 +461,7 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
         NONE
     }
     
-    private static class OIDataPoint {
+    private static final class OIDataPoint {
         double price;
         long openInterest;
         long volume;

@@ -16,7 +16,7 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 // CPD-OFF
 @Slf4j
 @Getter
-public class TickBasedActiveOrder extends AbstractActiveOrder {
+public final class TickBasedActiveOrder extends AbstractActiveOrder {
     private static final int estimated_buffer_size = 125;
     private final Task task;
     private final String index;

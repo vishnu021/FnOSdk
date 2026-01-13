@@ -28,9 +28,6 @@ import java.util.List;
 public class HeikinAshiWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
     
     private static final int MIN_CANDLES_FOR_ANALYSIS = 10;
-    private static final int TREND_LOOKBACK = 20;
-    private static final double CONSOLIDATION_THRESHOLD = 0.003; // 0.3% range for consolidation
-    private static final double STRONG_TREND_THRESHOLD = 0.01; // 1% move for strong trend
     private static final double VOLUME_SPIKE_THRESHOLD = 1.5;
     
     @Override
@@ -66,9 +63,6 @@ public class HeikinAshiWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier
             List<Trend> trendHistory,
             List<Point2D> pivotPoints,
             List<Candle> originalCandles) {
-        
-        int currentIndex = haCandles.size() - 1;
-        Candle currentHA = haCandles.get(currentIndex);
         
         // Analyze trend transitions for Wyckoff phases
         TrendTransition transition = analyzeTrendTransition(trendHistory);
@@ -111,20 +105,19 @@ public class HeikinAshiWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier
         }
         
         // Trend reversal patterns
-        if (transition.hasRecentReversal) {
-            if (transition.reversalDirection == Trend.UPTREND) {
-                // Check for spring pattern (false breakdown)
-                if (detectSpringPattern(haCandles, pivotPoints)) {
-                    return WyckoffPhase.ACCUMULATION_PHASE_C;
-                }
-                return WyckoffPhase.ACCUMULATION_PHASE_B;
-            } else if (transition.reversalDirection == Trend.DOWNTREND) {
-                // Check for upthrust pattern (false breakout)
-                if (detectUpthrustPattern(haCandles, pivotPoints)) {
-                    return WyckoffPhase.DISTRIBUTION_PHASE_C;
-                }
-                return WyckoffPhase.DISTRIBUTION_PHASE_B;
+        if (transition.hasRecentReversal && transition.reversalDirection == Trend.UPTREND) {
+            // Check for spring pattern (false breakdown)
+            if (detectSpringPattern(haCandles, pivotPoints)) {
+                return WyckoffPhase.ACCUMULATION_PHASE_C;
             }
+            return WyckoffPhase.ACCUMULATION_PHASE_B;
+        }
+        if (transition.hasRecentReversal && transition.reversalDirection == Trend.DOWNTREND) {
+            // Check for upthrust pattern (false breakout)
+            if (detectUpthrustPattern(haCandles, pivotPoints)) {
+                return WyckoffPhase.DISTRIBUTION_PHASE_C;
+            }
+            return WyckoffPhase.DISTRIBUTION_PHASE_B;
         }
         
         // Default phase based on current trend
@@ -259,7 +252,6 @@ public class HeikinAshiWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier
         }
         
         int bullishCount = 0;
-        int bearishCount = 0;
         int dojiCount = 0;
         int consecutiveBullish = 0;
         int consecutiveBearish = 0;
@@ -284,7 +276,6 @@ public class HeikinAshiWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier
                     pattern.hasStrongBullishCandles = true;
                 }
             } else if (CandleUtils.isBearish(candle)) {
-                bearishCount++;
                 consecutiveBearish++;
                 consecutiveBullish = 0;
                 
@@ -471,30 +462,30 @@ public class HeikinAshiWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier
     }
     
     // Helper classes for pattern analysis
-    
-    private static class TrendTransition {
-        boolean hasRecentReversal = false;
+
+    private static final class TrendTransition {
+        boolean hasRecentReversal;
         Trend reversalDirection = Trend.INDECISIVE;
         Trend priorTrend = Trend.INDECISIVE;
-        boolean fromConsolidationToUptrend = false;
-        boolean fromConsolidationToDowntrend = false;
+        boolean fromConsolidationToUptrend;
+        boolean fromConsolidationToDowntrend;
     }
-    
-    private static class VolumePattern {
-        boolean hasHighVolumeAtHighs = false;
-        boolean hasHighVolumeAtLows = false;
+
+    private static final class VolumePattern {
+        boolean hasHighVolumeAtHighs;
+        boolean hasHighVolumeAtLows;
     }
-    
-    private static class HAPattern {
-        boolean hasStrongBullishCandles = false;
-        boolean hasStrongBearishCandles = false;
-        int consecutiveBullishCount = 0;
-        int consecutiveBearishCount = 0;
+
+    private static final class HAPattern {
+        boolean hasStrongBullishCandles;
+        boolean hasStrongBearishCandles;
+        int consecutiveBullishCount;
+        int consecutiveBearishCount;
         double bullishBias = 0.5;
-        boolean hasDojisAtTop = false;
-        boolean hasDojisAtBottom = false;
-        boolean hasToppingPattern = false;
-        boolean hasBottomingPattern = false;
-        boolean weakening = false;
+        boolean hasDojisAtTop;
+        boolean hasDojisAtBottom;
+        boolean hasToppingPattern;
+        boolean hasBottomingPattern;
+        boolean weakening;
     }
 }
