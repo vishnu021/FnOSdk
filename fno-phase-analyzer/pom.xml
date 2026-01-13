@@ -47,6 +47,12 @@
             <scope>compile</scope>
         </dependency>
 
+        <!-- Spring Core for ResourceLoader -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+        </dependency>
+
         <!-- Apache Commons Math for statistical analysis -->
         <dependency>
             <groupId>org.apache.commons</groupId>

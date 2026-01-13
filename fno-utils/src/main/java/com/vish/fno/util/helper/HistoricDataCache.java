@@ -2,16 +2,12 @@ package com.vish.fno.util.helper;
 
 import com.vish.fno.model.Candle;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
-@RequiredArgsConstructor
 public class HistoricDataCache {
     // date // symbol //  data
     @Getter

@@ -7,7 +7,6 @@ import com.vish.fno.model.wyckoff.WyckoffPhase;
 import com.vish.fno.phase.factory.WyckoffPhaseIdentifierFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 
