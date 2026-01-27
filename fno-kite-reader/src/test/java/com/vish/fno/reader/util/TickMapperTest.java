@@ -89,5 +89,8 @@ class TickMapperTest {
         assertEquals(1000, sellDepth.get(4).quantity());
         assertEquals(154.1, sellDepth.get(4).price());
         assertEquals(5, sellDepth.get(4).orders());
+
+        // Assert tickReceivedTime is captured at mapping time
+        assertNotNull(ticker.tickReceivedTime(), "tickReceivedTime should be populated at mapping time");
     }
 }

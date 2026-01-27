@@ -181,7 +181,12 @@ Internal thread-safe cache with double-checked locking. Returns defensive copies
 Ticker ticker = TickMapper.mapTick(tick, symbol);
 ```
 
-Converts Zerodha Tick to internal Ticker format.
+Converts Zerodha Tick to internal Ticker format. Sets `tickReceivedTime` to the exact moment of mapping for latency analysis.
+
+| Field | Source |
+|-------|--------|
+| `tickTimestamp` | From Kite `Tick.getTickTimestamp()` |
+| `tickReceivedTime` | `new Date()` at mapping time |
 
 ### OrderDetailsLogger
 

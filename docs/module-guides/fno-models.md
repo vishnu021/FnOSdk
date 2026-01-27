@@ -165,7 +165,7 @@ List<Ticker> tickers = cache.get(symbol);  // Defensive copy
 
 ### OrderCache
 
-Thread-safe cache for order requests and active orders with cash management.
+Thread-safe cache for order requests, active orders, and completed orders with cash management.
 
 ```java
 OrderCache cache = new OrderCache(100000.0);
@@ -173,6 +173,7 @@ cache.addOrderRequest(request);
 cache.deductCash(orderCost);  // Synchronized
 cache.addCash(sellValue);     // Synchronized
 double cash = cache.getAvailableCash();  // Volatile read
+List<ActiveOrder> completed = cache.getCompletedOrders();  // Orders moved from active on removal
 ```
 
 | Method | Thread-Safe | Description |
@@ -183,7 +184,11 @@ double cash = cache.getAvailableCash();  // Volatile read
 | `checkEntryInOpenOrders(Ticker, String)` | ✅ | Check trigger conditions |
 | `addOrderRequest(OrderRequest)` | ✅ | Add (removes duplicates) |
 | `appendActiveOrder(ActiveOrder)` | ✅ | Add active order |
+| `removeActiveOrder(ActiveOrder)` | ✅ | Remove from active, add to completed |
+| `getCompletedOrders()` | ✅ | Get list of completed orders |
 | `removeExpiredOpenOrders(int)` | ✅ | Clean expired orders |
+
+**Note:** `removeActiveOrder()` moves the order to `completedOrders` for historical tracking before removing from `activeOrders`.
 
 ---
 
@@ -202,9 +207,16 @@ public record Ticker(String mode, boolean tradable, long instrumentToken, String
     double lastTradedPrice, double highPrice, double lowPrice, double openPrice, double closePrice,
     double change, double lastTradedQuantity, double averageTradePrice, long volumeTradedToday,
     double totalBuyQuantity, double totalSellQuantity, Date lastTradedTime, double oi,
-    double openInterestDayHigh, double openInterestDayLow, Date tickTimestamp,
+    double openInterestDayHigh, double openInterestDayLow, Date tickTimestamp, Date tickReceivedTime,
     Map<String, List<Depth>> depth) implements Comparable<Ticker>
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tickTimestamp` | `Date` | Timestamp from exchange when tick was generated |
+| `tickReceivedTime` | `Date` | Timestamp when tick was received/mapped by SDK |
+
+**Note:** `tickReceivedTime` enables latency analysis between exchange tick generation and SDK processing.
 
 ### Metadata Records
 

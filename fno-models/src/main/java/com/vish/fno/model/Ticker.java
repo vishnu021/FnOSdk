@@ -33,6 +33,7 @@ public record Ticker(
     double openInterestDayHigh,
     double openInterestDayLow,
     Date tickTimestamp,
+    Date tickReceivedTime,
     Map<String, List<Depth>> depth
 ) implements Comparable<Ticker> {
 
@@ -67,6 +68,7 @@ public record Ticker(
             0,
             0,
             t.tickTimestamp,
+            t.tickReceivedTime,
             null
         );
     }
@@ -78,13 +80,14 @@ public record Ticker(
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder(70);
+        final StringBuilder sb = new StringBuilder(100);
         sb.append("Ticker{")
           .append("mode='").append(mode).append('\'')
           .append(", token=").append(instrumentToken)
           .append(", symbol=").append(instrumentSymbol)
           .append(", ltp=").append(roundTo5Paise(lastTradedPrice))
           .append(", time=").append(getStringTime(tickTimestamp))
+          .append(", received=").append(getStringTime(tickReceivedTime))
           .append('}');
         return sb.toString();
     }

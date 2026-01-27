@@ -64,6 +64,7 @@ public final class TickMapper {
                 Optional.ofNullable(tick.getOpenInterestDayHigh()).orElse(0.0),
                 Optional.ofNullable(tick.getOpenInterestDayLow()).orElse(0.0),
                 Optional.ofNullable(tick.getTickTimestamp()).orElse(new Date(0)),
+                new Date(),  // tickReceivedTime - captured at exact moment of mapping
                 marketDepth
         );
     }

@@ -16,12 +16,15 @@ public class OrderCache {
     @Getter
     private final List<ActiveOrder> activeOrders;
     @Getter
+    private final List<ActiveOrder> completedOrders;
+    @Getter
     private volatile double availableCash;
 
     public OrderCache(double availableCash) {
         this.availableCash = availableCash;
         orderRequests = new CopyOnWriteArrayList<>();
         activeOrders = new CopyOnWriteArrayList<>();
+        completedOrders = new CopyOnWriteArrayList<>();
         log.info("Initialising order cache with available cash: {}", this.availableCash);
     }
 
@@ -67,6 +70,8 @@ public class OrderCache {
 
     public void removeActiveOrder(ActiveOrder order) {
         activeOrders.remove(order);
+        completedOrders.add(order);
+        log.debug("Order completed and moved to completedOrders: {}", order.getTag());
     }
 
     public List<ActiveOrder> getActiveOrderForSymbol(String symbol) {
