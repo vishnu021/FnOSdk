@@ -17,8 +17,8 @@ public class OrderCache {
     private final List<ActiveOrder> activeOrders;
     @Getter
     private final List<ActiveOrder> completedOrders;
-    @Getter
-    private volatile double availableCash;
+    private final Object cashLock = new Object();
+    private double availableCash;
 
     public OrderCache(double availableCash) {
         this.availableCash = availableCash;
@@ -101,27 +101,23 @@ public class OrderCache {
         this.activeOrders.add(activeOrder);
     }
 
-    /**
-     * Atomically deduct cash from available balance.
-     * Thread-safe operation for buy orders.
-     *
-     * @param amount the amount to deduct
-     */
-    @SuppressWarnings("PMD.AvoidSynchronizedAtMethodLevel")
-    public synchronized void deductCash(double amount) {
-        this.availableCash -= amount;
-        log.debug("Deducted {} from available cash, new balance: {}", amount, this.availableCash);
+    public double getAvailableCash() {
+        synchronized (cashLock) {
+            return this.availableCash;
+        }
     }
 
-    /**
-     * Atomically add cash to available balance.
-     * Thread-safe operation for sell orders.
-     *
-     * @param amount the amount to add
-     */
-    @SuppressWarnings("PMD.AvoidSynchronizedAtMethodLevel")
-    public synchronized void addCash(double amount) {
-        this.availableCash += amount;
-        log.debug("Added {} to available cash, new balance: {}", amount, this.availableCash);
+    public void deductCash(double amount) {
+        synchronized (cashLock) {
+            this.availableCash -= amount;
+            log.debug("Deducted {} from available cash, new balance: {}", amount, this.availableCash);
+        }
+    }
+
+    public void addCash(double amount) {
+        synchronized (cashLock) {
+            this.availableCash += amount;
+            log.debug("Added {} to available cash, new balance: {}", amount, this.availableCash);
+        }
     }
 }

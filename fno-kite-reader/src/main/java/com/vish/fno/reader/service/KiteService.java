@@ -335,6 +335,23 @@ public class KiteService {
         return kiteWebSocket.isSymbolSubscribed(symbol);
     }
 
+    /**
+     * Returns all option symbols (CE and PE) for the specified index for the nearest expiry.
+     * This is useful for calculating aggregate metrics like Put-Call Ratio (PCR).
+     *
+     * @param indexSymbol The index symbol (e.g., "NIFTY 50", "NIFTY BANK")
+     * @return List of all option trading symbols for the index, empty list if unavailable
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public List<String> getAllOptionSymbols(String indexSymbol) {
+        try {
+            return OptionPriceUtils.getAllOptionSymbols(indexSymbol, instrumentCache.getInstruments());
+        } catch (Exception e) {
+            log.error("Failed to get option symbols for {}: {}", indexSymbol, e.getMessage());
+            return List.of();
+        }
+    }
+
     private KiteOpenOrder buildUnsuccessfulKiteOrder(Exception e) {
         return new KiteOpenOrder(null, false, null, e.getMessage());
     }

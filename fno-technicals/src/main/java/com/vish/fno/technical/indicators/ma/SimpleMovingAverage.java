@@ -3,8 +3,8 @@ package com.vish.fno.technical.indicators.ma;
 import com.vish.fno.technical.indicators.AbstractIndicator;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.IntStream;
 
 @Slf4j
 public class SimpleMovingAverage extends AbstractIndicator {
@@ -20,36 +20,42 @@ public class SimpleMovingAverage extends AbstractIndicator {
     }
 
     public List<Double> calculateFromClosedPrice(List<Double> candles) {
-        return IntStream
-                .range(0, candles.size())
-                .boxed()
-                .map(i -> movingAverage(candles, i))
-                .toList();
+        List<Double> result = new ArrayList<>(candles.size());
+        for (int i = 0; i < candles.size(); i++) {
+            result.add(movingAverage(candles, i));
+        }
+        return result;
     }
 
     public List<Double> calculateFromClosedPrice(List<Double> candles, List<Double> prevCandles) {
-        return IntStream
-                .range(0, candles.size())
-                .boxed()
-                .map(i -> movingAverage(candles, prevCandles, i))
-                .toList();
-
+        List<Double> result = new ArrayList<>(candles.size());
+        for (int i = 0; i < candles.size(); i++) {
+            result.add(movingAverage(candles, prevCandles, i));
+        }
+        return result;
     }
 
     private double movingAverage(List<Double> candleClosed, List<Double> prevCandleClosed, int i) {
-        int startIndex = i >= duration ? i - duration + 1 : 0;
-
         if (i < duration) {
-           double sum = candleClosed.subList(startIndex, i + 1).stream().mapToDouble(d -> d).sum();
-            sum += prevCandleClosed.subList(prevCandleClosed.size() - (duration - i) + 1, prevCandleClosed.size()).stream().mapToDouble(d -> d).sum();
+            double sum = sumRange(candleClosed, 0, i + 1);
+            int prevCount = duration - i - 1;
+            sum += sumRange(prevCandleClosed, prevCandleClosed.size() - prevCount, prevCandleClosed.size());
             return sum / duration;
         }
-
-        return candleClosed.subList(startIndex, i + 1).stream().mapToDouble(d -> d).average().orElse(0);
+        return sumRange(candleClosed, i - duration + 1, i + 1) / duration;
     }
 
     private double movingAverage(List<Double> candleClose, int i) {
         int startIndex = i >= duration ? i - duration + 1 : 0;
-        return candleClose.subList(startIndex, i + 1).stream().mapToDouble(d -> d).average().orElse(0);
+        int count = i + 1 - startIndex;
+        return sumRange(candleClose, startIndex, i + 1) / count;
+    }
+
+    private static double sumRange(List<Double> values, int from, int to) {
+        double sum = 0;
+        for (int i = from; i < to; i++) {
+            sum += values.get(i);
+        }
+        return sum;
     }
 }
