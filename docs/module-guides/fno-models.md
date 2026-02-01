@@ -85,6 +85,8 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
 
 Base class with protected fields: `tag`, `date`, `entryTimeStamp`, `exitTimeStamp`, `buyThreshold`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `target`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`
 
+Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`).
+
 ### Implementations
 
 | Class | Source | Stop Loss Behavior |
@@ -95,8 +97,16 @@ Base class with protected fields: `tag`, `date`, `entryTimeStamp`, `exitTimeStam
 
 ### ActiveOrderFactory
 
+Uses Java 21 switch expression. Throws `IllegalArgumentException` for unknown `OrderRequest` types (no longer returns null).
+
+```java
+public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int timestamp, String orderEntryTimestamp,
+                                      int quantity, int lotSize)
+```
+
 ```java
 ActiveOrder order = ActiveOrderFactory.createOrder(orderRequest, ltp, timestamp, timestampString, quantity, lotSize);
+// Throws IllegalArgumentException if orderRequest type is unknown
 ```
 
 ---

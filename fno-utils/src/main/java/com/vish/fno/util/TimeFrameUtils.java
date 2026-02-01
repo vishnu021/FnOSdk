@@ -34,7 +34,7 @@ public class TimeFrameUtils {
 
         Map<String, List<Candle>> groupedCandles = new TreeMap<>();
         for (Candle candle : allCandles) {
-            String date = TimeUtils.getStringDate(TimeUtils.getDateObject(candle.time()));
+            String date = TimeUtils.getDateObject(candle.time()).map(TimeUtils::getStringDate).orElse("");
             groupedCandles.putIfAbsent(date, new ArrayList<>());
             groupedCandles.get(date).add(candle);
         }

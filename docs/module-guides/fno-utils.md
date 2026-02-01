@@ -14,7 +14,8 @@ Utility functions for candlestick manipulation, time operations, file handling, 
 |---------|-------------|
 | `com.vish.fno.util` | Core utilities (CandleUtils, TimeUtils, Utils, FnoConstants) |
 | `com.vish.fno.util.chart` | HeikinAshi transformations |
-| `com.vish.fno.util.helper` | Caching (DataCache, TimeSource, CandlestickDataProvider) |
+| `com.vish.fno.util.helper` | Caching (DataCache, TimeSource, CandlestickDataProvider, TradingHoursValidator) |
+| `com.vish.fno.util.position` | Position sizing (PositionSizingService, PositionSize, LotSizeProvider) |
 
 ---
 
@@ -46,15 +47,29 @@ All methods static and thread-safe.
 
 All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Trading hours: 9:15 AM - 3:30 PM (index 0-375).
 
+**`timeArray`** is now immutable (`Collections.unmodifiableList`).
+
+**Methods returning `Optional` (breaking change from null returns):**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getTime(Date)` | `Optional<String>` | Time as "HH:mm", empty if null input |
+| `getStringDateTime(Date)` | `Optional<String>` | Datetime as "yyyy-MM-dd HH:mm:ss.SSS", empty if null |
+| `getDateObject(String)` | `Optional<Date>` | Parse "yyyy-MM-dd", empty on parse error |
+| `getDateTimeObjectMinute(String)` | `Optional<Date>` | Parse "yyyy-MM-dd HH:mm", empty on error |
+| `getTimeStringForZonedDateString(String)` | `Optional<String>` | Time from zoned datetime string |
+| `getDateTimeStringForZonedDateString(String)` | `Optional<String>` | DateTime from zoned datetime string |
+| `getDateTimeForZonedDateString(String)` | `Optional<Date>` | Date from zoned datetime string |
+
+**Methods with unchanged signatures:**
+
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `currentTime()` | `Date` | Current system time |
-| `getTime()` / `getTime(Date)` | `String` | Time as "HH:mm" |
+| `getTime()` | `String` | Current time as "HH:mm" |
 | `getTodayDate()` | `String` | Today as "yyyy-MM-dd" |
-| `getStringDate(Date)` | `String` | Date as "yyyy-MM-dd" |
-| `getStringDateTime(Date)` | `String` | Datetime as "yyyy-MM-dd HH:mm:ss.SSS" |
-| `getDateObject(String)` | `Date` | Parse "yyyy-MM-dd" |
-| `getDateTimeObjectMinute(String)` | `Date` | Parse "yyyy-MM-dd HH:mm" |
+| `getStringDate(Date)` | `String` | Date as "yyyy-MM-dd" (empty string if null) |
+| `getStringYear(Date)` | `String` | Year as format string (empty if null) |
 | `getIndexOfTimeStamp(Date)` | `int` | Minute index (0-375, -1 if outside hours) |
 | `getTimeByIndex(int)` | `String` | Time for minute index |
 | `getOpeningTime()` / `getClosingTime()` | `Date` | Today at 9:15 AM / 3:30 PM |
@@ -62,11 +77,14 @@ All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Tradin
 | `appendClosingTimeToDate(Date)` | `Date` | Set time to 3:30 PM |
 | `getPreviousWorkDay(Date)` | `Date` | Previous weekday |
 | `getDatesBetween(Date, Date)` | `List<Date>` | Weekdays in range |
-| `getNDaysBefore(long)` | `Date` | N days before today |
+| `getNDaysBefore(long)` / `getNDaysBefore(Date, long)` | `Date` | N days before |
 | `getTimeElapsed(long)` | `String` | Human-readable elapsed time |
 | `isWithinTradingHours(long)` | `boolean` | Check if in trading hours |
 | `parseCandlestickTimestamp(String)` | `long` | Parse ms or ISO-8601 |
+| `parseDateTimeToEpoch(String)` | `long` | Parse datetime string to epoch ms |
 | `formatDateTime(long)` | `String` | Format epoch to "yyyy-MM-dd HH:mm:ss" |
+| `fromEpochMilli(long)` | `LocalDateTime` | Convert epoch to IST LocalDateTime |
+| `getLocalDateFromDate(Date)` | `LocalDate` | Convert Date to IST LocalDate |
 
 ---
 
@@ -244,6 +262,8 @@ Base class for DataCache with automatic tick memory management. Thread-safe for 
 
 Consolidated DataCache implementation. Constructor: `DataCacheImpl(CandlestickDataProvider, HolidayCalendar, TimeSource)`
 
+Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
+
 ### CandlestickDataProvider Interface
 
 | Method | Returns | Description |
@@ -260,18 +280,67 @@ Consolidated DataCache implementation. Constructor: `DataCacheImpl(CandlestickDa
 
 ### CandleStickCache
 
-In-memory intraday cache by symbol. NOT thread-safe.
+In-memory intraday cache by symbol. Thread-safe (uses `ConcurrentHashMap`).
 
-| Method | Description |
-|--------|-------------|
-| `get(symbol)` | Get cached candles |
-| `getLatestCandle(symbol)` | Most recent candle |
-| `update(symbol, candles)` | Update cache |
-| `clear(symbol)` | Remove data |
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `get(String)` | `List<Candle>` | Get cached candles |
+| `getLatestCandle(String)` | `Optional<Candle>` | Most recent candle (empty if none) |
+| `update(String, List<Candle>)` | `void` | Update cache |
+| `clear(String)` | `void` | Remove data |
 
 ### HistoricDataCache
 
-Spring `@Component` for historical data (date → symbol → candles). NOT thread-safe.
+Spring `@Component` for historical data (date -> symbol -> candles). NOT thread-safe.
+
+### TradingHoursValidator (NEW)
+
+Validates whether a given time falls within configured trading hours. Excludes weekends.
+
+```java
+public TradingHoursValidator(LocalTime startTradingHour, LocalTime endTradingHour)
+public boolean isWithinTradingHours(LocalDateTime now)
+```
+
+Returns `false` for Saturday/Sunday regardless of time.
+
+---
+
+## Position Sizing Package (NEW)
+
+Package: `com.vish.fno.util.position`
+
+### PositionSize (Record)
+
+```java
+public record PositionSize(int quantity, int lotSize)
+```
+
+### LotSizeProvider (Functional Interface)
+
+```java
+@FunctionalInterface
+public interface LotSizeProvider {
+    Integer getLotSize(String symbol);
+}
+```
+
+### PositionSizingService
+
+Centralized position sizing: separates "what to trade" (strategy) from "how much to trade".
+
+```java
+public PositionSizingService(LotSizeProvider lotSizeProvider, Map<String, Integer> lotSizeMap,
+                              int defaultLotSize, Map<String, Integer> quantityMultiplierMap, int defaultMultiplier)
+```
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `calculatePositionSize(OrderRequest)` | `PositionSize` | Calculate quantity from lot size x multiplier |
+| `calculatePositionSizeWithCashConstraint(OrderRequest, double, double)` | `PositionSize` | Cash-constrained sizing (returns qty=0 if insufficient) |
+
+**Lot size lookup order:** Dynamic provider -> static config map -> default.
+**Multiplier lookup order:** `Task.getLots()` if > 1 -> tag-based map -> default.
 
 ---
 
@@ -291,14 +360,17 @@ Spring `@Component` for historical data (date → symbol → candles). NOT threa
 | JsonUtils, CompressionUtils | ✅ | Static methods |
 | AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + ConcurrentLinkedDeque |
 | TimeProvider | ✅ | Instance methods |
-| FileUtils, CandleStickCache, HistoricDataCache | ❌ | Instance-based |
+| CandleStickCache | ✅ | ConcurrentHashMap |
+| TradingHoursValidator | ✅ | Immutable fields |
+| PositionSizingService | ✅ | Stateless (reads only) |
+| FileUtils, HistoricDataCache | ❌ | Instance-based |
 
 ---
 
 ## Error Handling
 
 - **File operations:** May throw `IOException` or `RuntimeException`
-- **Time parsing:** Returns null on failure
+- **Time parsing:** Returns `Optional.empty()` on failure (was null prior to Java 21 upgrade)
 - `TimeUtils.parseCandlestickTimestamp()` returns current time on failure
 - `CandleUtils.findLocalMinimum/Maximum()` returns -1 if not found
 - `LimitedCache` returns empty list for non-existent keys

@@ -5,7 +5,6 @@ import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
 import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
-import com.vish.fno.model.order.activeorder.OptionBasedActiveOrder;
 import com.vish.fno.util.chart.HeikinAshi;
 import com.vish.fno.util.helper.DataCache;
 import lombok.RequiredArgsConstructor;
@@ -53,39 +52,29 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
 
     // TODO: getting revised on every tick
     private void reviseStopLoss(ActiveOrder order, double ltp) {
-        if(order instanceof ActiveIndexOrder) {
-            if(((ActiveIndexOrder) order).isCallOrder()) {
-                final String index = order.getIndex();
-                final List<Candle> candles = dataCache.updateAndGetMinuteData(index);
-                final List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
-                final double newStopLoss = heikinAshiCandles.get(heikinAshiCandles.size() - 1).low();
-                if (newStopLoss > order.getStopLoss()) {
-                    log.info("Revising stopLoss to: {}, ltp: {} for order: {} ", newStopLoss, ltp, order);
-                    order.setStopLoss(newStopLoss);
-                }
+        boolean isCallOrder = isCallOrder(order);
+        String index = order.getIndex();
+        List<Candle> candles = dataCache.updateAndGetMinuteData(index);
+        List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
+        Candle lastCandle = heikinAshiCandles.get(heikinAshiCandles.size() - 1);
 
-            } else {
-                final String index = order.getIndex();
-                final List<Candle> candles = dataCache.updateAndGetMinuteData(index);
-                final List<Candle> heikinAshiCandles =  HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
-                final double newStopLoss = heikinAshiCandles.get(heikinAshiCandles.size() - 1).high();
-                if(newStopLoss < order.getStopLoss()) {
-                    log.info("Revising stopLoss to: {}, ltp: {} for order: {} ", newStopLoss, ltp, order);
-                    order.setStopLoss(newStopLoss);
-                }
-            }
-        } else if(order instanceof OptionBasedActiveOrder) {
-            final String index = order.getIndex();
-            final List<Candle> candles = dataCache.updateAndGetMinuteData(index);
-            final List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
-            final double newStopLoss = heikinAshiCandles.get(heikinAshiCandles.size() - 1).low();
-            if (newStopLoss > order.getStopLoss()) {
-                log.info("Revising stopLoss to: {}, ltp: {} for order: {} ", newStopLoss, ltp, order);
-                order.setStopLoss(newStopLoss);
-            }
-        } else {
-            log.error("Invalid order type : {}", order);
+        double newStopLoss = isCallOrder ? lastCandle.low() : lastCandle.high();
+        boolean shouldUpdate = isCallOrder
+                ? newStopLoss > order.getStopLoss()
+                : newStopLoss < order.getStopLoss();
+
+        if (shouldUpdate) {
+            log.info("Revising stopLoss to: {}, ltp: {} for order: {}", newStopLoss, ltp, order);
+            order.setStopLoss(newStopLoss);
         }
+    }
+
+    private boolean isCallOrder(ActiveOrder order) {
+        if (order instanceof ActiveIndexOrder indexOrder) {
+            return indexOrder.isCallOrder();
+        }
+        // OptionBasedActiveOrder: always treated as call
+        return true;
     }
 
     private int getLotsToSell(int totalLots) {

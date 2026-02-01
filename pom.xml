@@ -27,7 +27,7 @@
 	<description>SDK for F&amp;O trading and simulation on National Stock Exchange - India</description>
 
 	<properties>
-		<java.version>17</java.version>
+		<java.version>21</java.version>
 		<pmd.version>7.4.0</pmd.version>
 		<pmdRulesetPath>${maven.multiModuleProjectDirectory}/ruleset/pmd-custom-ruleset.xml</pmdRulesetPath>
 		<commons-math3.version>3.6.1</commons-math3.version>

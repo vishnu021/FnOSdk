@@ -8,14 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
 
-import static com.vish.fno.model.util.ModelUtils.INDENTED_TAB;
-import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
-
 // CPD-OFF
 @Slf4j
 @Getter
 public final class ActiveIndexOrder extends AbstractActiveOrder {
-    private static final int estimated_buffer_size = 125;
     private final Task task;
     private final String index;
     private final String optionSymbol;
@@ -96,21 +92,8 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
     }
 
     @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder(estimated_buffer_size);
-        sb.append(INDENTED_TAB)
-                .append("ActiveIndexOrder{")
-                .append("index=").append(index)
-                .append(", tag=").append(tag)
-                .append(", optionSymbol=").append(optionSymbol)
-                .append(", buyPrice=").append(buyPrice)
-                .append(", target=").append(roundTo5Paise(target))
-                .append(", stopLoss=").append(roundTo5Paise(stopLoss))
-                .append(", buyQ=").append(buyQuantity)
-                .append(", soldQ=").append(soldQuantity)
-                .append("}");
-
-        return sb.toString();
+    protected void appendToStringFields(StringBuilder sb) {
+        sb.append(", optionSymbol=").append(optionSymbol);
     }
 
     @Override
@@ -132,4 +115,3 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
         return Objects.hash(tag, index, callOrder);
     }
 }
-// CPD-ON

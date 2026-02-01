@@ -124,11 +124,13 @@ fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, an
 
 **fno-utils** - Business logic utilities (depends on fno-models):
 - Candlestick utilities: `CandleUtils`, `CandlePatternUtils`, `HeikinAshi` transformations
-- Time utilities: `TimeUtils`, `TimeFrameUtils`
+- Time utilities: `TimeUtils` (Optional-returning date/time methods), `TimeFrameUtils`
 - File operations: `FileUtils`, compression via `CompressionUtils`
 - Order formatting: `ActiveOrderFormatter` (CSV export, logging utilities)
 - JSON serialization: `JsonUtils`
-- Data caching: `AbstractDataCache` (thread-safe tick caching)
+- Data caching: `AbstractDataCache` (thread-safe tick caching), `CandleStickCache` (ConcurrentHashMap-based, Optional returns)
+- Trading hours: `TradingHoursValidator` (market hours and weekend validation)
+- Position sizing: `PositionSizingService`, `PositionSize` (record), `LotSizeProvider` (functional interface)
 
 **fno-technicals** - Technical analysis and mathematical calculations (depends on fno-utils, fno-models):
 - Base indicator framework: `Indicator` interface → `AbstractIndicator` base class
@@ -145,7 +147,7 @@ fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, an
 - Utilities: `InstrumentFileUtils`, `OptionPriceUtils`
 
 **fno-strategy-utils** - Advanced strategy utilities (depends on fno-technicals, fno-utils, fno-models):
-- Price action analysis: `Point`, `ChartPoint`, `Vector2`, `DataAnalyser`, `Line`
+- Price action analysis: `Point`, `ChartPoint`, `Vector2` (minimal 2D vector), `DataAnalyser`, `Line` (TreeSet-backed)
 - CPR utilities: `CPRUtils` (Central Pivot Range calculations)
 - PCR utilities: `PCRUtils` (Put-Call Ratio analysis)
 - Trend analysis: `HATrendUtils` (Heikin Ashi trend detection)
@@ -182,14 +184,14 @@ To add a new indicator:
 Orders follow an interface-based design:
 - `OrderRequest` interface defines contract
 - Concrete implementations: `IndexOrderRequest`, `OptionBasedOrderRequest`, `TickBasedOrderRequest`
-- Factory pattern: `ActiveOrderFactory` converts requests to active orders
-- Active orders use inheritance: `AbstractActiveOrder` → specific implementations
+- Factory pattern: `ActiveOrderFactory` converts requests to active orders via pattern matching switch (throws `IllegalArgumentException` for unknown types)
+- Active orders use inheritance: `AbstractActiveOrder` (with consolidated `toString()` via `appendToStringFields()` hook) → specific implementations
 - Target/stop-loss logic extracted to `TargetAndStopLossStrategy` (Strategy pattern in fno-strategy-utils)
 - Order formatting separated into `ActiveOrderFormatter` utility (fno-utils)
 
 ### Configuration & Integration
 - Spring Boot 3.2.2 as parent POM
-- Java 17 required (uses modern features like `stream().toList()`)
+- Java 21 required (uses modern features like pattern matching switch, `stream().toList()`, records)
 - Lombok for reducing boilerplate
 - Kite Connect credentials needed for fno-kite-reader (API key + access token)
 
@@ -240,6 +242,81 @@ PMD runs automatically during `mvn package` phase and will fail the build on vio
 - Industry best practice for maintainable code
 
 **Exceptions**: None. This rule applies to all Java code in the project.
+
+### Null Safety — Prefer Optional over Null Returns
+
+**RULE**: Public methods that may fail or return "no value" MUST return `Optional<T>` instead of null.
+
+- ✅ **DO**: Return `Optional<T>` from public methods
+  ```java
+  public static Optional<String> getTime(Date timeStamp) {
+      if (timeStamp == null) {
+          return Optional.empty();
+      }
+      return Optional.of(TIME_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE)));
+  }
+  ```
+
+- ✅ **DO**: Use `map`/`flatMap` chains at call sites
+  ```java
+  // Correct — proper Optional chaining
+  TimeUtils.getDateObject(candle.time()).map(TimeUtils::getStringDate).orElse("");
+
+  // Correct — flatMap for nested Optionals
+  minuteDataCache.getLatestCandle(symbol).flatMap(latestCandle ->
+      TimeUtils.getDateTimeForZonedDateString(latestCandle.time()).map(dateTime -> {
+          int latestIndex = TimeUtils.getIndexOfTimeStamp(dateTime);
+          return latestIndex == timeSource.currentTimeStampIndex() - 1;
+      })
+  ).orElse(false);
+  ```
+
+- ❌ **DON'T**: Use `.orElse(null)` — this defeats the purpose of Optional
+  ```java
+  // NEVER — anti-pattern
+  TimeUtils.getDateObject(candle.time()).orElse(null);
+  ```
+
+**Scope**: This applies to all `TimeUtils` date/time methods, `CandleStickCache.getLatestCandle()`, `KiteService` historical data methods, and any new public methods where failure is possible.
+
+### Thread Safety Conventions
+
+- Use `CopyOnWriteArrayList` for read-heavy, write-light shared lists (e.g., `KiteWebSocket` token lists)
+- Mark shared boolean flags as `volatile` (e.g., `isConnected`)
+- Use `ConcurrentHashMap` for shared maps (e.g., `CandleStickCache`)
+- Prefer `Collections.unmodifiableList()` for lists that should not be modified after initialization (e.g., `TimeUtils.timeArray`)
+- Widen method parameters from concrete types (`ArrayList`) to interfaces (`List`) where possible
+
+### Pattern Matching Switch (Java 21)
+
+Use pattern matching switch expressions for type dispatch instead of if-instanceof chains:
+```java
+// Correct — Java 21 pattern matching switch
+return switch (orderRequest) {
+    case IndexOrderRequest r -> new ActiveIndexOrder(r, ...);
+    case OptionBasedOrderRequest r -> new OptionBasedActiveOrder(r, ...);
+    case TickBasedOrderRequest r -> new TickBasedActiveOrder(r, ...);
+    default -> throw new IllegalArgumentException("Unknown type: " + orderRequest.getClass().getSimpleName());
+};
+```
+
+### toString() Consolidation
+
+Base classes should provide a consolidated `toString()` with an `appendToStringFields()` hook for subclasses:
+```java
+// In AbstractActiveOrder
+@Override
+public String toString() {
+    return "ActiveOrder{" + /* common fields */ + appendToStringFields() + "}";
+}
+protected String appendToStringFields() { return ""; }
+
+// In subclass
+@Override
+protected String appendToStringFields() {
+    return ", callOrder=" + callOrder;
+}
+```
 
 ## Testing Conventions
 
@@ -494,7 +571,7 @@ docs/
 - ✅ Keep under 20 lines - show USAGE, not implementation
 - ✅ ONE example per class demonstrating 2-3 key methods together
 - ✅ Use parameterized logging: `log.info("Order: {}", orderId)`
-- ✅ Follow Java 17+ patterns (records, .toList(), etc.)
+- ✅ Follow Java 21+ patterns (records, .toList(), pattern matching switch, etc.)
 - ✅ Avoid repetitive setup code - show variations inline
 
 See `.claude/agents/fnosdk-doc-watcher.md` for complete standards.

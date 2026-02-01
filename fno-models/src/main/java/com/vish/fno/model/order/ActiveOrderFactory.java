@@ -16,17 +16,15 @@ public final class ActiveOrderFactory {
 
     public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int timestamp, String orderEntryTimestamp,
                                           int quantity, int lotSize) {
-        if(orderRequest instanceof IndexOrderRequest indexOrder) {
-            return new ActiveIndexOrder(indexOrder, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
-        }
-
-        if(orderRequest instanceof OptionBasedOrderRequest optionBasedOrderRequest) {
-            return new OptionBasedActiveOrder(optionBasedOrderRequest, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
-        }
-
-        if(orderRequest instanceof TickBasedOrderRequest tickBasedOrderRequest) {
-            return new TickBasedActiveOrder(tickBasedOrderRequest, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
-        }
-        return null;
+        return switch (orderRequest) {
+            case IndexOrderRequest r ->
+                    new ActiveIndexOrder(r, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
+            case OptionBasedOrderRequest r ->
+                    new OptionBasedActiveOrder(r, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
+            case TickBasedOrderRequest r ->
+                    new TickBasedActiveOrder(r, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
+            default ->
+                    throw new IllegalArgumentException("Unknown OrderRequest type: " + orderRequest.getClass().getSimpleName());
+        };
     }
 }

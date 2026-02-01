@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -25,9 +26,9 @@ public class KiteWebSocket {
     private final InstrumentCache instrumentCache;
     @Getter
     private final boolean connectToWebSocket;
-    private boolean isConnected;
-    private final ArrayList<Long> tokensToSubscribe;
-    private final ArrayList<Long> subscribedTokens;
+    private volatile boolean isConnected;
+    private final CopyOnWriteArrayList<Long> tokensToSubscribe;
+    private final CopyOnWriteArrayList<Long> subscribedTokens;
     @Setter
     private OnTicks onTickerArrivalListener;
     @Setter
@@ -36,8 +37,8 @@ public class KiteWebSocket {
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {
         this.connectToWebSocket = connectToWebSocket;
         this.instrumentCache = instrumentCache;
-        this.tokensToSubscribe = new ArrayList<>();
-        this.subscribedTokens = new ArrayList<>();
+        this.tokensToSubscribe = new CopyOnWriteArrayList<>();
+        this.subscribedTokens = new CopyOnWriteArrayList<>();
         this.tokensToSubscribe.add(256265L);
         this.tokensToSubscribe.add(260105L);
         this.onOrderUpdateListener = order -> log.info("Order update complete : {}", JsonUtils.getFormattedObject(order));
@@ -57,7 +58,7 @@ public class KiteWebSocket {
              * For getting only last traded price, use modeLTP
              * For getting last traded price, last traded quantity, average price, volume traded today, total sell quantity and total buy quantity, open, high, low, close, change, use modeQuote
              * For getting all data with depth, use modeFull*/
-            tickerProvider.setMode(tokensToSubscribe, KiteTicker.modeLTP);
+            tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeLTP);
         }
     }
 
@@ -67,8 +68,8 @@ public class KiteWebSocket {
              * By default, all tokens are subscribed for modeQuote.
              * */
             log.info("Subscribing to following {} tokens: {}", tokensToSubscribe.size(), tokensToSubscribe);
-            tickerProvider.subscribe(tokensToSubscribe);
-            tickerProvider.setMode(tokensToSubscribe, KiteTicker.modeFull);
+            tickerProvider.subscribe(new ArrayList<>(tokensToSubscribe));
+            tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeFull);
 
             // Move tokens from queue to subscribed list AFTER subscribing
             subscribedTokens.addAll(tokensToSubscribe);
@@ -96,9 +97,9 @@ public class KiteWebSocket {
         tickerProvider.setOnTickerArrivalListener(onTickerArrivalListener);
     }
 
-    public void unsubscribe(ArrayList<Long> tokens) {
+    public void unsubscribe(List<Long> tokens) {
         log.info("Unsubscribing : {}", tokens);
-        tickerProvider.unsubscribe(tokens);
+        tickerProvider.unsubscribe(new ArrayList<>(tokens));
     }
 
     /**

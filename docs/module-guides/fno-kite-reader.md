@@ -73,8 +73,10 @@ if (kiteService.isInitialised()) {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getHistoricalData(from, to, symbol, interval, continuous)` | `HistoricalData` | Historical candles |
-| `getEntireDayHistoricalData(from, to, symbol, interval)` | `HistoricalData` | Intraday candles |
+| `getHistoricalData(from, to, symbol, interval, continuous)` | `Optional<HistoricalData>` | Historical candles |
+| `getEntireDayHistoricalData(from, to, symbol, interval)` | `Optional<HistoricalData>` | Intraday candles |
+
+**Note:** Both methods now return `Optional<HistoricalData>` instead of nullable `HistoricalData`. Returns `Optional.empty()` when KiteService is not initialized, instrument token is not found, or API call fails.
 
 ### Option Symbol Resolution
 
@@ -89,12 +91,13 @@ if (kiteService.isInitialised()) {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `appendWebSocketSymbolsList(symbols, addFutures)` | `void` | Subscribe to additional symbols |
+| `appendWebSocketSymbolsList(symbols, addFutures)` | `void` | Subscribe to additional symbols (deduplicates) |
 | `setOnTickerArrivalListener(listener)` | `void` | Set tick data listener |
 | `setOnOrderUpdateListener(listener)` | `void` | Set order update listener |
 | `getSubscribedWebSocketTokens()` | `List<Long>` | Currently subscribed tokens |
 | `getSubscribedWebSocketTokensCount()` | `int` | Count of subscribed tokens |
 | `isSymbolSubscribed(String)` | `boolean` | Check if symbol subscribed |
+| `getAllOptionSymbols(String)` | `List<String>` | All CE/PE symbols for index (nearest expiry) |
 
 ### Instrument Utilities
 
@@ -229,7 +232,7 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 |-----------|-------------|-------|
 | KiteService | ❌ | Use synchronization |
 | InstrumentCache | ✅ | Double-checked locking |
-| KiteWebSocket | Single instance | Callbacks on ticker thread |
+| KiteWebSocket | ✅ | CopyOnWriteArrayList for token lists, volatile isConnected |
 | OrderUtils | ✅ | Static methods |
 | InstrumentFileUtils | ✅ | Thread-safe IO |
 

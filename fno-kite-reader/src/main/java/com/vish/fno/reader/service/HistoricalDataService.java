@@ -9,6 +9,7 @@ import org.json.JSONException;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Date;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,29 +30,29 @@ class HistoricalDataService {
     private final KiteService kiteService;
     private final InstrumentCache instrumentCache;
 
-    HistoricalData getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
+    Optional<HistoricalData> getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
         return getHistoricalData(fromDate, toDate, symbol, interval, false);
     }
 
-    HistoricalData getHistoricalData(Date from, Date to, String symbol, String interval, boolean continuous) {
+    Optional<HistoricalData> getHistoricalData(Date from, Date to, String symbol, String interval, boolean continuous) {
         String instrument = getInstrumentToken(symbol, continuous);
         if (instrument == null) {
-            return null;
+            return Optional.empty();
         }
 
         if(!kiteService.isInitialised()) {
             log.warn("Kite service is not initialised yet");
-            return null;
+            return Optional.empty();
         }
 
         try {
             log.debug("Collecting data for {} from: {}, to: {}, interval: {}, continuous: {}", instrument, from, to, interval, continuous);
-            return kiteService.getKiteSdk().getHistoricalData(from, to, instrument, interval, continuous, true);
+            return Optional.of(kiteService.getKiteSdk().getHistoricalData(from, to, instrument, interval, continuous, true));
         } catch (JSONException | IOException | KiteException e) {
             log.error("Error while requesting historical data (from: {}, to: {}, symbol: {}, continuous: {}), errorMessage: {}\n{}",
                     from, to, instrument, continuous, e.getMessage(), getTopNLines(e, ERROR_STACK_TRACE_LINES));
         }
-        return null;
+        return Optional.empty();
     }
 
     private String getInstrumentToken(String symbol) {

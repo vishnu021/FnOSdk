@@ -115,13 +115,13 @@ public class DataCacheImpl extends AbstractDataCache {
     }
 
     private boolean isDataAvailable(String symbol) {
-        final Candle latestCandle = minuteDataCache.getLatestCandle(symbol);
-        if (latestCandle == null) {
-            return false;
-        }
-        int latestIndexOfTime = TimeUtils.getIndexOfTimeStamp(TimeUtils.getDateTimeForZonedDateString(latestCandle.time()));
-        int currentIndexOfTime = timeSource.currentTimeStampIndex();
-        return latestIndexOfTime == currentIndexOfTime - 1;
+        return minuteDataCache.getLatestCandle(symbol).flatMap(latestCandle ->
+            TimeUtils.getDateTimeForZonedDateString(latestCandle.time()).map(dateTime -> {
+                int latestIndexOfTime = TimeUtils.getIndexOfTimeStamp(dateTime);
+                int currentIndexOfTime = timeSource.currentTimeStampIndex();
+                return latestIndexOfTime == currentIndexOfTime - 1;
+            })
+        ).orElse(false);
     }
 
     private void updateHistoricCache(String date, String symbol) {

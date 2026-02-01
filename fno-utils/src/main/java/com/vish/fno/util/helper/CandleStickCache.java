@@ -4,6 +4,7 @@ import com.vish.fno.model.Candle;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,12 +18,12 @@ public class CandleStickCache {
         return candlesCache.get(symbol);
     }
 
-    public Candle getLatestCandle(String symbol) {
+    public Optional<Candle> getLatestCandle(String symbol) {
         List<Candle> candlesForSymbol = get(symbol);
         if(candlesForSymbol == null || candlesForSymbol.isEmpty()) {
-            return null;
+            return Optional.empty();
         }
-        return candlesForSymbol.get(candlesForSymbol.size() - 1);
+        return Optional.of(candlesForSymbol.get(candlesForSymbol.size() - 1));
     }
 
     public void update(String symbol, List<Candle> data) {

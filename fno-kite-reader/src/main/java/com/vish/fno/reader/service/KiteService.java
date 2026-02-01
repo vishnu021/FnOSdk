@@ -91,7 +91,7 @@ public class KiteService {
         }
     }
 
-    public HistoricalData getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
+    public Optional<HistoricalData> getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
         return historicalDataService.getEntireDayHistoricalData(fromDate, toDate, symbol, interval);
     }
 
@@ -138,7 +138,7 @@ public class KiteService {
      * @param continuous Enable continuous contract mode for futures/options
      * @return HistoricalData object containing candlestick data, null if unavailable
      */
-    public HistoricalData getHistoricalData(Date from, Date to, String symbol, String interval, boolean continuous) {
+    public Optional<HistoricalData> getHistoricalData(Date from, Date to, String symbol, String interval, boolean continuous) {
         return historicalDataService.getHistoricalData(from, to, symbol, interval, continuous);
     }
 
@@ -381,8 +381,8 @@ public class KiteService {
     }
 
     private void identifyStrikePriceAndAppend(List<String> indexOptionSymbols, String index) {
-        HistoricalData niftyData = getEntireDayHistoricalData(getOpeningTime(), getClosingTime(), index, MINUTE);
-        appendOptionSymbols(niftyData, indexOptionSymbols, index);
+        getEntireDayHistoricalData(getOpeningTime(), getClosingTime(), index, MINUTE)
+                .ifPresent(niftyData -> appendOptionSymbols(niftyData, indexOptionSymbols, index));
     }
 
     private void appendOptionSymbols(HistoricalData data, List<String> indicesOptionSymbols, String index) {

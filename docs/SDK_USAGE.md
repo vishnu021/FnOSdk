@@ -4,6 +4,8 @@
 
 This document serves as the entry point for consuming FnOSdk modules in your trading applications.
 
+**Requirements:** Java 21+, Spring Boot 3.4.1
+
 ## Knowledge Paths Structure
 
 ```
@@ -39,6 +41,7 @@ docs/module-guides/
 | **Wyckoff Phase Analysis** | fno-models, fno-utils, fno-phase-analyzer | [fno-phase-analyzer.md](module-guides/fno-phase-analyzer.md) |
 | **Market Regime Detection** | fno-models, fno-utils, fno-phase-analyzer | [fno-phase-analyzer.md](module-guides/fno-phase-analyzer.md) |
 | **Multi-Lot Strategy** | fno-models (Task.getLots()) | [fno-models.md](module-guides/fno-models.md#task-interface) |
+| **Position Sizing** | fno-utils (PositionSizingService) | [fno-utils.md](module-guides/fno-utils.md#position-sizing-package-new) |
 
 ## Module Dependencies
 
@@ -181,17 +184,13 @@ double theta = Theta.calculateTheta(spot, strike, tte, rfr, iv, true);  // true 
 
 ### Scenario 5: Fetch Historical Data from Kite
 
-**Read**: [fno-kite-reader.md - HistoricalDataService](module-guides/fno-kite-reader.md#historicaldataservice---historical-candlestick-data)
+**Read**: [fno-kite-reader.md - Historical Data](module-guides/fno-kite-reader.md#historical-data)
 
 ```java
-import com.vish.fno.reader.service.HistoricalDataService;
+import com.vish.fno.reader.service.KiteService;
 
-List<HistoricalData> data = histService.getHistoricalData(
-    instrumentToken,
-    LocalDate.of(2024, 9, 1),
-    LocalDate.of(2024, 9, 30),
-    "day"
-);
+Optional<HistoricalData> data = kiteService.getHistoricalData(from, to, "NIFTY 50", "minute", false);
+data.ifPresent(d -> log.info("Candles: {}", d.dataArrayList.size()));
 ```
 
 ### Scenario 6: Detect Heikin-Ashi Trend

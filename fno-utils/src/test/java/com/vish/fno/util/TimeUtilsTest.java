@@ -9,6 +9,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -243,11 +244,11 @@ class TimeUtilsTest {
                         String result = TimeUtils.getStringDate(testDate);
                         assertNotNull(result);
                     } else if (threadId % 6 == 1) {
-                        String result = TimeUtils.getStringDateTime(testDate);
-                        assertNotNull(result);
+                        Optional<String> result = TimeUtils.getStringDateTime(testDate);
+                        assertTrue(result.isPresent());
                     } else if (threadId % 6 == 2) {
-                        String result = TimeUtils.getTime(testDate);
-                        assertNotNull(result);
+                        Optional<String> result = TimeUtils.getTime(testDate);
+                        assertTrue(result.isPresent());
                     } else if (threadId % 6 == 3) {
                         String result = TimeUtils.getStringYear(testDate);
                         assertNotNull(result);
@@ -306,11 +307,11 @@ class TimeUtilsTest {
 
                         // Perform multiple operations
                         String strDate = TimeUtils.getStringDate(date);
-                        String strDateTime = TimeUtils.getStringDateTime(date);
-                        String time = TimeUtils.getTime(date);
+                        Optional<String> strDateTime = TimeUtils.getStringDateTime(date);
+                        Optional<String> time = TimeUtils.getTime(date);
 
-                        // Verify results are non-null
-                        if (strDate != null && strDateTime != null && time != null) {
+                        // Verify results are present
+                        if (strDate != null && strDateTime.isPresent() && time.isPresent()) {
                             successCount++;
                         }
                     } catch (Exception e) {

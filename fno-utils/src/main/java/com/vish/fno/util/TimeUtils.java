@@ -15,9 +15,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static com.vish.fno.util.FnoConstants.DATE_FORMAT;
@@ -38,7 +40,7 @@ import static com.vish.fno.util.FnoConstants.YEAR_FORMAT;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class TimeUtils {
 
-    public static final List<String> timeArray = new ArrayList<>();
+    public static final List<String> timeArray;
 
     // Thread-safe DateTimeFormatter instances (immutable and thread-safe)
     private static final DateTimeFormatter ISO_FORMATTER =
@@ -61,61 +63,60 @@ public final class TimeUtils {
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
 
     static {
+        List<String> tempList = new ArrayList<>();
         int hour = MARKET_OPEN_HOUR;
         int minute = MARKET_OPEN_MINUTE;
         for (int i = 0; i <= TOTAL_TRADING_MINUTES; i++) {
-            timeArray.add(toTimeValue(hour) + ":" + toTimeValue(minute));
+            tempList.add(toTimeValue(hour) + ":" + toTimeValue(minute));
             minute++;
             if (minute == MINUTES_IN_HOUR) {
                 hour++;
                 minute = 0;
             }
         }
+        timeArray = Collections.unmodifiableList(tempList);
     }
 
-    public static String getTimeStringForZonedDateString(String date) {
+    public static Optional<String> getTimeStringForZonedDateString(String date) {
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME_SEC_T_FORMAT, Locale.ENGLISH);
             ZonedDateTime zonedDateTime = ZonedDateTime.parse(date, formatter);
 
             DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern(TIME_FORMAT, Locale.ENGLISH);
-            return timeFormatter.format(zonedDateTime);
+            return Optional.of(timeFormatter.format(zonedDateTime));
         } catch (Exception e) {
             log.error("Failed to format date string: {} to pattern: {}", date, DATE_TIME_SEC_T_FORMAT, e);
         }
-        return null;
+        return Optional.empty();
     }
 
-    public static String getDateTimeStringForZonedDateString(String date) {
+    public static Optional<String> getDateTimeStringForZonedDateString(String date) {
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME_SEC_T_FORMAT, Locale.ENGLISH);
             ZonedDateTime zonedDateTime = ZonedDateTime.parse(date, formatter);
 
             DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern(DATE_TIME_FORMAT, Locale.ENGLISH);
-            return timeFormatter.format(zonedDateTime);
+            return Optional.of(timeFormatter.format(zonedDateTime));
         } catch (Exception e) {
             log.error("Failed to format date string: {} to pattern: {}", date, DATE_TIME_SEC_T_FORMAT, e);
         }
-        return null;
+        return Optional.empty();
     }
 
-    public static Date getDateTimeForZonedDateString(String date) {
+    public static Optional<Date> getDateTimeForZonedDateString(String date) {
         try {
             final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(DATE_TIME_SEC_T_FORMAT, Locale.ENGLISH);
             final ZonedDateTime zonedDateTime = ZonedDateTime.parse(date, formatter);
             final Instant instant = zonedDateTime.toInstant();
-            return Date.from(instant);
+            return Optional.of(Date.from(instant));
         } catch (Exception e) {
             log.error("Failed to format date string: {} to pattern: {}", date, DATE_TIME_SEC_T_FORMAT, e);
         }
-        return null;
+        return Optional.empty();
     }
 
     public static int getIndexOfTimeStamp(Date timeStamp) {
-        if (timeStamp == null) {
-            return -1;
-        }
-        return getIndexOfTime(getTime(timeStamp));
+        return getTime(timeStamp).map(TimeUtils::getIndexOfTime).orElse(-1);
     }
 
     public static Date appendOpeningTimeToDate(Date day) {
@@ -148,11 +149,11 @@ public final class TimeUtils {
      * @param timeStamp the date to format
      * @return formatted time string or null if input is null
      */
-    public static String getTime(Date timeStamp) {
+    public static Optional<String> getTime(Date timeStamp) {
         if (timeStamp == null) {
-            return null;
+            return Optional.empty();
         }
-        return TIME_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE));
+        return Optional.of(TIME_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE)));
     }
 
     /**
@@ -161,14 +162,14 @@ public final class TimeUtils {
      * @param date the date string to parse
      * @return parsed Date object or null on error
      */
-    public static Date getDateTimeObjectMinute(String date) {
+    public static Optional<Date> getDateTimeObjectMinute(String date) {
         try {
             LocalDateTime ldt = LocalDateTime.parse(date, DATE_TIME_MINUTE_FORMATTER);
-            return Date.from(ldt.atZone(SYSTEM_ZONE).toInstant());
+            return Optional.of(Date.from(ldt.atZone(SYSTEM_ZONE).toInstant()));
         } catch (DateTimeParseException e) {
             log.error("Failed to parse date: {}", date, e);
         }
-        return null;
+        return Optional.empty();
     }
 
     /**
@@ -177,14 +178,14 @@ public final class TimeUtils {
      * @param date the date string to parse
      * @return parsed Date object or null on error
      */
-    public static Date getDateObject(String date) {
+    public static Optional<Date> getDateObject(String date) {
         try {
             LocalDate ld = LocalDate.parse(date, DATE_FORMATTER);
-            return Date.from(ld.atStartOfDay(SYSTEM_ZONE).toInstant());
+            return Optional.of(Date.from(ld.atStartOfDay(SYSTEM_ZONE).toInstant()));
         } catch (DateTimeParseException e) {
             log.error("Failed to parse to date of format yyyy-MM-dd: {}", date, e);
         }
-        return null;
+        return Optional.empty();
     }
 
     /**
@@ -215,11 +216,11 @@ public final class TimeUtils {
      * @param timeStamp the timestamp to format
      * @return formatted date-time string or null if input is null
      */
-    public static String getStringDateTime(Date timeStamp) {
+    public static Optional<String> getStringDateTime(Date timeStamp) {
         if (timeStamp == null) {
-            return null;
+            return Optional.empty();
         }
-        return DATE_TIME_MS_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE));
+        return Optional.of(DATE_TIME_MS_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE)));
     }
 
     private static int getIndexOfTime(String time) {

@@ -83,11 +83,11 @@ public class Line implements Comparable<Line> {
     }
 
     public Point getFirstPoint() {
-        return points.stream().findFirst().get();
+        return points.first();
     }
 
     public Point getLastPoint() {
-        return points.stream().skip(points.size() - 1).findFirst().get();
+        return points.last();
     }
 
     public boolean isSameLineSegment(Line that) {

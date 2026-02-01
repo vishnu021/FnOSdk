@@ -101,7 +101,7 @@ Trendline through 3+ points.
 | `getY(float x)` | `float` | Y at given x (y = mx + c) |
 | `getSlope()` | `float` | Angle in degrees |
 | `getXAxisLength()` | `float` | Line span |
-| `getFirstPoint()` / `getLastPoint()` | `Point` | Endpoints |
+| `getFirstPoint()` / `getLastPoint()` | `Point` | Endpoints (via `TreeSet.first()`/`last()`) |
 | `getPoints()` | `SortedSet<Point>` | All points |
 | `isActiveLine()` | `boolean` | Not broken |
 | `getHitPoint()` | `Point` | Breakout point |
@@ -118,7 +118,7 @@ public class Point extends Vector2 implements Comparable<Point> {
 
 ### Vector2
 
-2D vector from LibGDX. Core methods: `len()`, `dst(Vector2)`, `dot(Vector2)`, `add(Vector2)`, `sub(Vector2)`, `scl(float)`, `nor()`, `angleRad()`
+Minimal 2D vector with public `x`, `y` fields (float). Constructor: `Vector2(float x, float y)`. Implements `equals()`, `hashCode()`, `toString()`. No arithmetic methods -- reduced to data-only class.
 
 ---
 
@@ -163,7 +163,7 @@ PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
 
 **Lots to Sell:** 1→1, 2-3→2, 4-5→3, 6-7→4, 8+→2/3 total
 
-**Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high
+**Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high. Uses `isCallOrder()` helper: for `ActiveIndexOrder` checks `callOrder` flag, for `OptionBasedActiveOrder` always returns `true`.
 
 ### OrderManagerUtils
 

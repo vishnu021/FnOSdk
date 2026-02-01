@@ -7,6 +7,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.vish.fno.model.util.ModelUtils.INDENTED_TAB;
+import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
+
 @Getter
 public abstract class AbstractActiveOrder implements ActiveOrder {
     @Getter
@@ -57,5 +60,27 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     @Override
     public void appendExtraData(String key, String value) {
         extraData.put(key, value);
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder(128);
+        sb.append(INDENTED_TAB)
+                .append(getClass().getSimpleName()).append("{")
+                .append("index=").append(getIndex())
+                .append(", tag=").append(tag);
+        appendToStringFields(sb);
+        sb.append(", buyPrice=").append(buyPrice)
+                .append(", target=").append(roundTo5Paise(target))
+                .append(", stopLoss=").append(roundTo5Paise(stopLoss))
+                .append(", buyQ=").append(buyQuantity)
+                .append(", soldQ=").append(soldQuantity)
+                .append("}");
+        return sb.toString();
+    }
+
+    @SuppressWarnings("PMD.EmptyMethodInAbstractClassShouldBeAbstract")
+    protected void appendToStringFields(StringBuilder sb) {
+        // Override in subclasses to add extra fields
     }
 }
