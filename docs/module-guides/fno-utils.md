@@ -61,6 +61,12 @@ All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Tradin
 | `getDateTimeStringForZonedDateString(String)` | `Optional<String>` | DateTime from zoned datetime string |
 | `getDateTimeForZonedDateString(String)` | `Optional<Date>` | Date from zoned datetime string |
 
+**Convenience methods (fail-fast):**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `parseOrderDate(String)` | `Date` | Parse zoned datetime to minute-truncated Date. Throws `IllegalStateException` on failure. Use in order builders. |
+
 **Methods with unchanged signatures:**
 
 | Method | Returns | Description |

@@ -440,6 +440,16 @@ public final class TimeUtils {
         );
     }
 
+    /**
+     * Parses a zoned date-time string to a Date truncated to the minute.
+     * @throws IllegalStateException if the date-time string cannot be parsed
+     */
+    public static Date parseOrderDate(String zonedDateTimeString) {
+        return getDateTimeStringForZonedDateString(zonedDateTimeString)
+                .flatMap(TimeUtils::getDateTimeObjectMinute)
+                .orElseThrow(() -> new IllegalStateException("Failed to parse order date from: " + zonedDateTimeString));
+    }
+
     public static LocalDate getLocalDateFromDate(Date date) {
         return date.toInstant().atZone(IST_ZONE).toLocalDate();
     }

@@ -1,5 +1,6 @@
 package com.vish.fno.util;
 
+import java.time.LocalTime;
 import java.util.Map;
 
 @SuppressWarnings("PMD.ConstantsInInterface")
@@ -12,6 +13,15 @@ public interface FnoConstants {
     int MARKET_CLOSE_MINUTE = 30;
     int TOTAL_TRADING_MINUTES = 375;  // 6 hours 15 minutes (from 9:15 to 15:30)
     int MINUTES_IN_HOUR = 60;
+
+    /** Market opens at 9:15 — first candle starts forming */
+    LocalTime MARKET_OPEN_TIME = LocalTime.of(MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE);
+    /** Market closes at 15:30 */
+    LocalTime MARKET_CLOSE_TIME = LocalTime.of(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE);
+    /** Strategy execution starts at 9:16 — after first candle completes */
+    LocalTime DEFAULT_STRATEGY_START_TIME = LocalTime.of(9, 16);
+    /** Strategy execution ends at 15:30 */
+    LocalTime DEFAULT_STRATEGY_END_TIME = MARKET_CLOSE_TIME;
 
     // Exchange Names
     String NSE = "NSE";
