@@ -18,7 +18,6 @@ import static com.vish.fno.util.Utils.getTopNLines;
 
 @Slf4j
 @AllArgsConstructor
-@SuppressWarnings("PMD")
 class HistoricalDataService {
     private static final int ERROR_STACK_TRACE_LINES = 3;
     private static final String[] MONTH_CODES = {
@@ -47,16 +46,12 @@ class HistoricalDataService {
 
         try {
             log.debug("Collecting data for {} from: {}, to: {}, interval: {}, continuous: {}", instrument, from, to, interval, continuous);
-            return Optional.of(kiteService.getKiteSdk().getHistoricalData(from, to, instrument, interval, continuous, true));
+            return Optional.of(kiteService.getHistoricalDataInternal(from, to, instrument, interval, continuous));
         } catch (JSONException | IOException | KiteException e) {
             log.error("Error while requesting historical data (from: {}, to: {}, symbol: {}, continuous: {}), errorMessage: {}\n{}",
                     from, to, instrument, continuous, e.getMessage(), getTopNLines(e, ERROR_STACK_TRACE_LINES));
         }
         return Optional.empty();
-    }
-
-    private String getInstrumentToken(String symbol) {
-        return getInstrumentToken(symbol, false);
     }
 
     /**
@@ -82,18 +77,27 @@ class HistoricalDataService {
 
         // If exact symbol not found and continuous mode is enabled, try to find current contract
         if (continuous && isFuturesSymbol(symbol)) {
-            String currentContract = findCurrentFuturesContract(symbol);
-            if (currentContract != null) {
-                instrument = String.valueOf(instrumentCache.getInstrument(currentContract));
-                if(instrument != null && !instrument.equalsIgnoreCase("null")) {
-                    log.info("Using current contract {} (token: {}) for expired symbol {} with continuous mode",
-                            currentContract, instrument, symbol);
-                    return instrument;
-                }
+            String resolvedInstrument = resolveCurrentContract(symbol);
+            if (resolvedInstrument != null) {
+                return resolvedInstrument;
             }
         }
 
         log.warn("No instrument available for symbol {} (continuous: {})", symbol, continuous);
+        return null;
+    }
+
+    private String resolveCurrentContract(String symbol) {
+        String currentContract = findCurrentFuturesContract(symbol);
+        if (currentContract == null) {
+            return null;
+        }
+        String instrument = String.valueOf(instrumentCache.getInstrument(currentContract));
+        if (instrument != null && !instrument.equalsIgnoreCase("null")) {
+            log.info("Using current contract {} (token: {}) for expired symbol {} with continuous mode",
+                    currentContract, instrument, symbol);
+            return instrument;
+        }
         return null;
     }
 
@@ -110,11 +114,15 @@ class HistoricalDataService {
      * <p>Example: NIFTY25AUGFUT (expired) → NIFTY25SEPFUT (current)
      */
     private String findCurrentFuturesContract(String expiredSymbol) {
-        if (expiredSymbol == null) return null;
+        if (expiredSymbol == null) {
+            return null;
+        }
 
         // Extract the base name (e.g., "NIFTY" from "NIFTY25AUGFUT")
         String baseName = extractBaseName(expiredSymbol);
-        if (baseName == null) return null;
+        if (baseName == null) {
+            return null;
+        }
 
         // Try current and future years dynamically
         String[] years = generateYearCodes();
@@ -158,7 +166,9 @@ class HistoricalDataService {
      * </ul>
      */
     private String extractBaseName(String symbol) {
-        if (symbol == null) return null;
+        if (symbol == null) {
+            return null;
+        }
 
         // Pattern for symbols like NIFTY25AUGFUT, BANKNIFTY25SEPFUT
         String patternString = String.format("^([A-Z]+)\\d{2}[A-Z]{3}%s$", FUT);
