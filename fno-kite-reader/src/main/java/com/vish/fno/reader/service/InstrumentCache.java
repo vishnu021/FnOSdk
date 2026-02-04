@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -190,12 +191,12 @@ class InstrumentCache {
      * Futures and options for the same underlying have the same lot size.
      *
      * @param indexName the index name (e.g., "NIFTY 50", "NIFTY BANK", "SENSEX")
-     * @return lot size from the future contract, or null if not found
+     * @return Optional containing lot size from the future contract, or empty if not found
      */
-    public Integer getLotSizeFromFuture(String indexName) {
+    public Optional<Integer> getLotSizeFromFuture(String indexName) {
         getInstruments();  // Ensure initialized
         if (indexName == null) {
-            return null;
+            return Optional.empty();
         }
 
         String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
@@ -206,8 +207,7 @@ class InstrumentCache {
                 .filter(i -> FUT.equals(i.getInstrument_type()))
                 .filter(i -> derivativeName.equals(i.getName()))
                 .findFirst()
-                .map(Instrument::getLot_size)
-                .orElse(null);
+                .map(Instrument::getLot_size);
     }
 
     /**

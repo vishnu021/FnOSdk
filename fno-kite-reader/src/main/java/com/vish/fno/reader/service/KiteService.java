@@ -466,9 +466,9 @@ public class KiteService {
      * Futures and options for the same underlying have the same lot size.
      *
      * @param indexName the index name (e.g., "NIFTY 50", "NIFTY BANK", "SENSEX")
-     * @return lot size from the future contract, or null if not found
+     * @return Optional containing lot size from the future contract, or empty if not found
      */
-    public Integer getLotSizeFromFuture(String indexName) {
+    public Optional<Integer> getLotSizeFromFuture(String indexName) {
         return instrumentCache.getLotSizeFromFuture(indexName);
     }
 

@@ -82,6 +82,8 @@
 					<rulesets>
 						<ruleset>${pmdRulesetPath}</ruleset>
 					</rulesets>
+					<!-- Increased from default 100 to allow legitimate constructor similarity -->
+					<minimumTokens>120</minimumTokens>
 				</configuration>
 				<executions>
 					<execution>

@@ -19,6 +19,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -131,10 +132,11 @@ class InstrumentCacheTest {
             String indexName = "NIFTY";
 
             // Act
-            Integer lotSize = instrumentCache.getLotSizeFromFuture(indexName);
+            Optional<Integer> lotSizeOpt = instrumentCache.getLotSizeFromFuture(indexName);
 
             // Assert
-            assertNotNull(lotSize, "Lot size should not be null for NIFTY futures");
+            assertTrue(lotSizeOpt.isPresent(), "Lot size should be present for NIFTY futures");
+            int lotSize = lotSizeOpt.get();
             assertTrue(lotSize > 0, "Lot size for NIFTY futures should be positive");
             assertEquals(65, lotSize, "NIFTY lot size should be 65");
             log.info("Lot size for {} futures: {}", indexName, lotSize);
@@ -154,10 +156,10 @@ class InstrumentCacheTest {
             String indexName = "INVALID_INDEX";
 
             // Act
-            Integer lotSize = instrumentCache.getLotSizeFromFuture(indexName);
+            Optional<Integer> lotSizeOpt = instrumentCache.getLotSizeFromFuture(indexName);
 
             // Assert
-            assertNull(lotSize, "Lot size should be null for invalid index name");
+            assertTrue(lotSizeOpt.isEmpty(), "Lot size should be empty for invalid index name");
         }
     }
 
@@ -173,10 +175,10 @@ class InstrumentCacheTest {
             InstrumentCache instrumentCache = createInstrumentCache();
 
             // Act
-            Integer lotSize = instrumentCache.getLotSizeFromFuture(null);
+            Optional<Integer> lotSizeOpt = instrumentCache.getLotSizeFromFuture(null);
 
             // Assert
-            assertNull(lotSize, "Lot size should be null for null index name");
+            assertTrue(lotSizeOpt.isEmpty(), "Lot size should be empty for null index name");
         }
     }
 
@@ -231,18 +233,18 @@ class InstrumentCacheTest {
             int threadCount = 10;
             ExecutorService executor = Executors.newFixedThreadPool(threadCount);
             CountDownLatch latch = new CountDownLatch(threadCount);
-            List<Future<Integer>> futures = new ArrayList<>();
+            List<Future<Optional<Integer>>> futures = new ArrayList<>();
 
             // Act - Multiple threads accessing lot size methods concurrently
             for (int i = 0; i < threadCount; i++) {
-                Future<Integer> future = executor.submit(() -> {
+                Future<Optional<Integer>> future = executor.submit(() -> {
                     try {
                         latch.countDown();
                         latch.await(); // Wait for all threads to be ready
                         return instrumentCache.getLotSizeFromFuture("NIFTY");
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        return null;
+                        return Optional.empty();
                     }
                 });
                 futures.add(future);
@@ -250,9 +252,10 @@ class InstrumentCacheTest {
 
             // Assert - All threads should get the same lot size
             Set<Integer> uniqueLotSizes = new HashSet<>();
-            for (Future<Integer> future : futures) {
-                Integer lotSize = future.get();
-                assertNotNull(lotSize, "Lot size should not be null");
+            for (Future<Optional<Integer>> future : futures) {
+                Optional<Integer> lotSizeOpt = future.get();
+                assertTrue(lotSizeOpt.isPresent(), "Lot size should be present");
+                int lotSize = lotSizeOpt.get();
                 assertTrue(lotSize > 0, "Lot size should be positive");
                 uniqueLotSizes.add(lotSize);
             }
