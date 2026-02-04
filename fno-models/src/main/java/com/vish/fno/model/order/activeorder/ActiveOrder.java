@@ -28,4 +28,15 @@ public interface ActiveOrder {
     void appendExtraData(String key, String value);
     String getTradingSymbol();
     double getProfit();
+    double getRealisedProfit();
+
+    /**
+     * Returns whether this is a call order (true) or put order (false).
+     * Default implementation returns true (call order).
+     *
+     * @return true for call orders, false for put orders
+     */
+    default boolean isCallOrder() {
+        return true;
+    }
 }

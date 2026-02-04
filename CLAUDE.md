@@ -1,588 +1,213 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when **developing** FnOSdk itself.
+FnOSdk development guide for Claude Code. Multi-module Maven SDK for F&O trading on NSE India.
+
+**For SDK usage**: See `docs/SDK_USAGE.md` and `docs/module-guides/*.md`
 
 ---
 
-**🔍 Looking to USE FnOSdk in your project?**
+## Tech Stack
 
-You're in the wrong place! This file is for FnOSdk **internal development** only.
-
-For **using** FnOSdk modules in your application, see:
-- **Entry Point**: `docs/SDK_USAGE.md`
-- **Module Guides**: `docs/module-guides/*.md`
-
-Each module has a dedicated guide with API reference, examples, and integration patterns:
-- `docs/module-guides/fno-models.md` - Core data models
-- `docs/module-guides/fno-utils.md` - Utility functions
-- `docs/module-guides/fno-technicals.md` - Technical indicators and Greeks
-- `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration
-- `docs/module-guides/fno-strategy-utils.md` - Strategy utilities for price action, CPR/PCR analysis
-- `docs/module-guides/fno-phase-analyzer.md` - Wyckoff phase analysis and market regime identification
+- **Java 21** (pattern matching switch, records, `.toList()`)
+- **Spring Boot 3.4.1** (parent POM)
+- **Lombok** (boilerplate reduction)
+- **PMD 7.4.0** (static analysis, fails build on violations)
+- **Kite Connect 3.3.2** (fno-kite-reader only)
+- **Apache Commons Math3** (fno-technicals only)
 
 ---
 
-## Project Overview (for FnOSdk developers)
+## Build Commands
 
-FnOSdk is a multi-module Maven SDK for Futures and Options (F&O) trading and simulation on the National Stock Exchange of India (NSE). It provides reusable components for building trading applications, backtesting engines, and simulation tools.
-
-**This document covers**: Building, testing, contributing to, and maintaining FnOSdk.
-
-## Build & Development Commands
-
-### Build All Modules
 ```bash
-mvn clean install
+mvn clean install                           # Build all modules
+mvn clean install -Dpmd.skip=true           # Skip PMD checks
+mvn test                                    # Run all tests
+mvn test -Dtest=SimpleMovingAverageTest     # Single test class
+mvn test -Dtest=SMATest#testCalculate       # Single test method
+mvn clean package                           # Build + PMD analysis
 ```
 
-### Build Individual Module
-```bash
-cd fno-models  # or fno-utils, fno-technicals, fno-kite-reader, fno-strategy-utils, fno-phase-analyzer
-mvn clean install
+---
+
+## Module Architecture
+
+```
+fno-models      (foundation - POJOs, interfaces)
+    ^
+fno-utils       (business utilities, time/candle/file utils)
+    ^
+fno-technicals  (indicators, Greeks - also depends on fno-models)
+    ^
+fno-kite-reader (Kite API - depends only on fno-utils)
+    ^
+fno-strategy-utils (CPR/PCR, order flow, stop-loss strategies)
+    ^
+fno-phase-analyzer (Wyckoff analysis, market regimes)
 ```
 
-### Run All Tests
-```bash
-mvn test
-```
+### Module Quick Reference
 
-### Run Tests for Single Module
-```bash
-cd fno-models
-mvn test
-```
+| Module | Key Classes | Purpose |
+|--------|------------|---------|
+| fno-models | `OrderRequest`, `ActiveOrder`, `Candle`, `Ticker` | Core POJOs |
+| fno-utils | `TimeUtils`, `CandleUtils`, `CandleStickCache` | Utilities |
+| fno-technicals | `SimpleMovingAverage`, `RSI`, `BlackScholes` | Indicators/Greeks |
+| fno-kite-reader | `KiteService`, `KiteWebSocket`, `InstrumentCache` | Kite API |
+| fno-strategy-utils | `CPRUtils`, `PCRUtils`, `TargetAndStopLossStrategy` | Strategy tools |
+| fno-phase-analyzer | `WyckoffPhaseIdentifier`, `CompositeWyckoffPhaseIdentifier` | Wyckoff analysis |
 
-### Run Single Test Class
-```bash
-mvn test -Dtest=SimpleMovingAverageTest
-```
+---
 
-### Run Specific Test Method
-```bash
-mvn test -Dtest=SimpleMovingAverageTest#testCalculate
-```
+## Code Standards
 
-### Run PMD Static Analysis
-```bash
-mvn clean package  # PMD runs automatically during package phase
-```
+### Critical Rules
 
-### Skip PMD During Build
-```bash
-mvn clean install -Dpmd.skip=true
-```
+1. **NO wildcard imports** - ever
+   ```java
+   // NEVER: import java.util.*;
+   // ALWAYS: import java.util.List;
+   ```
 
-## Architecture & Module Dependencies
+2. **Optional over null** for public methods that may fail
+   ```java
+   public static Optional<String> getTime(Date ts) { ... }
+   // Use: .map()/.flatMap() chains, NEVER .orElse(null)
+   ```
 
-### Dependency Hierarchy
-```
-fno-kite-reader (depends on fno-utils)
-    └── fno-utils (depends on fno-models)
-        └── fno-models (foundation, no dependencies)
+3. **PMD enforced** - build fails on violations
+   - No `System.out.println()` or `printStackTrace()`
+   - Use `@Slf4j` with `log.info()`, `log.debug()`
+   - Preserve stack traces in exception handling
 
-fno-technicals (depends on fno-utils and fno-models)
-    ├── fno-utils
-    │   └── fno-models
-    └── fno-models
+### Java 21 Patterns (Required)
 
-fno-strategy-utils (depends on fno-technicals, fno-utils, and fno-models)
-    ├── fno-technicals
-    │   ├── fno-utils
-    │   │   └── fno-models
-    │   └── fno-models
-    ├── fno-utils
-    │   └── fno-models
-    └── fno-models
-
-fno-phase-analyzer (depends on fno-strategy-utils, fno-technicals, fno-utils, and fno-models)
-    ├── fno-strategy-utils
-    │   ├── fno-technicals
-    │   │   ├── fno-utils
-    │   │   │   └── fno-models
-    │   │   └── fno-models
-    │   ├── fno-utils
-    │   │   └── fno-models
-    │   └── fno-models
-    ├── fno-technicals
-    │   ├── fno-utils
-    │   │   └── fno-models
-    │   └── fno-models
-    ├── fno-utils
-    │   └── fno-models
-    └── fno-models
-```
-
-### Module Responsibilities
-
-**fno-models** - Foundation layer with core POJOs and interfaces:
-- Order models: `OrderRequest` interface with implementations (`IndexOrderRequest`, `OptionBasedOrderRequest`, `TickBasedOrderRequest`)
-- Active order tracking: `ActiveOrder` interface and `AbstractActiveOrder` base class (core order state only)
-- Market data structures: `Candle`, `Ticker`, `CompressedTicker`
-- Trading instruments: `SymbolData`, `OptionSymbolData`, `OptionMetaData`
-- Caching utilities: `LimitedCache` (thread-safe cache with size limits)
-- Uses MongoDB integration (spring-boot-starter-data-mongodb)
-
-**fno-utils** - Business logic utilities (depends on fno-models):
-- Candlestick utilities: `CandleUtils`, `CandlePatternUtils`, `HeikinAshi` transformations
-- Time utilities: `TimeUtils` (Optional-returning date/time methods), `TimeFrameUtils`
-- File operations: `FileUtils`, compression via `CompressionUtils`
-- Order formatting: `ActiveOrderFormatter` (CSV export, logging utilities)
-- JSON serialization: `JsonUtils`
-- Data caching: `AbstractDataCache` (thread-safe tick caching), `CandleStickCache` (ConcurrentHashMap-based, Optional returns)
-- Trading hours: `TradingHoursValidator` (market hours and weekend validation)
-- Position sizing: `PositionSizingService`, `PositionSize` (record), `LotSizeProvider` (functional interface)
-
-**fno-technicals** - Technical analysis and mathematical calculations (depends on fno-utils, fno-models):
-- Base indicator framework: `Indicator` interface → `AbstractIndicator` base class
-- Moving averages: `MovingAverage` (abstract) → `SimpleMovingAverage`, `ExponentialMovingAverage`, `SmoothedMovingAverage`
-- Other indicators: `RelativeStrengthIndex`, `BollingerBands`
-- Options Greeks: `BlackScholes`, `Delta`, `Gamma`, `Theta`, `Vega`, `Rho` (all implement `OptionGreek`)
-- Uses Apache Commons Math3 for mathematical operations
-
-**fno-kite-reader** - External API integration for live trading (depends on fno-utils):
-- Zerodha Kite Connect API integration (version 3.3.2)
-- Services: `KiteService`, `HistoricalDataService`, `KiteWebSocket`, `InstrumentCache`
-- Market data retrieval and real-time WebSocket streaming
-- Order placement and management: `OrderUtils`
-- Utilities: `InstrumentFileUtils`, `OptionPriceUtils`
-
-**fno-strategy-utils** - Advanced strategy utilities (depends on fno-technicals, fno-utils, fno-models):
-- Price action analysis: `Point`, `ChartPoint`, `Vector2` (minimal 2D vector), `DataAnalyser`, `Line` (TreeSet-backed)
-- CPR utilities: `CPRUtils` (Central Pivot Range calculations)
-- PCR utilities: `PCRUtils` (Put-Call Ratio analysis)
-- Trend analysis: `HATrendUtils` (Heikin Ashi trend detection)
-- Order flow management: `TargetAndStopLossStrategy` interface, `AbstractTargetAndStopLossStrategy` base class
-- Strategy implementations: `FixedTargetAndStopLossStrategy`, `PartialRevisingStopLoss` (dynamic stop-loss strategies)
-- Order utilities: `OrderManagerUtils`
-
-**fno-phase-analyzer** - Wyckoff phase analysis and market regime identification (depends on fno-strategy-utils, fno-technicals, fno-utils, fno-models):
-- Wyckoff phase models: `WyckoffPhase` (enum), `IWyckoffPhaseIdentifier` (interface), `WyckoffIndicators`
-- Classical Wyckoff: `ClassicalWyckoffPhaseIdentifier` (traditional Wyckoff methodology)
-- Volume-based analysis: `VolumeBasedWyckoffPhaseIdentifier` (volume profile analysis)
-- Heikin Ashi integration: `HeikinAshiWyckoffPhaseIdentifier` (smoothed trend analysis)
-- Renko analysis: `RenkoWyckoffPhaseIdentifier` (noise-filtered analysis)
-- Structure & swing: `StructureSwingWyckoffPhaseIdentifier` (market structure detection)
-- Market Profile: `MarketProfileTPOWyckoffPhaseIdentifier` (Time Price Opportunity analysis)
-- Derivatives/Futures: `DerivativesFuturesOIWyckoffPhaseIdentifier` (Open Interest analysis)
-- Composite strategy: `CompositeWyckoffPhaseIdentifier` (combines multiple strategies)
-- Factory pattern: `WyckoffPhaseIdentifierFactory` (creates appropriate identifiers)
-
-## Key Architecture Patterns
-
-### Indicator Extensibility
-All technical indicators extend `AbstractIndicator` which implements `Indicator`. The framework provides:
-- Standard `calculate()` methods accepting `List<Candle>`
-- Helper methods like `getClosedPrices()` for extracting price data
-- Support for calculations with or without previous day data
-
-To add a new indicator:
-1. Extend `AbstractIndicator`
-2. Implement `calculateFromClosedPrice(List<Double>)` and overloaded versions
-3. Add unit tests following existing patterns (e.g., `SimpleMovingAverageTest`)
-
-### Order Request Pattern
-Orders follow an interface-based design:
-- `OrderRequest` interface defines contract
-- Concrete implementations: `IndexOrderRequest`, `OptionBasedOrderRequest`, `TickBasedOrderRequest`
-- Factory pattern: `ActiveOrderFactory` converts requests to active orders via pattern matching switch (throws `IllegalArgumentException` for unknown types)
-- Active orders use inheritance: `AbstractActiveOrder` (with consolidated `toString()` via `appendToStringFields()` hook) → specific implementations
-- Target/stop-loss logic extracted to `TargetAndStopLossStrategy` (Strategy pattern in fno-strategy-utils)
-- Order formatting separated into `ActiveOrderFormatter` utility (fno-utils)
-
-### Configuration & Integration
-- Spring Boot 3.2.2 as parent POM
-- Java 21 required (uses modern features like pattern matching switch, `stream().toList()`, records)
-- Lombok for reducing boilerplate
-- Kite Connect credentials needed for fno-kite-reader (API key + access token)
-
-## Code Quality Standards
-
-PMD static analysis enforces strict rules (configured in `ruleset/pmd-custom-ruleset.xml`):
-- Best practices: avoid parameter reassignment, use collection.isEmpty(), prefer varargs
-- Code simplification: use foreach loops, avoid unnecessary locals
-- Exception handling: preserve stack traces, avoid catching generic exceptions
-- Performance: optimize string operations, avoid array loops where applicable
-- Multithreading: proper synchronization, avoid deprecated thread methods
-- Logging: no printStackTrace() or System.out.println()
-
-PMD runs automatically during `mvn package` phase and will fail the build on violations.
-
-### Import Standards
-
-**CRITICAL RULE**: NEVER use wildcard imports for ANY package or class.
-
-- ✅ **DO**: Use explicit imports for everything
-  ```java
-  // Static imports
-  import static com.vish.fno.util.FnoConstants.NIFTY_50;
-  import static com.vish.fno.util.FnoConstants.NIFTY_BANK;
-  import static com.vish.fno.util.FnoConstants.EQUITY;
-
-  // Standard imports
-  import java.util.List;
-  import java.util.Map;
-  import java.util.ArrayList;
-  import java.util.HashMap;
-  import java.util.Date;
-  ```
-
-- ❌ **DON'T**: Use wildcard imports (applies to ALL packages)
-  ```java
-  import java.util.*;                              // NEVER
-  import static com.vish.fno.util.FnoConstants.*;  // NEVER
-  import com.zerodhatech.models.*;                 // NEVER
-  ```
-
-**Rationale**:
-- Explicit imports improve code readability
-- Makes dependencies clear at a glance
-- Prevents naming conflicts
-- Easier to track which classes are actually used
-- Better IDE support for refactoring and unused import detection
-- Industry best practice for maintainable code
-
-**Exceptions**: None. This rule applies to all Java code in the project.
-
-### Null Safety — Prefer Optional over Null Returns
-
-**RULE**: Public methods that may fail or return "no value" MUST return `Optional<T>` instead of null.
-
-- ✅ **DO**: Return `Optional<T>` from public methods
-  ```java
-  public static Optional<String> getTime(Date timeStamp) {
-      if (timeStamp == null) {
-          return Optional.empty();
-      }
-      return Optional.of(TIME_FORMATTER.format(timeStamp.toInstant().atZone(SYSTEM_ZONE)));
-  }
-  ```
-
-- ✅ **DO**: Use `map`/`flatMap` chains at call sites
-  ```java
-  // Correct — proper Optional chaining
-  TimeUtils.getDateObject(candle.time()).map(TimeUtils::getStringDate).orElse("");
-
-  // Correct — flatMap for nested Optionals
-  minuteDataCache.getLatestCandle(symbol).flatMap(latestCandle ->
-      TimeUtils.getDateTimeForZonedDateString(latestCandle.time()).map(dateTime -> {
-          int latestIndex = TimeUtils.getIndexOfTimeStamp(dateTime);
-          return latestIndex == timeSource.currentTimeStampIndex() - 1;
-      })
-  ).orElse(false);
-  ```
-
-- ❌ **DON'T**: Use `.orElse(null)` — this defeats the purpose of Optional
-  ```java
-  // NEVER — anti-pattern
-  TimeUtils.getDateObject(candle.time()).orElse(null);
-  ```
-
-**Scope**: This applies to all `TimeUtils` date/time methods, `CandleStickCache.getLatestCandle()`, `KiteService` historical data methods, and any new public methods where failure is possible.
-
-### Thread Safety Conventions
-
-- Use `CopyOnWriteArrayList` for read-heavy, write-light shared lists (e.g., `KiteWebSocket` token lists)
-- Mark shared boolean flags as `volatile` (e.g., `isConnected`)
-- Use `ConcurrentHashMap` for shared maps (e.g., `CandleStickCache`)
-- Prefer `Collections.unmodifiableList()` for lists that should not be modified after initialization (e.g., `TimeUtils.timeArray`)
-- Widen method parameters from concrete types (`ArrayList`) to interfaces (`List`) where possible
-
-### Pattern Matching Switch (Java 21)
-
-Use pattern matching switch expressions for type dispatch instead of if-instanceof chains:
 ```java
-// Correct — Java 21 pattern matching switch
+// Pattern matching switch
 return switch (orderRequest) {
-    case IndexOrderRequest r -> new ActiveIndexOrder(r, ...);
-    case OptionBasedOrderRequest r -> new OptionBasedActiveOrder(r, ...);
-    case TickBasedOrderRequest r -> new TickBasedActiveOrder(r, ...);
-    default -> throw new IllegalArgumentException("Unknown type: " + orderRequest.getClass().getSimpleName());
+    case IndexOrderRequest r -> new ActiveIndexOrder(r);
+    case OptionBasedOrderRequest r -> new OptionBasedActiveOrder(r);
+    default -> throw new IllegalArgumentException("Unknown: " + orderRequest.getClass());
 };
+
+// Stream .toList() not .collect(Collectors.toList())
+list.stream().filter(...).toList();
 ```
 
-### toString() Consolidation
+### Thread Safety
 
-Base classes should provide a consolidated `toString()` with an `appendToStringFields()` hook for subclasses:
-```java
-// In AbstractActiveOrder
-@Override
-public String toString() {
-    return "ActiveOrder{" + /* common fields */ + appendToStringFields() + "}";
-}
-protected String appendToStringFields() { return ""; }
+- `ConcurrentHashMap` for shared maps
+- `CopyOnWriteArrayList` for read-heavy shared lists
+- `volatile` for shared boolean flags
+- `Collections.unmodifiableList()` for immutable lists
+- Widen parameters: `List` not `ArrayList`
 
-// In subclass
-@Override
-protected String appendToStringFields() {
-    return ", callOrder=" + callOrder;
-}
-```
+### Extension Patterns
 
-## Testing Conventions
+**New Indicator**: Extend `AbstractIndicator`, implement `calculateFromClosedPrice(List<Double>)`
 
-- Tests follow naming pattern: `*Test.java` (e.g., `SimpleMovingAverageTest`)
-- Unit tests for all indicators and utilities
-- Mock-based testing with Mockito for external dependencies (fno-kite-reader)
-- Test files mirror source structure: `src/test/java/com/vish/fno/`
+**New Order Type**: Implement `OrderRequest`, add case to `ActiveOrderFactory` pattern matching switch
 
-## Common Use Cases
-
-1. **Live Trading**: Use fno-kite-reader for real-time data and execution
-2. **Backtesting**: Use fno-models + fno-utils + fno-technicals without external API
-3. **Technical Analysis**: Import fno-technicals for indicator calculations
-4. **Strategy Development**: Combine all modules, implement custom `OrderRequest` types
+**toString() in subclasses**: Override `appendToStringFields()` hook, not `toString()`
 
 ---
 
-## Documentation
+## Common Pitfalls
 
-All API documentation, usage examples, and integration patterns are maintained in `docs/`:
-- Start with `docs/SDK_USAGE.md` for SDK consumer guide
-- See `docs/module-guides/*.md` for detailed API references
-- Check `docs/AI_AGENT_GUIDE.md` for AI agent integration instructions
-- Review `docs/CODEBASE_IMPROVEMENT_RECOMMENDATIONS.md` for code quality analysis and enhancement suggestions
-- Read `docs/DOCUMENTATION_MAINTENANCE.md` for documentation strategy and maintenance guidelines
-
----
-
-## Automatic Documentation Maintenance
-
-**🚨 CRITICAL REQUIREMENT - READ THIS FIRST 🚨**
-
-Documentation updates are **MANDATORY** for all public API changes. This is **NON-NEGOTIABLE**.
-
-### STRICT DOCUMENTATION ENFORCEMENT
-
-**⚠️ EVERY TIME you modify ANY public API in `*/src/main/java/**`, you MUST:**
-
-1. ✅ Make your code changes
-2. ✅ Fix PMD violations and ensure compilation succeeds
-3. ✅ **IMMEDIATELY invoke the `fnosdk-doc-watcher` agent** using the Task tool:
-   ```
-   Task(subagent_type="fnosdk-doc-watcher", ...)
-   ```
-4. ✅ Verify documentation was updated in `docs/module-guides/`
-5. ✅ Only then mark tasks as complete or suggest commits
-
-**❌ FAILURE TO UPDATE DOCUMENTATION IS A BLOCKING ERROR**
-
-**Rules for Claude Code assistants:**
-- ❌ NEVER mark tasks complete without updating docs
-- ❌ NEVER suggest commits without verifying docs are synchronized
-- ❌ NEVER skip the doc-watcher agent after API changes
-- ✅ ALWAYS treat missing documentation as a critical failure
-- ✅ ALWAYS launch the agent proactively, not reactively
+| Pitfall | Fix |
+|---------|-----|
+| Wildcard imports | Use explicit imports only |
+| `.orElse(null)` on Optional | Use `.map()/.flatMap()` chains |
+| `System.out.println()` | Use `@Slf4j` + `log.info()` |
+| Catching generic `Exception` | Catch specific exceptions |
+| `ArrayList` in parameters | Use `List` interface |
+| Forgetting PMD | Always run `mvn clean package` before commit |
 
 ---
 
-**IMPORTANT**: FnOSdk uses AI-powered automatic documentation maintenance via Claude Code agents.
+## Testing
 
-### Agent-Based Automation
+- Test naming: `*Test.java` (e.g., `SimpleMovingAverageTest`)
+- Structure mirrors source: `src/test/java/com/vish/fno/`
+- Mockito for external dependencies (fno-kite-reader)
+- All indicators/utilities require unit tests
 
-FnOSdk has a `.claude/` directory containing agents, skills, and policies that automate documentation maintenance:
+---
 
+## Documentation Automation
+
+**After ANY public API change**, invoke the doc-watcher agent:
 ```
-.claude/
-├── README.md                         # Overview of automation system
-├── agent_policy.md                   # Automatic trigger rules
-├── agents/
-│   └── fnosdk-doc-watcher.md        # Documentation maintenance agent
-├── skills/
-│   └── doc-maintainer.md            # Documentation maintenance skill
-└── commands/
-    └── update-docs.md               # Manual documentation update command
+Task(subagent_type="fnosdk-doc-watcher", ...)
 ```
 
-### How It Works
+Manual: `/update-docs`, `/update-docs --staged`, `/update-docs fno-technicals`
 
-**Automatic Process:**
-1. You modify a Java file with public API changes
-2. Agent policy (`.claude/agent_policy.md`) detects the change
-3. `fnosdk-doc-watcher` agent is **automatically invoked**
-4. Agent uses `doc-maintainer` skill to update documentation
-5. Documentation in `docs/module-guides/` is **automatically** updated
-6. You commit code + documentation together
+See `.claude/agent_policy.md` for automation rules.
 
-**Manual Triggers:**
+---
+
+## Memory Bank Update Trigger
+
+Update this CLAUDE.md when:
+- Adding new modules or major classes
+- Changing build commands or dependencies
+- Discovering new gotchas or patterns
+- Updating Java/Spring Boot versions
+- Adding new code standards or PMD rules
+
+Use `#` key shortcut during session to auto-incorporate learnings.
+
+---
+
+## Compaction Preservation
+
+**Always preserve in context during long sessions:**
+- Module dependency order (fno-models -> fno-utils -> ...)
+- Critical rules: no wildcards, Optional over null, PMD enforcement
+- Java 21 patterns: pattern matching switch, `.toList()`
+- Thread safety conventions
+- Current branch and uncommitted changes
+
+**Safe to drop:**
+- Detailed module class listings (re-read from code)
+- Full code examples (reference CLAUDE.md)
+- Documentation automation details (see `.claude/`)
+
+---
+
+## Session Checkpoints
+
+### Starting a Session
+1. Check `git status` for uncommitted work
+2. Identify current branch context
+3. Note any failing tests: `mvn test`
+
+### Before Major Changes
+1. Ensure clean build: `mvn clean install`
+2. Create checkpoint commit if needed
+3. Note files being modified
+
+### Ending a Session
+1. Run `mvn clean install` (includes PMD)
+2. Update docs if API changed: `/update-docs`
+3. Commit with descriptive message or note state for next session
+
+### Resuming After Break
 ```bash
-/update-docs                    # Update docs for recent changes
-/update-docs --staged           # Update docs for staged files only
-/update-docs --full             # Full documentation rebuild
-/update-docs fno-technicals     # Update specific module only
+git status                    # Check state
+git log --oneline -5          # Recent commits
+mvn test                      # Verify build health
 ```
-
-### Documentation Agent
-
-**Agent:** `.claude/agents/fnosdk-doc-watcher.md`
-
-**Responsibilities:**
-- Detect public API changes in Java source files
-- Extract exact method signatures and parameters
-- Update corresponding module guides in `docs/module-guides/`
-- Validate documentation completeness and quality
-- Ensure downstream AI agents can generate correct code
-
-**Automatic triggers:**
-- After modifying files in `*/src/main/java/**`
-- Before committing changes
-- Before opening pull requests
-- On explicit user request
-
-### Documentation Skill
-
-**Skill:** `.claude/skills/doc-maintainer.md`
-
-**Purpose:**
-- Core documentation generation logic
-- Maps Java source files to module guides
-- Enforces documentation quality standards
-- Generates working code examples
-- Validates completeness
-
-**Quality requirements:**
-- ✅ Exact method signatures (character-for-character match)
-- ✅ All parameters documented with types
-- ✅ Return values documented
-- ✅ Working, compilable code examples
-- ✅ Edge cases noted (null handling, thread safety)
-- ✅ Integration patterns for cross-module features
-
-See `.claude/agent_policy.md` for complete automation rules and `.claude/SUGGESTED_AGENTS_AND_SKILLS.md` for additional automation capabilities.
 
 ---
 
-## Available Automation Tools
+## Key Files
 
-### Current Agents
-
-**fnosdk-doc-watcher** (`.claude/agents/fnosdk-doc-watcher.md`)
-- **Purpose:** Automatic documentation maintenance
-- **Triggers:** Public API changes, commit preparation, PR creation
-- **Status:** ✅ Active
-- **Usage:** Automatic (triggered by agent policy)
-
-### Current Skills
-
-**doc-maintainer** (`.claude/skills/doc-maintainer.md`)
-- **Purpose:** Core documentation generation and validation
-- **Usage:** Invoked by fnosdk-doc-watcher agent
-- **Features:** API extraction, signature validation, example generation
-
-### Current Commands
-
-**Slash Commands:**
-- `/update-docs` - Manually trigger documentation update
-- `/update-docs --staged` - Update docs for staged files only
-- `/update-docs --full` - Rebuild all documentation
-- `/update-docs [module]` - Update specific module only
-
-### Suggested Future Agents
-
-See `.claude/SUGGESTED_AGENTS_AND_SKILLS.md` for recommended additional automation:
-
-**High Priority:**
-- **code-reviewer** - Automatic code quality and PMD checks
-- **test-runner** - Automated testing with smart test selection
-
-**Medium Priority:**
-- **build-verifier** - Complete Maven build validation
-- **dependency-updater** - Dependency management and updates
-- **release-preparer** - Release automation (versioning, changelog, tagging)
-
-**Lower Priority:**
-- **example-generator** - Generate realistic code examples
-- **migration-helper** - Assist with API migrations
-
----
-
-## Documentation Organization
-
-### Production Documentation Structure
-
-```
-docs/
-├── SDK_USAGE.md                       # Main entry point for SDK users
-├── AI_AGENT_GUIDE.md                  # Guide for AI agents using the SDK
-├── DOCUMENTATION_MAINTENANCE.md       # Documentation maintenance strategy
-├── module-guides/                     # Module-specific API documentation
-│   ├── fno-models.md                 # Core data models
-│   ├── fno-utils.md                  # Utility functions
-│   ├── fno-technicals.md             # Technical indicators & Greeks
-│   ├── fno-kite-reader.md            # Kite Connect integration
-│   ├── fno-strategy-utils.md         # Strategy utilities
-│   └── fno-phase-analyzer.md         # Wyckoff phase analysis
-└── work-progress/                     # Temporary work-in-progress docs
-    ├── DOCUMENTATION_AUDIT_REPORT.md
-    ├── DOCUMENTATION_FIX_SUMMARY.md
-    ├── PHASE_2A_COMPLETION_SUMMARY.md
-    ├── PHASE_2B_COMPLETION_SUMMARY.md
-    └── COMPLETE_DOCUMENTATION_OVERHAUL_SUMMARY.md
-```
-
-### Documentation Guidelines
-
-**Production Documentation** (commit to git):
-- `docs/SDK_USAGE.md` - Main SDK usage guide
-- `docs/AI_AGENT_GUIDE.md` - AI agent integration guide
-- `docs/module-guides/*.md` - Module API references
-- `docs/DOCUMENTATION_MAINTENANCE.md` - Documentation strategy
-
-**Work-Progress Documentation** (temporary, gitignored):
-- `docs/work-progress/*` - Session summaries, audit reports, completion notes
-- These files document the documentation improvement process
-- **Should be in `.gitignore`** - not committed to repository
-- Used for tracking progress during documentation overhauls
-
-**When to use `docs/work-progress/`:**
-- Creating audit reports of documentation gaps
-- Writing session summaries of documentation fixes
-- Tracking multi-phase documentation improvements
-- Recording completion status for documentation tasks
-- Any temporary markdown files that document the documentation process itself
-
-**File Naming Convention:**
-- Production: Descriptive names like `SDK_USAGE.md`, `fno-models.md`
-- Work-progress: Action-oriented names like `PHASE_2A_COMPLETION_SUMMARY.md`, `DOCUMENTATION_AUDIT_REPORT.md`
-
-### Code Example Standards
-
-**CRITICAL: Documentation must be CONCISE and AI-agent optimized**
-
-**Documentation Style:**
-- ❌ NO verbose explanations - use direct technical language
-- ❌ NO repetitive examples - one example per class showing 2-3 methods
-- ❌ NO redundant descriptions - if method name is clear, minimal description needed
-- ❌ NO marketing language - pure technical documentation
-- ✅ USE tables for listing >5 methods in a class
-- ✅ Group related methods, document collectively
-- ✅ Maximum 30-50 lines per class (exceptions: complex service classes)
-- ✅ Remove "Introduction", "Overview", "Best Practices" unless essential
-
-**Logging:**
-- ✅ **USE** Lombok @Slf4j with `log.info()`, `log.debug()`, etc.
-- ❌ **NEVER** use `System.out.println()`
-
-**Imports:**
-- ✅ **INCLUDE** SDK imports (com.vish.fno.*), Lombok imports, third-party imports
-- ✅ **INCLUDE** specialized Java imports (java.time.*, java.util.concurrent.*, etc.)
-- ❌ **OMIT** common Java utility imports (java.util.List, java.util.Map, java.util.Set, java.util.ArrayList, java.util.HashMap)
-
-**Example Structure:**
-- ✅ Keep under 20 lines - show USAGE, not implementation
-- ✅ ONE example per class demonstrating 2-3 key methods together
-- ✅ Use parameterized logging: `log.info("Order: {}", orderId)`
-- ✅ Follow Java 21+ patterns (records, .toList(), pattern matching switch, etc.)
-- ✅ Avoid repetitive setup code - show variations inline
-
-See `.claude/agents/fnosdk-doc-watcher.md` for complete standards.
-
----
-
-## Contributing
-
-When contributing to FnOSdk, please:
-1. Follow the coding standards enforced by PMD
-2. Write unit tests for new features
-3. **Documentation is auto-maintained** - Claude Code will update `docs/module-guides/` automatically when you change public APIs
-4. Run `mvn clean install` to ensure all tests pass and PMD checks succeed
-5. See `CONTRIBUTING.md` for detailed contribution guidelines including documentation requirements
+| Purpose | Location |
+|---------|----------|
+| PMD rules | `ruleset/pmd-custom-ruleset.xml` |
+| Parent POM | `pom.xml` |
+| SDK docs | `docs/SDK_USAGE.md` |
+| Module guides | `docs/module-guides/*.md` |
+| Automation config | `.claude/agent_policy.md` |

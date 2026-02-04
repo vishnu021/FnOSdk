@@ -2,6 +2,7 @@ package com.vish.fno.model.order.activeorder;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Date;
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import java.util.Map;
 import static com.vish.fno.model.util.ModelUtils.INDENTED_TAB;
 import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 
+@Slf4j
 @Getter
 public abstract class AbstractActiveOrder implements ActiveOrder {
     @Getter
@@ -29,8 +31,11 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     protected final Map<String, String> extraData;
     protected int stopLossRevisionCount;
     protected final Map<Integer, Double> stopLossRevision = new HashMap<>();
+    @Setter
+    protected boolean isActive;
+    protected double realisedProfit;
 
-    public AbstractActiveOrder(String tag,
+    protected AbstractActiveOrder(String tag,
                                Date date,
                                int entryTimeStamp,
                                double buyThreshold,
@@ -50,6 +55,8 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
         this.stopLoss = stopLoss;
         this.extraData = extraData == null ? new HashMap<>() : extraData;
         this.stopLossRevisionCount = 0;
+        this.isActive = true;
+        this.realisedProfit = 0;
     }
 
     protected void updateStopLoss(double stopLoss) {
@@ -60,6 +67,33 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     @Override
     public void appendExtraData(String key, String value) {
         extraData.put(key, value);
+    }
+
+    @Override
+    public void closeOrder(double closePrice, int timeIndex, String timestamp) {
+        setActive(false);
+        setExitTimeStamp(timeIndex);
+        setSellPrice(closePrice);
+        this.extraData.put("exitDateTime", timestamp);
+    }
+
+    @Override
+    public void incrementSoldQuantity(int soldQuantity, double sellOptionPrice) {
+        this.soldQuantity += soldQuantity;
+        this.realisedProfit += soldQuantity * sellOptionPrice;
+        log.info("Updated realised profit to: {} for order: {}", this.realisedProfit, this);
+    }
+
+    /**
+     * Initializes realised profit based on buy price and quantity.
+     * Called when the actual option buy price is set after order creation.
+     *
+     * @param buyOptionPrice the price at which the option was bought
+     */
+    protected void initializeRealisedProfit(double buyOptionPrice) {
+        this.realisedProfit = -1 * (this.buyQuantity * buyOptionPrice);
+        log.info("Initialized realised profit with: {}, buyOptionPrice: {} for order: {}",
+                this.realisedProfit, buyOptionPrice, this);
     }
 
     @Override

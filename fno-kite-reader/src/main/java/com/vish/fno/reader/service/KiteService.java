@@ -14,7 +14,6 @@ import com.zerodhatech.models.Position;
 import com.zerodhatech.models.User;
 import com.zerodhatech.ticker.OnOrderUpdate;
 import com.zerodhatech.ticker.OnTicks;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
@@ -44,7 +43,7 @@ import static com.vish.fno.util.TimeUtils.getOpeningTime;
 public class KiteService {
     private final static List<String> defaultIndices = List.of(NIFTY_50, NIFTY_BANK, BANKEX, SENSEX);
 
-    @Getter(AccessLevel.PACKAGE)
+    private final ApiRateLimiter apiRateLimiter = new ApiRateLimiter();
     private final KiteConnect kiteSdk;
     private final String apiSecret;
     private final boolean placeOrders;
@@ -70,25 +69,27 @@ public class KiteService {
     }
 
     public void authenticate(String requestToken) {
-        try {
-            User user = kiteSdk.generateSession(requestToken, apiSecret);
-            kiteSdk.setAccessToken(user.accessToken);
-            kiteSdk.setPublicToken(user.publicToken);
-            addSessionExpiryHook();
+        apiRateLimiter.executeWithLockVoid(() -> {
+            try {
+                User user = kiteSdk.generateSession(requestToken, apiSecret);
+                kiteSdk.setAccessToken(user.accessToken);
+                kiteSdk.setPublicToken(user.publicToken);
+                addSessionExpiryHook();
 
-            // Add all option symbols for NIFTY 50 BEFORE WebSocket initialization
-            // The OnConnectedListener will subscribe to them automatically when WebSocket connects
-            appendAllOptionsForIndex(NIFTY_50);
-            appendAllOptionsForIndex(NIFTY_BANK);
+                // Add all option symbols for NIFTY 50 BEFORE WebSocket initialization
+                // The OnConnectedListener will subscribe to them automatically when WebSocket connects
+                appendAllOptionsForIndex(NIFTY_50);
+                appendAllOptionsForIndex(NIFTY_BANK);
 
-            kiteWebSocket.initialize(kiteSdk);
-            Margin margins = kiteSdk.getMargins(EQUITY);
-            log.info("available_cash={}", margins.available.cash);
-            log.info("utilised_debits={}", margins.utilised.debits);
-            initialised = true;
-        } catch (KiteException | IOException e) {
-            log.error("Error while Initialising KiteService", e);
-        }
+                kiteWebSocket.initialize(kiteSdk);
+                Margin margins = kiteSdk.getMargins(EQUITY);
+                log.info("available_cash={}", margins.available.cash);
+                log.info("utilised_debits={}", margins.utilised.debits);
+                initialised = true;
+            } catch (KiteException | IOException e) {
+                log.error("Error while Initialising KiteService", e);
+            }
+        }, "authenticate");
     }
 
     public Optional<HistoricalData> getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
@@ -181,14 +182,16 @@ public class KiteService {
     }
 
     List<Instrument> getAllInstruments() {
-        List<Instrument> instruments = null;
-        try {
-            instruments = kiteSdk.getInstruments();
-            log.info("Loaded instrument cache from Kite server");
-        } catch (JSONException | IOException | KiteException e) {
-            log.error("Failed to load instruments from Kite server", e);
-        }
-        return instruments;
+        return apiRateLimiter.executeWithLock(() -> {
+            List<Instrument> instruments = null;
+            try {
+                instruments = kiteSdk.getInstruments();
+                log.info("Loaded instrument cache from Kite server");
+            } catch (JSONException | IOException | KiteException e) {
+                log.error("Failed to load instruments from Kite server", e);
+            }
+            return instruments;
+        }, "getAllInstruments");
     }
 
     public boolean isExpiryDayForOption(String optionSymbol, Date date) {
@@ -196,18 +199,20 @@ public class KiteService {
     }
 
     public Order placeOptionOrder(OrderParams orderParams) {
-        Order order = null;
-        try {
-            log.info("placing order with params : {}", orderParams);
-            order = kiteSdk.placeOrder(orderParams, Constants.VARIETY_REGULAR);
-            log.info("order id: {}", order.orderId);
-        } catch (KiteException ke) {
-            log.error("KiteException occurred while placing order, code: {}, message: {}, order: {}",
-                    ke.code, ke.message, getFormattedObject(orderParams), ke);
-        } catch (JSONException | IOException e) {
-            log.error("Error occurred while placing order", e);
-        }
-        return order;
+        return apiRateLimiter.executeWithLock(() -> {
+            Order order = null;
+            try {
+                log.info("placing order with params : {}", orderParams);
+                order = kiteSdk.placeOrder(orderParams, Constants.VARIETY_REGULAR);
+                log.info("order id: {}", order.orderId);
+            } catch (KiteException ke) {
+                log.error("KiteException occurred while placing order, code: {}, message: {}, order: {}",
+                        ke.code, ke.message, getFormattedObject(orderParams), ke);
+            } catch (JSONException | IOException e) {
+                log.error("Error occurred while placing order", e);
+            }
+            return order;
+        }, "placeOptionOrder");
     }
 
     public Optional<KiteOpenOrder> buyOrder(String symbol, int orderSize, String tag, boolean isPlaceOrder) {
@@ -217,31 +222,37 @@ public class KiteService {
 
     // TODO: verify there is an existing order before placing a sell order
     public Optional<KiteOpenOrder> sellOrder(String symbol, int orderSize, String tag, boolean isPlaceOrder) {
-        logExistingOrdersAndPositions(symbol, tag);
+        if (log.isDebugEnabled()) {
+            logExistingOrdersAndPositions(symbol, tag);
+        }
         log.info("Creating sell order with quantity: {}, symbol: {}, tag: {}, isPlaceOrder: {}", orderSize, symbol, tag, isPlaceOrder);
         return placeOrder(symbol, orderSize, tag, Constants.TRANSACTION_TYPE_SELL, isPlaceOrder);
     }
 
     public List<Order> getOrders() {
-        try {
-            return this.kiteSdk.getOrders();
-        } catch (KiteException e) {
-            log.error("Failed to get orders, error code: {}, error message: {}", e.code, e.message, e);
-        } catch (IOException e) {
-            log.error("Failed to get orders, error: {}", e.getMessage(), e);
-        }
-        return List.of();
+        return apiRateLimiter.executeWithLock(() -> {
+            try {
+                return this.kiteSdk.getOrders();
+            } catch (KiteException e) {
+                log.error("Failed to get orders, error code: {}, error message: {}", e.code, e.message, e);
+            } catch (IOException e) {
+                log.error("Failed to get orders, error: {}", e.getMessage(), e);
+            }
+            return List.of();
+        }, "getOrders");
     }
 
     public Map<String, List<Position>> getPositions() {
-        try {
-            return this.kiteSdk.getPositions();
-        } catch (KiteException e) {
-            log.error("Failed to get positions, error code: {}, error message: {}", e.code, e.message, e);
-        } catch (IOException e) {
-            log.error("Failed to get positions, error: {}", e.getMessage(), e);
-        }
-        return Map.of();
+        return apiRateLimiter.executeWithLock(() -> {
+            try {
+                return this.kiteSdk.getPositions();
+            } catch (KiteException e) {
+                log.error("Failed to get positions, error code: {}, error message: {}", e.code, e.message, e);
+            } catch (IOException e) {
+                log.error("Failed to get positions, error: {}", e.getMessage(), e);
+            }
+            return Map.of();
+        }, "getPositions");
     }
 
     private Optional<KiteOpenOrder> placeOrder(String symbol, int orderSize, String tag, String transactionType, boolean isPlaceOrder) {
@@ -259,19 +270,21 @@ public class KiteService {
             log.warn("Not placing orders as it is turned off by configuration");
             return Optional.of(buildSuccessfulKiteTestOrder());
         }
-        Order order;
-        try {
-            OrderParams orderParams = createMarketOrderWithParameters(symbol, orderSize, transactionType, tag);
-            order = kiteSdk.placeOrder(orderParams, Constants.VARIETY_REGULAR);
-            log.info("order placed successfully with id: {}", order.orderId);
-        } catch (KiteException e) {
-            log.error("KiteException occurred while placing order, code: {}, message: {}", e.code, e.message);
-            return Optional.of(new KiteOpenOrder(null, false, e.code, e.message));
-        } catch (JSONException | IOException e) {
-            log.error("Error occurred while placing order", e);
-            return Optional.of(buildUnsuccessfulKiteOrder(e));
-        }
-        return Optional.of(new KiteOpenOrder(order, true, null, null));
+        return apiRateLimiter.executeWithLock(() -> {
+            Order order;
+            try {
+                OrderParams orderParams = createMarketOrderWithParameters(symbol, orderSize, transactionType, tag);
+                order = kiteSdk.placeOrder(orderParams, Constants.VARIETY_REGULAR);
+                log.info("order placed successfully with id: {}", order.orderId);
+            } catch (KiteException e) {
+                log.error("KiteException occurred while placing order, code: {}, message: {}", e.code, e.message);
+                return Optional.of(new KiteOpenOrder(null, false, e.code, e.message));
+            } catch (JSONException | IOException e) {
+                log.error("Error occurred while placing order", e);
+                return Optional.of(buildUnsuccessfulKiteOrder(e));
+            }
+            return Optional.of(new KiteOpenOrder(order, true, null, null));
+        }, "placeOrder");
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -365,6 +378,13 @@ public class KiteService {
     }
 
 
+    HistoricalData getHistoricalDataInternal(Date from, Date to, String instrument, String interval, boolean continuous)
+            throws IOException, KiteException {
+        return apiRateLimiter.executeWithLockChecked(
+                () -> kiteSdk.getHistoricalData(from, to, instrument, interval, continuous, true),
+                "getHistoricalData");
+    }
+
     private KiteConnect kiteSdk(String apiKey, String userId) {
         KiteConnect kiteConnect = new KiteConnect(apiKey, true);
         kiteConnect.setUserId(userId);
@@ -421,9 +441,9 @@ public class KiteService {
                 .map(JsonUtils::getFormattedObject)
                 .toList();
 
-        log.info("Existing orders for same symbol: {}", orders);
-        log.info("Existing netPositions for same symbol: {}", netPositions);
-        log.info("Existing dayPositions for same symbol: {}", dayPositions);
+        log.debug("Existing orders for same symbol: {}", orders);
+        log.debug("Existing netPositions for same symbol: {}", netPositions);
+        log.debug("Existing dayPositions for same symbol: {}", dayPositions);
     }
 
     public List<Instrument> getInstruments() {
@@ -446,9 +466,9 @@ public class KiteService {
      * Futures and options for the same underlying have the same lot size.
      *
      * @param indexName the index name (e.g., "NIFTY 50", "NIFTY BANK", "SENSEX")
-     * @return lot size from the future contract, or null if not found
+     * @return Optional containing lot size from the future contract, or empty if not found
      */
-    public Integer getLotSizeFromFuture(String indexName) {
+    public Optional<Integer> getLotSizeFromFuture(String indexName) {
         return instrumentCache.getLotSizeFromFuture(indexName);
     }
 

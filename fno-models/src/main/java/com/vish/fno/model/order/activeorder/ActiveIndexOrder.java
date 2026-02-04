@@ -4,12 +4,10 @@ import com.vish.fno.model.Task;
 import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
 import lombok.Getter;
 import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
 
-// CPD-OFF
-@Slf4j
+// CPD-OFF - Intentional structural similarity with TickBasedActiveOrder (both handle option symbols)
 @Getter
 public final class ActiveIndexOrder extends AbstractActiveOrder {
     private final Task task;
@@ -20,9 +18,6 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
     private double buyOptionPrice;
     @Setter
     private double sellOptionPrice;
-    @Setter
-    private boolean isActive;
-    private double realisedProfit;
 
     public ActiveIndexOrder(IndexOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
                             int quantity, int lotSize) {
@@ -40,28 +35,20 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
         this.callOrder = openOrder.isCallOrder();
         this.task = openOrder.getTask();
         this.lotSize = lotSize;
-        this.isActive = true;
-        this.realisedProfit = 0f;
         this.extraData.put("entryDateTime", timestamp);
     }
 
+    @Override
     public void setStopLoss(double stopLoss) {
-        if(this.isCallOrder()) {
-            if(this.stopLoss < stopLoss) {
+        if (this.isCallOrder()) {
+            if (this.stopLoss < stopLoss) {
                 updateStopLoss(stopLoss);
             }
         } else {
-            if(this.stopLoss > stopLoss) {
+            if (this.stopLoss > stopLoss) {
                 updateStopLoss(stopLoss);
             }
         }
-    }
-
-    public void closeOrder(double closePrice, int timeIndex, String timestamp) {
-        setActive(false);
-        setExitTimeStamp(timeIndex);
-        setSellPrice(closePrice);
-        this.extraData.put("exitDateTime", timestamp);
     }
 
     @Override
@@ -69,8 +56,9 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
         return this.getOptionSymbol();
     }
 
+    @Override
     public double getProfit() {
-        if(isCallOrder()) {
+        if (isCallOrder()) {
             return (getSellPrice() - getBuyPrice()) * this.getBuyQuantity();
         } else {
             return (getBuyPrice() - getSellPrice()) * this.getBuyQuantity();
@@ -79,16 +67,13 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
 
     public void setBuyOptionPrice(double buyOptionPrice) {
         this.buyOptionPrice = buyOptionPrice;
-        this.realisedProfit = -1 * (this.buyQuantity * this.buyOptionPrice);
-        log.info("Initialising realised profit with: {}, buyOptionPrice: {} for order: {}", this.realisedProfit, buyOptionPrice, this);
+        initializeRealisedProfit(buyOptionPrice);
     }
 
     @Override
     public void incrementSoldQuantity(int soldQuantity, double sellOptionPrice) {
-        this.soldQuantity += soldQuantity;
-        this.realisedProfit += soldQuantity * sellOptionPrice;
+        super.incrementSoldQuantity(soldQuantity, sellOptionPrice);
         this.sellOptionPrice = sellOptionPrice;
-        log.info("Updating realised profit to: {}, sellOptionPrice: {} for order: {}", this.realisedProfit, sellOptionPrice, this);
     }
 
     @Override
@@ -98,10 +83,10 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)  {
+        if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass())  {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         ActiveIndexOrder that = (ActiveIndexOrder) o;

@@ -230,11 +230,18 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
-| KiteService | ❌ | Use synchronization |
+| KiteService | ✅ | All API calls serialized via `ApiRateLimiter` (fair `ReentrantLock`) |
 | InstrumentCache | ✅ | Double-checked locking |
 | KiteWebSocket | ✅ | CopyOnWriteArrayList for token lists, volatile isConnected |
 | OrderUtils | ✅ | Static methods |
 | InstrumentFileUtils | ✅ | Thread-safe IO |
+
+### ApiRateLimiter (Internal)
+
+Package-private class that serializes all Kite API calls through a fair `ReentrantLock` to prevent concurrent API access. Features:
+- 12-second lock acquisition timeout (configurable via `lockTimeoutSeconds`)
+- Wait time logging when lock contention exceeds 100ms
+- `executeWithLockChecked` variant propagates `IOException`/`KiteException`
 
 ---
 

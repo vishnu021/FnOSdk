@@ -3,18 +3,12 @@ package com.vish.fno.model.order.activeorder;
 import com.vish.fno.model.Task;
 import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
 import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Getter
 public final class OptionBasedActiveOrder extends AbstractActiveOrder {
     private final Task task;
     private final String index;
     private final int lotSize;
-    @Setter
-    private boolean isActive;
-    private double realisedProfit;
 
     public OptionBasedActiveOrder(OptionBasedOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
                                   int quantity, int lotSize) {
@@ -30,33 +24,22 @@ public final class OptionBasedActiveOrder extends AbstractActiveOrder {
         this.index = openOrder.getIndex();
         this.task = openOrder.getTask();
         this.lotSize = lotSize;
-        this.isActive = true;
+        // Initialize realised profit directly from buy price (no separate option price)
         this.realisedProfit = -1 * (this.buyQuantity * this.buyPrice);
         this.extraData.put("entryDateTime", timestamp);
     }
 
     @Override
-    public void incrementSoldQuantity(int soldQuantity, double sellOptionPrice) {
-        this.soldQuantity += soldQuantity;
-        this.realisedProfit += soldQuantity * sellOptionPrice;
-        log.info("updating realised profit to: {} for order: {}", this.realisedProfit, this);
-    }
-
     public double getProfit() {
         return (getSellPrice() - getBuyPrice()) * this.getBuyQuantity();
     }
 
+    @Override
     public void setStopLoss(double stopLoss) {
-        if(this.stopLoss < stopLoss) {
+        // OptionBasedActiveOrder uses default call order behavior (only increase stop-loss)
+        if (this.stopLoss < stopLoss) {
             updateStopLoss(stopLoss);
         }
-    }
-    @Override
-    public void closeOrder(double closePrice, int timeIndex, String timestamp) {
-        setActive(false);
-        setExitTimeStamp(timeIndex);
-        setSellPrice(closePrice);
-        this.extraData.put("exitDateTime", timestamp);
     }
 
     @Override
