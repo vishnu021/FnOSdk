@@ -2,7 +2,7 @@ package com.vish.fno.technical.indicators;
 
 import com.vish.fno.model.Candle;
 import com.vish.fno.technical.indicators.ma.ExponentialMovingAverage;
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,8 +11,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.CandleUtils.getCandleData;
-import static com.vish.fno.util.CandleUtils.getEmaData;
+import static com.vish.fno.util.FileUtils.getEmaData;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
@@ -34,8 +33,8 @@ class ExponentialMovingAverageTest {
     @Test
     public void testCalculateEMAWithLastEma() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
-        List<Candle> prevDayCandles = CandleUtils.getPrevDayCandleData(resourcePath + prevDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> prevDayCandles = FileUtils.getPrevDayCandleData(resourcePath + prevDayFile);
         List<Double> expectedEMA14 = getEmaData(resourcePath + "ema14withPrevEma.txt");
         // When
         List<Double> actualEma = underTest.calculate(candles, prevDayCandles);
@@ -48,7 +47,7 @@ class ExponentialMovingAverageTest {
     @Test
     public void testCalculateEMA() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
         List<Double> expectedEMA14 = getEmaData(resourcePath + "ema14.txt");
         // When
         List<Double> ema14 = underTest.calculate(candles);

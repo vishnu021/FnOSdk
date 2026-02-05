@@ -1,7 +1,7 @@
 package com.vish.fno.technical.indicators;
 
 import com.vish.fno.model.Candle;
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,7 +10,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.CandleUtils.getEmaData;
+import static com.vish.fno.util.FileUtils.getEmaData;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
@@ -31,7 +31,7 @@ class RelativeStrengthIndexTest {
     @Test
     public void testCalculateRSI() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
         List<Double> expectedRSI14 = getEmaData(resourcePath + "rsi14.txt");
         // When
         List<Double> rsi = underTest.calculate(candles);
@@ -44,8 +44,8 @@ class RelativeStrengthIndexTest {
     @Test
     public void testCalculateRSIFromPrevData() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
-        List<Candle> prevDayCandles = CandleUtils.getPrevDayCandleData(resourcePath + prevDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> prevDayCandles = FileUtils.getPrevDayCandleData(resourcePath + prevDayFile);
         List<Double> expectedRSI14 = getEmaData(resourcePath + "rsi14withPrevRSI.txt");
         // When
         List<Double> rsi = underTest.calculate(candles, prevDayCandles);

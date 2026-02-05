@@ -22,7 +22,7 @@ Advanced strategy utilities: Heikin-Ashi trend analysis, price action detection,
 | `com.vish.fno.strategy` | HATrendUtils, Point2D, PointType |
 | `com.vish.fno.strategy.util` | CPRUtils |
 | `com.vish.fno.strategy.priceaction` | DataAnalyser, Point, ChartPoint, Vector2, Line |
-| `com.vish.fno.strategy.orderflow` | TargetAndStopLossStrategy, PartialRevisingStopLoss, OrderManagerUtils |
+| `com.vish.fno.strategy.orderflow` | TargetAndStopLossStrategy, PartialRevisingStopLoss, DualTargetRevisingStoplossStrategy, OrderManagerUtils |
 
 ---
 
@@ -164,6 +164,16 @@ PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
 **Lots to Sell:** 1→1, 2-3→2, 4-5→3, 6-7→4, 8+→2/3 total
 
 **Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high. Uses `isCallOrder()` helper: for `ActiveIndexOrder` checks `callOrder` flag, for `OptionBasedActiveOrder` always returns `true`.
+
+### DualTargetRevisingStoplossStrategy
+
+Planned dual-target strategy where first target acts as stop-loss in reverse direction. **Not yet implemented** - throws `UnsupportedOperationException` if used.
+
+```java
+// NOT YET IMPLEMENTED - will throw UnsupportedOperationException
+DualTargetRevisingStoplossStrategy strategy = new DualTargetRevisingStoplossStrategy();
+strategy.isTargetAchieved(order, ltp); // throws UnsupportedOperationException
+```
 
 ### OrderManagerUtils
 

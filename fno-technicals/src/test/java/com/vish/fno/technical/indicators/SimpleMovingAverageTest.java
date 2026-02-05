@@ -2,7 +2,7 @@ package com.vish.fno.technical.indicators;
 
 import com.vish.fno.model.Candle;
 import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,7 +11,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.CandleUtils.getSmaData;
+import static com.vish.fno.util.FileUtils.getSmaData;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
@@ -33,8 +33,8 @@ class SimpleMovingAverageTest {
     @Test
     public void testCalculateSMAWithLastSMA() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
-        List<Candle> prevDayCandles = CandleUtils.getPrevDayCandleData(resourcePath + prevDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> prevDayCandles = FileUtils.getPrevDayCandleData(resourcePath + prevDayFile);
         List<Double> expectedEMA14 = getSmaData(resourcePath + "sma14withPrevSMA.txt");
         // When
         List<Double> actualSMA = underTest.calculate(candles, prevDayCandles);
@@ -47,7 +47,7 @@ class SimpleMovingAverageTest {
     @Test
     public void testCalculateSMA() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
         List<Double> expectedSMA14 = getSmaData(resourcePath + "sma14.txt");
         // When
         List<Double> sma14 = underTest.calculate(candles);

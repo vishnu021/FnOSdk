@@ -1,4 +1,4 @@
-package com.vish.fno.reader.service;
+package com.vish.fno.reader.core;
 
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import lombok.extern.slf4j.Slf4j;

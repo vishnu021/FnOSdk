@@ -12,7 +12,7 @@ Utility functions for candlestick manipulation, time operations, file handling, 
 
 | Package | Description |
 |---------|-------------|
-| `com.vish.fno.util` | Core utilities (CandleUtils, TimeUtils, Utils, FnoConstants) |
+| `com.vish.fno.util` | Core utilities (CandleUtils, TimeUtils, PriceUtils, FileUtils, FnoConstants) |
 | `com.vish.fno.util.chart` | HeikinAshi transformations |
 | `com.vish.fno.util.helper` | Caching (DataCache, TimeSource, CandlestickDataProvider, TradingHoursValidator) |
 | `com.vish.fno.util.position` | Position sizing (PositionSizingService, PositionSize, LotSizeProvider) |
@@ -37,9 +37,8 @@ All methods static and thread-safe.
 | `contains(Candle, double)` | `boolean` | Price within candle range |
 | `findLocalMinimum(List<Candle>, int, int)` | `int` | Index of local min (-1 if not found) |
 | `findLocalMaximum(List<Candle>, int, int)` | `int` | Index of local max (-1 if not found) |
-| `getCandleData(String)` | `List<Candle>` | Read from JSON file |
-| `getPrevDayCandleData(String)` | `List<Candle>` | Previous day candles |
-| `getSmaData(String)` / `getEmaData(String)` / `getBBData(String)` | `List<Double>` | Read indicator data |
+
+**Note:** File reading methods (`getCandleData`, `getPrevDayCandleData`, `getSmaData`, `getEmaData`, `getBBData`) have been moved to `FileUtils`.
 
 ---
 
@@ -71,19 +70,20 @@ All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Tradin
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `currentTime()` | `Date` | Current system time |
-| `getTime()` | `String` | Current time as "HH:mm" |
-| `getTodayDate()` | `String` | Today as "yyyy-MM-dd" |
+| `currentTime()` | `Date` | Current system time (**@Deprecated** - use `TimeSource`) |
+| `getTime()` | `String` | Current time as "HH:mm" (**@Deprecated** - use `TimeSource.now()`) |
+| `getTodayDate()` | `String` | Today as "yyyy-MM-dd" (**@Deprecated** - use `TimeSource.getTodaysDateString()` or `getStringDate(date)`) |
 | `getStringDate(Date)` | `String` | Date as "yyyy-MM-dd" (empty string if null) |
 | `getStringYear(Date)` | `String` | Year as format string (empty if null) |
 | `getIndexOfTimeStamp(Date)` | `int` | Minute index (0-375, -1 if outside hours) |
 | `getTimeByIndex(int)` | `String` | Time for minute index |
-| `getOpeningTime()` / `getClosingTime()` | `Date` | Today at 9:15 AM / 3:30 PM |
+| `getOpeningTime()` / `getClosingTime()` | `Date` | Today at 9:15 AM / 3:30 PM (**@Deprecated** - use `appendOpeningTimeToDate(date)` / `appendClosingTimeToDate(date)`) |
 | `appendOpeningTimeToDate(Date)` | `Date` | Set time to 9:15 AM |
 | `appendClosingTimeToDate(Date)` | `Date` | Set time to 3:30 PM |
 | `getPreviousWorkDay(Date)` | `Date` | Previous weekday |
 | `getDatesBetween(Date, Date)` | `List<Date>` | Weekdays in range |
-| `getNDaysBefore(long)` / `getNDaysBefore(Date, long)` | `Date` | N days before |
+| `getNDaysBefore(long)` | `Date` | N days before today (**@Deprecated** - use `getNDaysBefore(Date, long)`) |
+| `getNDaysBefore(Date, long)` | `Date` | N days before given date |
 | `getTimeElapsed(long)` | `String` | Human-readable elapsed time |
 | `isWithinTradingHours(long)` | `boolean` | Check if in trading hours |
 | `parseCandlestickTimestamp(String)` | `long` | Parse ms or ISO-8601 |
@@ -126,9 +126,9 @@ All methods static and thread-safe.
 
 ---
 
-### Utils
+### PriceUtils
 
-All methods static and thread-safe.
+Renamed from `Utils`. All methods static and thread-safe.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -138,18 +138,6 @@ All methods static and thread-safe.
 | `roundTo5Paise(double)` | `BigDecimal` | BigDecimal to 5 paise |
 | `roundToNearest(BigDecimal, BigDecimal)` | `BigDecimal` | Round to increment |
 | `getTopNLines(Throwable, int)` | `String` | Top N stack trace lines |
-
----
-
-### ActiveOrderFormatter
-
-Static utility for formatting ActiveOrder to CSV/log formats. Thread-safe.
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `csvHeader(ActiveOrder)` | `String` | CSV header with extra data keys |
-| `toCSV(ActiveOrder)` | `String` | CSV row (type-specific) |
-| `orderLog(ActiveOrder)` | `String` | Formatted log string |
 
 ---
 
@@ -221,7 +209,9 @@ Static, thread-safe. GZIP compression for tick data.
 
 ### FileUtils
 
-Instance-based, NOT thread-safe. Uses `File.separator` for cross-platform paths.
+Instance methods are NOT thread-safe. Static methods are thread-safe. Uses `File.separator` for cross-platform paths.
+
+**Instance Methods:**
 
 | Method | Description |
 |--------|-------------|
@@ -230,6 +220,22 @@ Instance-based, NOT thread-safe. Uses `File.separator` for cross-platform paths.
 | `saveTickData(symbol, tick)` | Save tick (overwrite) |
 | `appendTickToFile(symbol, tick)` | Append tick |
 | `logCompletedOrder(ActiveOrder)` | Log to `orderLog/` directory |
+
+**Static File Reading Methods** (moved from CandleUtils):
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getCandleData(String)` | `List<Candle>` | Read candles from JSON file |
+| `getPrevDayCandleData(String)` | `List<Candle>` | Read previous day candles from JSON |
+| `getSmaData(String)` / `getEmaData(String)` / `getBBData(String)` | `List<Double>` | Read indicator data from file |
+
+**Static ActiveOrder Formatting Methods** (merged from removed `ActiveOrderFormatter`):
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `csvHeader(ActiveOrder)` | `String` | CSV header with extra data keys |
+| `toCSV(ActiveOrder)` | `String` | CSV row (type-specific) |
+| `orderLog(ActiveOrder)` | `String` | Formatted log string |
 
 ---
 
@@ -262,7 +268,7 @@ Abstraction for time injection (production, backtest, unit test).
 
 ### AbstractDataCache
 
-Base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + ConcurrentLinkedDeque). Max 100 ticks per symbol with FIFO eviction.
+Package-private base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + ConcurrentLinkedDeque). Max 500 ticks per symbol with FIFO eviction.
 
 ### DataCacheImpl
 
@@ -286,7 +292,7 @@ Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` r
 
 ### CandleStickCache
 
-In-memory intraday cache by symbol. Thread-safe (uses `ConcurrentHashMap`).
+Package-private in-memory intraday cache by symbol. Thread-safe (uses `ConcurrentHashMap`).
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -297,7 +303,7 @@ In-memory intraday cache by symbol. Thread-safe (uses `ConcurrentHashMap`).
 
 ### HistoricDataCache
 
-Spring `@Component` for historical data (date -> symbol -> candles). NOT thread-safe.
+Package-private cache for historical data (date -> symbol -> candles). NOT thread-safe.
 
 ### TradingHoursValidator (NEW)
 
@@ -362,7 +368,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, Map<String, Intege
 
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
-| CandleUtils, TimeUtils, CandlePatternUtils, Utils | ✅ | Static methods |
+| CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
 | JsonUtils, CompressionUtils | ✅ | Static methods |
 | AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + ConcurrentLinkedDeque |
 | TimeProvider | ✅ | Instance methods |
@@ -379,7 +385,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, Map<String, Intege
 - **Time parsing:** Returns `Optional.empty()` on failure (was null prior to Java 21 upgrade)
 - `TimeUtils.parseCandlestickTimestamp()` returns current time on failure
 - `CandleUtils.findLocalMinimum/Maximum()` returns -1 if not found
-- `LimitedCache` returns empty list for non-existent keys
+- `FileUtils` static methods for file reading throw `RuntimeException` on IO failure
 
 ---
 

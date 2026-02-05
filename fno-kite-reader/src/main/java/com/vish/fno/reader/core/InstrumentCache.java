@@ -1,4 +1,4 @@
-package com.vish.fno.reader.service;
+package com.vish.fno.reader.core;
 
 import com.vish.fno.reader.util.InstrumentFileUtils;
 import com.vish.fno.util.TimeUtils;

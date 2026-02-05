@@ -1,4 +1,4 @@
-package com.vish.fno.reader.service;
+package com.vish.fno.reader.core;
 
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.models.Order;

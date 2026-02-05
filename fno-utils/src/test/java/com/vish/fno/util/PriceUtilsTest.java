@@ -5,11 +5,11 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-import static com.vish.fno.util.Utils.round;
-import static com.vish.fno.util.Utils.roundTo5Paise;
+import static com.vish.fno.util.PriceUtils.round;
+import static com.vish.fno.util.PriceUtils.roundTo5Paise;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class UtilsTest {
+class PriceUtilsTest {
 
     @Test
     void roundToNearestFiveCentsTest() {

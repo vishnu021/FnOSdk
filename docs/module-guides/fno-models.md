@@ -21,7 +21,7 @@ Foundation module providing core POJOs and interfaces for F&O trading operations
 | `com.vish.fno.model.order.activeorder` | Active order tracking and lifecycle |
 | `com.vish.fno.model.order` | Order sell details, exit reasons |
 | `com.vish.fno.model.helper` | Order flow and ITM resolver interfaces |
-| `com.vish.fno.model.cache` | Thread-safe caching utilities |
+| `com.vish.fno.model.cache` | Order caching utilities |
 | `com.vish.fno.model.util` | Model utilities (rounding, formatting) |
 | `com.vish.fno.model.wyckoff` | Wyckoff phase models and interfaces |
 | `com.vish.fno.model.strategy` | Strategy interfaces (Task, Strategy) |
@@ -79,7 +79,7 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
 | `isStopLossHit(double)` | `boolean` | Checks if SL hit |
 | `getProfit()` | `double` | Calculates P&L |
 
-**Note:** For CSV export and logging, use `ActiveOrderFormatter` from fno-utils.
+**Note:** For CSV export and logging, use `FileUtils.csvHeader()`, `FileUtils.toCSV()`, and `FileUtils.orderLog()` from fno-utils.
 
 ### AbstractActiveOrder
 
@@ -155,23 +155,6 @@ Factory methods: `ExitDetail.forRegularOrder(qty, price)`, `ExitDetail.forIndexO
 ---
 
 ## Cache Package
-
-### LimitedCache<K, V>
-
-Thread-safe generic cache with FIFO eviction.
-
-```java
-LimitedCache<String, Ticker> cache = new LimitedCache<>(100);
-cache.put(symbol, ticker);
-List<Ticker> tickers = cache.get(symbol);  // Defensive copy
-```
-
-| Method | Thread-Safe | Description |
-|--------|-------------|-------------|
-| `put(K, V)` | ✅ Write lock | Adds with FIFO eviction |
-| `get(K)` | ✅ Read lock | Returns defensive copy |
-| `keySet()` | ✅ | Unmodifiable key set |
-| `size(K)` | ✅ Read lock | Entry count for key |
 
 ### OrderCache
 
@@ -318,7 +301,6 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
-| LimitedCache | ✅ | Read/write locks |
 | OrderCache (cash ops) | ✅ | Synchronized methods |
 | OrderCache (collections) | ✅ | CopyOnWriteArrayList |
 | Wyckoff Records | ✅ | Immutable |
@@ -331,13 +313,13 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 - **OrderRequest tag**: Null becomes empty string
 - **ActiveOrder stop loss**: Trailing only in beneficial direction
 - **OrderCache**: `addOrderRequest()` removes duplicates first
-- **LimitedCache**: Returns empty list for non-existent keys
+- **OrderCache**: `removeActiveOrder()` moves order to completed before removing from active
 
 ---
 
 ## See Also
 
-- **fno-utils**: Utilities including ActiveOrderFormatter
+- **fno-utils**: Utilities including FileUtils (order formatting)
 - **fno-kite-reader**: KiteITMResolver implementation
 - **fno-technicals**: Technical indicators using Candle data
 - **fno-phase-analyzer**: Wyckoff phase identifier implementations

@@ -12,7 +12,7 @@ import java.util.Locale;
 @SuppressWarnings("PMD.AvoidDecimalLiteralsInBigDecimalConstructor")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ModelUtils {
-    public static final String INDENTED_TAB = "\n\t\t\t\t\t\t\t\t";
+    public static final String INDENTED_TAB = "\n\t\t\t\t\t\t";
     private static final String DATE_FORMAT = "yyyy-MM-dd";
     private static final String TIME_FORMAT = "HH:mm:ss.SSS";
     private static final String DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm";

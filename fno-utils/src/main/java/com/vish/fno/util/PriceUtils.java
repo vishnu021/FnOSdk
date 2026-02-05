@@ -8,7 +8,7 @@ import java.math.RoundingMode;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 @SuppressWarnings("PMD.AvoidDecimalLiteralsInBigDecimalConstructor")
-public final class Utils {
+public final class PriceUtils {
 
     public static String getStringRoundedPrice(final double price) {
         boolean signed = price < 0;

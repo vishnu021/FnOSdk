@@ -139,6 +139,7 @@ public final class TimeUtils {
         return calendar.getTime();
     }
 
+    @Deprecated(forRemoval = true)
     public static Date currentTime() {
         return new Date(System.currentTimeMillis());
     }
@@ -192,7 +193,9 @@ public final class TimeUtils {
      * Gets today's date in DATE_FORMAT (thread-safe).
      *
      * @return formatted date string
+     * @deprecated Use {@code TimeSource.getTodaysDateString()} or {@code TimeUtils.getStringDate(date)} instead.
      */
+    @Deprecated(forRemoval = true)
     public static String getTodayDate() {
         return DATE_FORMATTER.format(LocalDate.now());
     }
@@ -231,6 +234,10 @@ public final class TimeUtils {
         return timeArray.get(index);
     }
 
+    /**
+     * @deprecated Use {@code appendOpeningTimeToDate(date)} instead.
+     */
+    @Deprecated(forRemoval = true)
     public static Date getOpeningTime() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, MARKET_OPEN_HOUR);
@@ -240,6 +247,10 @@ public final class TimeUtils {
         return calendar.getTime();
     }
 
+    /**
+     * @deprecated Use {@code appendClosingTimeToDate(date)} instead.
+     */
+    @Deprecated(forRemoval = true)
     public static Date getClosingTime() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, MARKET_CLOSE_HOUR);
@@ -298,6 +309,10 @@ public final class TimeUtils {
         return String.format("%s minutes, %s seconds, %s milliseconds", minutes, seconds, millis);
     }
 
+    /**
+     * @deprecated Use {@code getNDaysBefore(date, n)} instead.
+     */
+    @Deprecated(forRemoval = true)
     public static Date getNDaysBefore(long n) {
         return new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(n));
     }
@@ -310,7 +325,9 @@ public final class TimeUtils {
      * Gets current time in HH:mm format (thread-safe).
      *
      * @return formatted time string
+     * @deprecated Use {@code TimeSource.now()} with formatting instead.
      */
+    @Deprecated(forRemoval = true)
     public static String getTime() {
         return TIME_FORMATTER.format(LocalTime.now());
     }

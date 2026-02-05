@@ -18,9 +18,9 @@ Located in `docs/`, this document provides:
 
 Each module has a comprehensive guide with complete API documentation:
 - **fno-models.md** - Core data models (orders, candles, instruments, Task interface with getLots())
-- **fno-utils.md** - Utility functions (candle ops, time utils, order formatting)
+- **fno-utils.md** - Utility functions (candle ops, time utils, price utils, order formatting via FileUtils)
 - **fno-technicals.md** - Technical indicators and Greeks
-- **fno-kite-reader.md** - Kite Connect API integration (diagnostics, WebSocket)
+- **fno-kite-reader.md** - Kite Connect API integration (core package: KiteService, KiteWebSocket, InstrumentCache)
 - **fno-strategy-utils.md** - Strategy utilities (trend analysis, CPR, price action, partial profit booking)
 - **fno-phase-analyzer.md** - Wyckoff phase identification and market regime detection
 
@@ -30,7 +30,7 @@ Located at the root, this is for **FnOSdk development only** (not for SDK consum
 - Build commands and testing
 - Module architecture
 - Code quality standards (PMD rules)
-- Contribution guidelines
+- Java 21 patterns and conventions
 
 **How AI agents should use documentation:**
 When an AI agent needs to:
@@ -44,7 +44,7 @@ When an AI agent needs to:
 
 ### 4. Project-Specific Integration
 
-For projects using FnOSdk (like OptionsAnalyzer), reference module guides directly:
+For projects using FnOSdk, reference module guides directly:
 
 ```markdown
 ## SDK Dependencies: FnOSdk
@@ -63,182 +63,164 @@ For projects using FnOSdk (like OptionsAnalyzer), reference module guides direct
 When generating code using FnOSdk, AI agents should read the specific module guide for exact API signatures and examples.
 ```
 
+---
+
+## Key Classes Quick Reference
+
+| Class | Package | Purpose |
+|-------|---------|---------|
+| `Candle` | `com.vish.fno.model` | OHLCV record (7 fields) |
+| `Ticker` | `com.vish.fno.model` | Real-time tick record (21 fields) |
+| `OrderRequest` | `com.vish.fno.model.order.orderrequest` | Order creation interface |
+| `ActiveOrder` | `com.vish.fno.model.order.activeorder` | Active trade tracking interface |
+| `CandleUtils` | `com.vish.fno.util` | Static candle analysis methods |
+| `PriceUtils` | `com.vish.fno.util` | Price rounding and formatting |
+| `FileUtils` | `com.vish.fno.util` | File I/O and order formatting (CSV, logs) |
+| `TimeUtils` | `com.vish.fno.util` | Date/time and trading hours |
+| `SimpleMovingAverage` | `com.vish.fno.technical.indicators.ma` | SMA indicator |
+| `RelativeStrengthIndex` | `com.vish.fno.technical.indicators` | RSI indicator |
+| `KiteService` | `com.vish.fno.reader.core` | Main Kite API facade |
+| `KiteWebSocket` | `com.vish.fno.reader.core` | Real-time tick streaming |
+| `InstrumentCache` | `com.vish.fno.reader.core` | Symbol/token mapping |
+| `HATrendUtils` | `com.vish.fno.strategy` | Heikin-Ashi trend analysis |
+| `CPRUtils` | `com.vish.fno.strategy.util` | Central Pivot Range calculations |
+| `PartialRevisingStopLoss` | `com.vish.fno.strategy.orderflow` | Dynamic stop-loss with partial profit |
+| `WyckoffPhaseIdentifierFactory` | `com.vish.fno.phase.factory` | Wyckoff phase identifier factory |
+
+---
+
 ## How AI Agents Should Use This Documentation
 
 ### Scenario 1: User asks to implement a moving average crossover strategy
 
 **AI Agent Action:**
 1. Identify need for technical indicator → requires `fno-technicals` module
-2. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-technicals.md`
+2. Read `docs/module-guides/fno-technicals.md`
 3. Find "Simple Moving Average (SMA)" section with API reference
-4. Copy exact API signature and review code example
-5. Generate code using the documented pattern
+4. Generate code using the documented pattern
 
-**Result:** Code that correctly uses `new SimpleMovingAverage(period)` with proper method signatures.
+**Result:**
+```java
+import com.vish.fno.technical.indicators.ma.SimpleMovingAverage;
+
+SimpleMovingAverage sma20 = new SimpleMovingAverage(20);
+List<Double> smaValues = sma20.calculate(candles);
+```
 
 ### Scenario 2: User asks to place a futures order via Kite
 
 **AI Agent Action:**
-1. Identify needs: Order model + Kite API → requires `fno-models` and `fno-kite-reader`
-2. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-models.md` for IndexOrderRequest
-3. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-kite-reader.md` for KiteService
-4. Review examples showing order placement with error handling
-5. Generate code using Builder pattern as documented
+1. Read `docs/module-guides/fno-models.md` for IndexOrderRequest
+2. Read `docs/module-guides/fno-kite-reader.md` for KiteService
+3. Generate code using Builder pattern as documented
 
-**Result:** Code that uses `IndexOrderRequest.builder()` correctly with all required fields and proper exception handling.
+**Result:**
+```java
+import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import com.vish.fno.reader.core.KiteService;
+
+IndexOrderRequest order = IndexOrderRequest.builder("TAG", "NIFTY", task)
+    .optionSymbol("NIFTY24OCT19500CE")
+    .buyThreshold(19500.0).target(19600.0).stopLoss(19450.0)
+    .callOrder(true).build();
+
+Optional<KiteOpenOrder> result = kiteService.buyOrder(symbol, qty, tag, true);
+```
 
 ### Scenario 3: User asks to calculate option Greeks
 
 **AI Agent Action:**
-1. Identify need for Options Greeks → requires `fno-technicals` module
-2. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-technicals.md`
-3. Find "Options Greeks" section with Delta, Gamma, Theta, Vega
-4. Note the common parameter structure across all Greeks
-5. Review interpretation guidelines and examples
+1. Read `docs/module-guides/fno-technicals.md`
+2. Find "Options Greeks" section with Delta, Gamma, Theta, Vega
 
-**Result:** Code that calls `Delta.calculate(spot, strike, tte, rfr, iv, "CE")` with correct parameter types and order.
-
-## Benefits of This Approach
-
-### For AI Agents:
--  **Accurate API usage** - Exact method signatures provided
--  **Context-aware** - Knows which module provides which functionality
--  **Pattern-based** - Can replicate proven integration patterns
--  **Error handling** - Knows which exceptions to catch
--  **Best practices** - Generates production-ready code
-
-### For Human Developers:
--  **Consistent code** - AI generates code following project conventions
--  **Less debugging** - Correct API usage from the start
--  **Faster development** - AI can scaffold entire features correctly
--  **Documentation as code** - Single source of truth
-
-## Maintaining AI Agent Documentation
-
-### When adding new features:
-
-1. **Update class documentation in CLAUDE.md**
-```markdown
-#### `NewIndicator` - Description
-\`\`\`java
-public class NewIndicator extends AbstractIndicator {
-    public NewIndicator(int param1, double param2)
-    public List<Double> calculate(List<Candle> candles)
-}
-\`\`\`
-
-**Example:**
-\`\`\`java
-NewIndicator indicator = new NewIndicator(14, 0.5);
-List<Double> values = indicator.calculate(candles);
-\`\`\`
-```
-
-2. **Add integration pattern if applicable**
-```markdown
-### Pattern 4: Using NewIndicator for XYZ
-\`\`\`java
-// Complete working example
-\`\`\`
-```
-
-3. **Update "Best Practices" if new patterns emerge**
-
-### When deprecating features:
-
-Mark clearly in CLAUDE.md:
-```markdown
-#### `OldClass` - **DEPRECATED**
-**Use `NewClass` instead.**
-```
-
-## Example: How Claude Code Uses This
-
-When a user in OptionsAnalyzer asks:
-> "Add RSI indicator calculation to the candlestick service"
-
-Claude Code will:
-1. Check OptionsAnalyzer's CLAUDE.md or skill configuration
-2. Identify FnOSdk dependency for technical indicators
-3. Read `/Users/vishnushankar/workspace/FnOSdk/docs/module-guides/fno-technicals.md`
-4. Find "Relative Strength Index (RSI)" section with:
-   - Complete API: `new RelativeStrengthIndex(14)` and `.calculate(candles)`
-   - Parameter explanations (period = 14 typical)
-   - Interpretation guide (RSI < 30 = oversold, RSI > 70 = overbought)
-   - Working code example
-5. Generate code:
-
+**Result:**
 ```java
-import com.vish.fno.technical.indicators.RelativeStrengthIndex;
-import com.vish.fno.model.Candle;
-import java.util.List;
+import com.vish.fno.technical.greeks.Delta;
 
-public class CandlestickService {
-    private final RelativeStrengthIndex rsi14 = new RelativeStrengthIndex(14);
-
-    public List<Double> calculateRSI(List<Candle> candles) {
-        return rsi14.calculate(candles);
-    }
-
-    public String getSignal(List<Candle> candles) {
-        List<Double> rsiValues = calculateRSI(candles);
-        double currentRSI = rsiValues.get(rsiValues.size() - 1);
-
-        if (currentRSI < 30) return "OVERSOLD";
-        if (currentRSI > 70) return "OVERBOUGHT";
-        return "NEUTRAL";
-    }
-}
+double delta = Delta.calculateDelta(spot, strike, tte, rfr, iv, true); // true for call
 ```
+
+### Scenario 4: User asks for CPR levels and trend analysis
+
+**AI Agent Action:**
+1. Read `docs/module-guides/fno-strategy-utils.md`
+2. Find CPRUtils and HATrendUtils sections
+
+**Result:**
+```java
+import com.vish.fno.strategy.util.CPRUtils;
+import com.vish.fno.strategy.HATrendUtils;
+
+Map<String, Float> pivots = CPRUtils.getFloorPivots(previousDayCandle);
+Trend currentTrend = HATrendUtils.getTrend(candles);
+```
+
+### Scenario 5: User asks for Wyckoff phase identification
+
+**AI Agent Action:**
+1. Read `docs/module-guides/fno-phase-analyzer.md`
+
+**Result:**
+```java
+import com.vish.fno.phase.factory.WyckoffPhaseIdentifierFactory;
+import com.vish.fno.phase.factory.WyckoffIdentifierType;
+
+WyckoffPhaseIdentifierFactory factory = new WyckoffPhaseIdentifierFactory();
+IWyckoffPhaseIdentifier identifier = factory.getIdentifier(WyckoffIdentifierType.STRUCTURE_SWING);
+WyckoffPhase phase = identifier.identifyPhase(candles, candles.size() - 1);
+```
+
+---
+
+## Important Conventions
+
+### Code Style
+- **Logging:** Always use Lombok `@Slf4j` with `log.info()`, `log.debug()` - never `System.out.println()`
+- **Imports:** No wildcard imports (`import java.util.*`) - always explicit
+- **Optional:** Use `Optional` for methods that may fail - never `.orElse(null)`
+- **Java 21:** Use pattern matching switch, records, `.toList()` (not `.collect(Collectors.toList())`)
+- **Thread safety:** `ConcurrentHashMap` for shared maps, `CopyOnWriteArrayList` for read-heavy lists
+
+### Module Dependency Order
+```
+fno-models (foundation) → fno-utils → fno-technicals → fno-kite-reader → fno-strategy-utils → fno-phase-analyzer
+```
+
+Adding a higher-level module automatically includes all its dependencies.
+
+---
 
 ## Testing AI Agent Understanding
 
 To verify an AI agent correctly uses the documentation, test with:
 
-**Test 1: "Calculate 20-period SMA for a list of candles"**
-Expected: Uses `SimpleMovingAverage(20)` and `calculate(candles)`
+| Prompt | Expected Usage |
+|--------|---------------|
+| "Calculate 20-period SMA" | `new SimpleMovingAverage(20)` + `calculate(candles)` |
+| "Place a market order for NIFTY" | `IndexOrderRequest.builder()` with correct fields |
+| "Calculate delta for ATM call" | `Delta.calculateDelta(spot, strike, tte, rfr, iv, true)` |
+| "Get historical data from Kite" | `kiteService.getHistoricalData(from, to, symbol, "minute", false)` |
+| "Format order as CSV" | `FileUtils.toCSV(order)` and `FileUtils.csvHeader(order)` |
+| "Round price to 5 paise" | `PriceUtils.roundTo5Paise(price)` |
+| "Detect Wyckoff phase" | `WyckoffPhaseIdentifierFactory` + `identifyPhase()` |
 
-**Test 2: "Place a market order for NIFTY futures"**
-Expected: Uses `IndexOrderRequest.builder()` with correct fields
-
-**Test 3: "Calculate delta for an ATM NIFTY call option"**
-Expected: Uses `Delta.calculateDelta()` with 6 parameters in correct order (stockPrice, strikePrice, timeToExpiryInYears, riskFreeRate, volatility, isCall)
-
-## Future Enhancements
-
-Potential additions to make documentation even more AI-friendly:
-
-1. **JSON Schema** for request/response objects
-2. **OpenAPI spec** for REST endpoints
-3. **Decision trees** for choosing between different approaches
-4. **Error code reference** with suggested fixes
-5. **Performance guidelines** (e.g., "Don't call this in a loop")
-
-## Feedback Loop
-
-If AI agents consistently generate incorrect code:
-1. Review CLAUDE.md for clarity in that section
-2. Add more examples
-3. Clarify ambiguous method signatures
-4. Add warnings for common mistakes
+---
 
 ## Summary
 
-FnOSdk's **modular documentation** (`docs/module-guides/*.md`) serves as a comprehensive knowledge base that AI agents can query to generate correct, production-ready code without trial and error. The documentation is designed to be:
+FnOSdk's **modular documentation** (`docs/module-guides/*.md`) serves as a comprehensive knowledge base that AI agents can query to generate correct, production-ready code. The documentation is:
 
-- **Complete**: Every public API is documented in its module guide
+- **Complete**: Every public API documented in its module guide
 - **Practical**: Every feature has working, tested examples
 - **Contextual**: Integration patterns show real-world usage across modules
-- **Maintainable**: Automatically updated when code changes (via .claude/agents/fnosdk-doc-watcher)
+- **Maintainable**: Updated when code changes (via `.claude/agents/fnosdk-doc-watcher`)
 - **AI-Optimized**: Exact signatures, parameter types, and return values for code generation
 
 **Key Documentation Files:**
 - `docs/SDK_USAGE.md` - Entry point with quick reference
-- `docs/module-guides/fno-models.md` - Order models, market data structures, Task interface (getLots())
-- `docs/module-guides/fno-utils.md` - Utility functions and helpers
+- `docs/module-guides/fno-models.md` - Order models, market data structures, Task interface
+- `docs/module-guides/fno-utils.md` - Utility functions (PriceUtils, FileUtils, CandleUtils, TimeUtils)
 - `docs/module-guides/fno-technicals.md` - Technical indicators and Greeks
-- `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration (diagnostics, WebSocket)
+- `docs/module-guides/fno-kite-reader.md` - Kite Connect API integration (core package)
 - `docs/module-guides/fno-strategy-utils.md` - Strategy utilities (CPR, trend analysis, partial profit booking)
 - `docs/module-guides/fno-phase-analyzer.md` - Wyckoff phase identification and market regime detection
-
-This modular approach turns AI coding assistants into **domain experts** for F&O trading applications using FnOSdk, while keeping documentation maintainable and always in sync with the code.

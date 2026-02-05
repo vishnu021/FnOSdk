@@ -1,4 +1,4 @@
-package com.vish.fno.reader.service;
+package com.vish.fno.reader.core;
 
 import com.vish.fno.model.helper.ITMResolver;
 import lombok.RequiredArgsConstructor;

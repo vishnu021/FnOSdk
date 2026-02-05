@@ -1,4 +1,4 @@
-package com.vish.fno.reader.service;
+package com.vish.fno.reader.core;
 
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.HistoricalData;
@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.vish.fno.util.FnoConstants.FUT;
-import static com.vish.fno.util.Utils.getTopNLines;
+import static com.vish.fno.util.PriceUtils.getTopNLines;
 
 @Slf4j
 @AllArgsConstructor

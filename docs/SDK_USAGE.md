@@ -11,7 +11,7 @@ This document serves as the entry point for consuming FnOSdk modules in your tra
 ```
 docs/module-guides/
 ├── fno-models.md          - Core data models (orders, candles, instruments, Task interface)
-├── fno-utils.md           - Utility functions (candle ops, time utils, order formatting)
+├── fno-utils.md           - Utility functions (candle ops, time utils, price utils, order formatting)
 ├── fno-technicals.md      - Technical indicators and Greeks
 ├── fno-kite-reader.md     - Kite Connect API integration (diagnostics, WebSocket)
 ├── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
@@ -187,7 +187,7 @@ double theta = Theta.calculateTheta(spot, strike, tte, rfr, iv, true);  // true 
 **Read**: [fno-kite-reader.md - Historical Data](module-guides/fno-kite-reader.md#historical-data)
 
 ```java
-import com.vish.fno.reader.service.KiteService;
+import com.vish.fno.reader.core.KiteService;
 
 Optional<HistoricalData> data = kiteService.getHistoricalData(from, to, "NIFTY 50", "minute", false);
 data.ifPresent(d -> log.info("Candles: {}", d.dataArrayList.size()));

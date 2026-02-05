@@ -44,7 +44,7 @@ Provides essential helper utilities and reusable patterns for trading operations
 **Key Features:**
 
 * Date/time handling, file utilities, and compression
-* Order formatting utilities (CSV export, logging)
+* Order formatting utilities (CSV export, logging) via FileUtils
 * Heikin-Ashi transformations and candle conversions
 * Thread-safe caching utilities
 * Candle pattern detection utilities
@@ -112,9 +112,9 @@ Handles data access and order management using the Zerodha Kite Connect API.
 **Example:**
 
 ```java
-HistoricalDataService service = new HistoricalDataService(kiteConnect);
-List<HistoricalData> data = service.getHistoricalData(
-    instrumentToken, startDate, endDate, "day");
+// Via KiteService (HistoricalDataService is internal)
+Optional<HistoricalData> data = kiteService.getHistoricalData(from, to, "NIFTY 50", "minute", false);
+data.ifPresent(d -> log.info("Candles: {}", d.dataArrayList.size()));
 ```
 
 **Maven Dependency:**
@@ -169,9 +169,9 @@ PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
 
 ## ⚙️ Requirements
 
-* Java 17 or later
+* Java 21 or later
 * Maven 3.6+
-* Optional: Spring Boot 3.2+ for dependency management
+* Optional: Spring Boot 3.4.1 for dependency management
 
 ---
 
@@ -415,9 +415,9 @@ This project uses FnOSdk for F&O trading operations. When generating code using 
 
 ### Module Guides
 - **fno-models:** Data models (Candle, Ticker, OrderRequest, Strategy interfaces)
-- **fno-utils:** Utilities (CandleUtils, TimeFrameUtils, JsonUtils, Trend enum)
+- **fno-utils:** Utilities (CandleUtils, PriceUtils, FileUtils, TimeFrameUtils, JsonUtils, Trend enum)
 - **fno-technicals:** Indicators (SMA, EMA, RSI, Bollinger Bands) & Greeks (Delta, Gamma, Theta, Vega, Rho)
-- **fno-kite-reader:** Kite Connect integration (KiteService, HistoricalDataService, WebSocket)
+- **fno-kite-reader:** Kite Connect integration (KiteService, KiteWebSocket, InstrumentCache - all in `core` package)
 - **fno-strategy-utils:** Advanced strategies (HATrendUtils, CPRUtils, DataAnalyser, PartialRevisingStopLoss)
 
 ### Important Notes
@@ -470,7 +470,7 @@ FnOSdk documentation is maintained to ensure:
 - ✅ **100% Accuracy** - All class names, method signatures match source code exactly
 - ✅ **Complete Imports** - All necessary imports included (excluding common Java utils)
 - ✅ **Compilable Examples** - Every example can be copy-pasted and runs
-- ✅ **Professional Standards** - Uses Lombok @Slf4j logging, Java 17 patterns
+- ✅ **Professional Standards** - Uses Lombok @Slf4j logging, Java 21 patterns
 - ✅ **Thread Safety Notes** - Documented for all classes
 - ✅ **Real-world Examples** - Realistic use cases, not toy examples
 
@@ -497,7 +497,7 @@ Create a `.claude/context/fnosdk.md` file in your project:
 - CandleUtils: `com.vish.fno.util.CandleUtils` (static utilities)
 - TimeFrameUtils: `com.vish.fno.util.TimeFrameUtils` (candle merging)
 - SimpleMovingAverage: `com.vish.fno.technical.indicators.ma.SimpleMovingAverage`
-- KiteService: `com.vish.fno.reader.service.KiteService`
+- KiteService: `com.vish.fno.reader.core.KiteService`
 - HATrendUtils: `com.vish.fno.strategy.HATrendUtils` (Heikin-Ashi trend analysis)
 - CPRUtils: `com.vish.fno.strategy.util.CPRUtils` (Central Pivot Range calculations)
 - DataAnalyser: `com.vish.fno.strategy.priceaction.DataAnalyser` (Price action analysis)
@@ -532,7 +532,7 @@ Your AI agent is properly configured when it:
 - ✅ Includes proper imports (`com.vish.fno.*`, Lombok)
 - ✅ Uses Lombok @Slf4j logging instead of System.out.println
 - ✅ Generates compilable code without manual fixes
-- ✅ Follows Java 17 patterns (records, .toList(), etc.)
+- ✅ Follows Java 21 patterns (records, .toList(), pattern matching switch, etc.)
 
 ### 📞 Support
 
@@ -554,7 +554,7 @@ For comprehensive information about the automation system:
 * **Skill Logic:** `.claude/skills/doc-maintainer.md` - Core documentation generation
 * **Future Plans:** `.claude/SUGGESTED_AGENTS_AND_SKILLS.md` - Roadmap for code review, testing, build agents
 * **Development Guide:** `CLAUDE.md` - For FnOSdk internal development
-* **Maintenance Guide:** `docs/DOCUMENTATION_MAINTENANCE.md` - Documentation strategy
+* **Automation Guide:** `docs/CLAUDE_AUTOMATION_GUIDE.md` - Claude Code automation recommendations
 
 This automation ensures documentation never goes stale as code evolves.
 

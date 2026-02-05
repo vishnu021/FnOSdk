@@ -1,7 +1,7 @@
 package com.vish.fno.strategy.util;
 
 import com.vish.fno.model.Candle;
-import com.vish.fno.util.Utils;
+import com.vish.fno.util.PriceUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -54,7 +54,7 @@ public final class CPRUtils {
     }
 
     private static void roundAndPut(Map<String, Float> floorPivots, String key, float value) {
-        floorPivots.put(key, ((float) Utils.round(value)));
+        floorPivots.put(key, ((float) PriceUtils.round(value)));
     }
 
 }

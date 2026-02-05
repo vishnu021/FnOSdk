@@ -1,7 +1,7 @@
 package com.vish.fno.technical.indicators;
 
 import com.vish.fno.model.Candle;
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,7 +10,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.CandleUtils.getBBData;
+import static com.vish.fno.util.FileUtils.getBBData;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j
@@ -32,7 +32,7 @@ class BollingerBandsTest {
     @Test
     public void testCalculateBB20() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
         List<Double> expectedBB20 = getBBData(resourcePath + "bb20_2.txt");
         // When
         List<Double> bb20 = underTest.calculate(candles);
@@ -45,8 +45,8 @@ class BollingerBandsTest {
     @Test
     public void testCalculateBB20withPrevData() {
         //Given
-        List<Candle> candles = CandleUtils.getCandleData(resourcePath + currentDayFile);
-        List<Candle> prevDayCandles = CandleUtils.getCandleData(resourcePath + prevDayFile);
+        List<Candle> candles = FileUtils.getCandleData(resourcePath + currentDayFile);
+        List<Candle> prevDayCandles = FileUtils.getCandleData(resourcePath + prevDayFile);
         List<Double> expectedBB20 = getBBData(resourcePath + "bb20_2_with_prev_data.txt");
         // When
         List<Double> bb20 = underTest.calculate(candles, prevDayCandles);

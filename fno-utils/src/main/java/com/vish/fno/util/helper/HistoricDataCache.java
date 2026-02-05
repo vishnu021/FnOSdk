@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class HistoricDataCache {
+class HistoricDataCache {
     // date // symbol //  data
     @Getter
     private final Map<String, Map<String, List<Candle>>> dataCache = new ConcurrentHashMap<>();

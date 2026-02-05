@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Class for caching intraday candlestick data for symbols.
  */
-public class CandleStickCache {
+class CandleStickCache {
 
     private final Map<String, List<Candle>> candlesCache = new ConcurrentHashMap<>();
 

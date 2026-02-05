@@ -1,4 +1,4 @@
-package com.vish.fno.reader.service;
+package com.vish.fno.reader.util;
 
 import com.zerodhatech.models.Instrument;
 import lombok.AccessLevel;
@@ -25,7 +25,7 @@ import static com.vish.fno.util.FnoConstants.PE;
 @Slf4j
 @SuppressWarnings("PMD.TooManyStaticImports")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-final class OptionPriceUtils {
+public final class OptionPriceUtils {
 
     public static Optional<String> getNextExpiryFutureSymbol(String symbol, List<Instrument> instruments) {
         String symbolPrefix = getOptionPrefix(symbol);
