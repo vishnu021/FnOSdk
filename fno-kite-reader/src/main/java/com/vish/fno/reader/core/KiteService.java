@@ -166,7 +166,7 @@ public class KiteService {
         this.kiteWebSocket.setOnOrderUpdateListener(onOrderUpdateListener);
     }
 
-    public Long getInstrument(String symbol) {
+    public Optional<Long> getInstrument(String symbol) {
         return instrumentCache.getInstrument(symbol);
     }
 

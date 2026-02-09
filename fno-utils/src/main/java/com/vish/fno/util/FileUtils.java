@@ -24,10 +24,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -40,9 +45,11 @@ public final class FileUtils implements FnoConstants {
     private static final String ORDER_LOG_FOLDER = "orderLog";
     private static final int ESTIMATED_BUFFER_SIZE = 125;
     private static final int CSV_HEADER_BUFFER_SIZE = 250;
+    private static final int TICK_BUFFER_SIZE = 100;
 
     private final ObjectMapper indentedMapper;
     private final ObjectMapper mapper;
+    private final Map<String, Queue<String>> tickBuffer = new ConcurrentHashMap<>();
     String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
     String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
     int bufferLength;
@@ -86,25 +93,50 @@ public final class FileUtils implements FnoConstants {
     }
 
     public void appendTickToFile(String symbol, Object tick) {
-        String folderPath = tickPath + getFormattedDate(new Date());
-        createDirectoryIfNotExist(folderPath);
-        String filePath = folderPath + File.separator + symbol + ".txt";
-        filePath = filePath.replaceAll("\\s", "_");
-
         try {
             String jsonString = mapper.writeValueAsString(tick);
-            appendToFile(jsonString, filePath);
+            Queue<String> queue = tickBuffer.computeIfAbsent(symbol, k -> new ConcurrentLinkedQueue<>());
+            queue.add(jsonString);
+            if (queue.size() >= TICK_BUFFER_SIZE) {
+                flushTickBuffer(symbol);
+            }
         } catch (IOException e) {
-            log.warn("Failed to append tick to file", e);
+            log.warn("Failed to serialize tick for {}", symbol, e);
         }
     }
 
-    private void appendToFile(String content, String filePath) throws IOException {
-        try (FileWriter fileWriter = new FileWriter(filePath, true);
-             BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
-             PrintWriter out = new PrintWriter(bufferedWriter)) {
-            out.println(content);
+    public void flushTickBuffer(String symbol) {
+        Queue<String> queue = tickBuffer.get(symbol);
+        if (queue == null || queue.isEmpty()) {
+            return;
         }
+
+        List<String> ticks = new ArrayList<>();
+        String item;
+        while ((item = queue.poll()) != null) {
+            ticks.add(item);
+        }
+        if (ticks.isEmpty()) {
+            return;
+        }
+
+        String folderPath = tickPath + getFormattedDate(new Date());
+        createDirectoryIfNotExist(folderPath);
+        String path = (folderPath + File.separator + symbol + ".txt").replaceAll("\\s", "_");
+
+        try (FileWriter fw = new FileWriter(path, true);
+             BufferedWriter bw = new BufferedWriter(fw);
+             PrintWriter out = new PrintWriter(bw)) {
+            for (String tick : ticks) {
+                out.println(tick);
+            }
+        } catch (IOException e) {
+            log.warn("Failed to flush {} ticks for {}", ticks.size(), symbol, e);
+        }
+    }
+
+    public void flushAllTickBuffers() {
+        tickBuffer.keySet().forEach(this::flushTickBuffer);
     }
 
     private String candleFileName(String instrument, Date fromDate) {

@@ -96,14 +96,15 @@ public class PositionSizingService {
     /**
      * Get the lot size for a given symbol.
      * Lookup order: 1) Dynamic provider (InstrumentCache / BacktestKiteService), 2) Default
+     *
+     * <p>Note: The symbol is passed as-is to the provider (no space normalization).
+     * The provider (e.g., InstrumentCache.getLotSizeFromFuture) uses INDEX_TO_DERIVATIVE
+     * mapping which expects original names like "NIFTY 50", "NIFTY BANK".
      */
     private int getLotSize(String symbol) {
-        // Normalize symbol by removing spaces
-        String normalizedSymbol = symbol.replace(" ", "");
-
         // First, try dynamic provider (InstrumentCache via KiteService)
         if (lotSizeProvider != null) {
-            Integer providerLotSize = lotSizeProvider.getLotSize(normalizedSymbol);
+            Integer providerLotSize = lotSizeProvider.getLotSize(symbol);
             if (providerLotSize != null && providerLotSize > 0) {
                 log.debug("Lot size for '{}' from provider: {}", symbol, providerLotSize);
                 return providerLotSize;

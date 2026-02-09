@@ -125,8 +125,9 @@ public class KiteWebSocket {
      * @return true if symbol is subscribed, false otherwise
      */
     public boolean isSymbolSubscribed(String symbol) {
-        Long token = instrumentCache.getInstrument(symbol);
-        return token != null && subscribedTokens.contains(token);
+        return instrumentCache.getInstrument(symbol)
+                .map(subscribedTokens::contains)
+                .orElse(false);
     }
 
     public void appendWebSocketSymbolsList(List<String> symbols, boolean addFutures) {
@@ -145,11 +146,12 @@ public class KiteWebSocket {
 
         allSymbols.addAll(symbols);
 
-        // Separate into new tokens and already existing tokens (filter out nulls from unknown symbols)
+        // Separate into new tokens and already existing tokens (filter out empty Optionals from unknown symbols)
         List<Long> allTokens = allSymbols
                 .stream()
                 .map(instrumentCache::getInstrument)
-                .filter(java.util.Objects::nonNull)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
                 .toList();
 
         List<Long> alreadySubscribed = allTokens

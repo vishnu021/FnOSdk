@@ -209,7 +209,7 @@ Static, thread-safe. GZIP compression for tick data.
 
 ### FileUtils
 
-Instance methods are NOT thread-safe. Static methods are thread-safe. Uses `File.separator` for cross-platform paths.
+Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + `ConcurrentLinkedQueue` for thread-safe buffered writes. Uses `File.separator` for cross-platform paths.
 
 **Instance Methods:**
 
@@ -218,7 +218,9 @@ Instance methods are NOT thread-safe. Static methods are thread-safe. Uses `File
 | `saveCandlestickData(List<Candle>, symbol, date)` | Save to `data/{symbol}_{date}.json` |
 | `createDirectoryIfNotExist(path)` | Create directory |
 | `saveTickData(symbol, tick)` | Save tick (overwrite) |
-| `appendTickToFile(symbol, tick)` | Append tick |
+| `appendTickToFile(symbol, tick)` | Buffer tick; auto-flushes at 100 ticks per symbol |
+| `flushTickBuffer(symbol)` | Flush buffered ticks for a symbol to disk |
+| `flushAllTickBuffers()` | Flush all buffered ticks (call at end of day / shutdown) |
 | `logCompletedOrder(ActiveOrder)` | Log to `orderLog/` directory |
 
 **Static File Reading Methods** (moved from CandleUtils):
@@ -353,6 +355,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | `calculatePositionSizeWithCashConstraint(OrderRequest, double, double)` | `PositionSize` | Cash-constrained sizing (returns qty=0 if insufficient) |
 
 **Lot size lookup order:** Dynamic provider (InstrumentCache / BacktestKiteService) -> default.
+**Symbol handling:** The symbol is passed as-is to the provider (no space normalization). The provider (e.g., `InstrumentCache.getLotSizeFromFuture`) uses `INDEX_TO_DERIVATIVE` mapping which expects original names like `"NIFTY 50"`, `"NIFTY BANK"`.
 **Multiplier lookup order:** `Task.getLots()` if > 1 -> tag-based map -> default.
 
 ---
@@ -376,7 +379,8 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
-| FileUtils, HistoricDataCache | ❌ | Instance-based |
+| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering |
+| FileUtils (other instance), HistoricDataCache | ❌ | Instance-based |
 
 ---
 

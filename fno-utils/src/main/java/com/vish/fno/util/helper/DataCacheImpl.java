@@ -36,7 +36,7 @@ public class DataCacheImpl extends AbstractDataCache {
     private final HistoricDataCache historicDataCache; // historical cache
     private final HolidayCalendar holidayCalendar;
     private final TimeSource timeSource;
-    private String lastIntradayCacheDate;
+    private volatile String lastIntradayCacheDate;
 
     public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
                          HolidayCalendar holidayCalendar,

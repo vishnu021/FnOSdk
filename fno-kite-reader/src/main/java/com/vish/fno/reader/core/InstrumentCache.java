@@ -124,13 +124,13 @@ class InstrumentCache {
                 .collect(Collectors.toSet());
     }
 
-    public Long getInstrument(String symbol) {
+    public Optional<Long> getInstrument(String symbol) {
         getInstruments();  // Ensure initialized
         if (symbol == null) {
-            return null;
+            return Optional.empty();
         }
 
-        return this.symbolMap.get(symbol.toUpperCase(Locale.ENGLISH));
+        return Optional.ofNullable(this.symbolMap.get(symbol.toUpperCase(Locale.ENGLISH)));
     }
 
     public String getSymbol(long instrument) {

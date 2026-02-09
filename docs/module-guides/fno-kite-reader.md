@@ -104,7 +104,7 @@ if (kiteService.isInitialised()) {
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `getInstruments()` | `List<Instrument>` | Filtered instrument list |
-| `getInstrument(String)` | `Long` | Token for symbol |
+| `getInstrument(String)` | `Optional<Long>` | Token for symbol (empty if not found) |
 | `getSymbol(long)` | `String` | Symbol for token |
 | `getLotSizeFromFuture(String)` | `Optional<Integer>` | Lot size for index |
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |

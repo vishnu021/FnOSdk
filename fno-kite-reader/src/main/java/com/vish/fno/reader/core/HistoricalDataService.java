@@ -69,10 +69,10 @@ class HistoricalDataService {
      * @return Instrument token as string, null if not found
      */
     private String getInstrumentToken(String symbol, boolean continuous) {
-        String instrument = String.valueOf(instrumentCache.getInstrument(symbol));
+        Optional<Long> instrument = instrumentCache.getInstrument(symbol);
 
-        if(instrument != null && !instrument.equalsIgnoreCase("null")) {
-            return instrument;
+        if (instrument.isPresent()) {
+            return String.valueOf(instrument.get());
         }
 
         // If exact symbol not found and continuous mode is enabled, try to find current contract
@@ -92,13 +92,13 @@ class HistoricalDataService {
         if (currentContract == null) {
             return null;
         }
-        String instrument = String.valueOf(instrumentCache.getInstrument(currentContract));
-        if (instrument != null && !instrument.equalsIgnoreCase("null")) {
-            log.info("Using current contract {} (token: {}) for expired symbol {} with continuous mode",
-                    currentContract, instrument, symbol);
-            return instrument;
-        }
-        return null;
+        return instrumentCache.getInstrument(currentContract)
+                .map(token -> {
+                    log.info("Using current contract {} (token: {}) for expired symbol {} with continuous mode",
+                            currentContract, token, symbol);
+                    return String.valueOf(token);
+                })
+                .orElse(null);
     }
 
     /**
@@ -130,7 +130,7 @@ class HistoricalDataService {
         for (String year : years) {
             for (String month : MONTH_CODES) {
                 String candidateSymbol = baseName + year + month + FUT;
-                if (instrumentCache.getInstrument(candidateSymbol) != null) {
+                if (instrumentCache.getInstrument(candidateSymbol).isPresent()) {
                     log.debug("Found potential current contract: {}", candidateSymbol);
                     return candidateSymbol;
                 }
