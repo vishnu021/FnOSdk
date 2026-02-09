@@ -268,13 +268,13 @@ Abstraction for time injection (production, backtest, unit test).
 
 ### AbstractDataCache
 
-Package-private base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + ConcurrentLinkedDeque). Max 500 ticks per symbol with FIFO eviction.
+Package-private base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + ConcurrentLinkedDeque). Max 500 ticks per symbol with FIFO eviction. Provides `clearTickCache()` to reset all tick data (used on date change).
 
 ### DataCacheImpl
 
 Consolidated DataCache implementation. Constructor: `DataCacheImpl(CandlestickDataProvider, HolidayCalendar, TimeSource)`
 
-Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
+Automatically detects date changes and clears both intraday candle and tick caches when the trading date rolls over. Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
 
 ### CandlestickDataProvider Interface
 
@@ -299,7 +299,8 @@ Package-private in-memory intraday cache by symbol. Thread-safe (uses `Concurren
 | `get(String)` | `List<Candle>` | Get cached candles |
 | `getLatestCandle(String)` | `Optional<Candle>` | Most recent candle (empty if none) |
 | `update(String, List<Candle>)` | `void` | Update cache |
-| `clear(String)` | `void` | Remove data |
+| `clear(String)` | `void` | Remove data for symbol |
+| `clearAll()` | `void` | Clear entire cache (used on date change) |
 
 ### HistoricDataCache
 
@@ -342,8 +343,8 @@ public interface LotSizeProvider {
 Centralized position sizing: separates "what to trade" (strategy) from "how much to trade".
 
 ```java
-public PositionSizingService(LotSizeProvider lotSizeProvider, Map<String, Integer> lotSizeMap,
-                              int defaultLotSize, Map<String, Integer> quantityMultiplierMap, int defaultMultiplier)
+public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize,
+                              Map<String, Integer> quantityMultiplierMap, int defaultMultiplier)
 ```
 
 | Method | Returns | Description |
@@ -351,7 +352,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, Map<String, Intege
 | `calculatePositionSize(OrderRequest)` | `PositionSize` | Calculate quantity from lot size x multiplier |
 | `calculatePositionSizeWithCashConstraint(OrderRequest, double, double)` | `PositionSize` | Cash-constrained sizing (returns qty=0 if insufficient) |
 
-**Lot size lookup order:** Dynamic provider -> static config map -> default.
+**Lot size lookup order:** Dynamic provider (InstrumentCache / BacktestKiteService) -> default.
 **Multiplier lookup order:** `Task.getLots()` if > 1 -> tag-based map -> default.
 
 ---

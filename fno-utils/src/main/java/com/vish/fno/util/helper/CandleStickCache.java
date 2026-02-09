@@ -33,4 +33,8 @@ class CandleStickCache {
     public void clear(String symbol) {
         candlesCache.remove(symbol);
     }
+
+    public void clearAll() {
+        candlesCache.clear();
+    }
 }

@@ -42,4 +42,9 @@ abstract class AbstractDataCache implements DataCache {
         // Convert Deque to List for backward compatibility
         return deque == null ? List.of() : new ArrayList<>(deque);
     }
+
+    protected void clearTickCache() {
+        latestTicks.clear();
+        ticksCache.clear();
+    }
 }

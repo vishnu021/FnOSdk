@@ -78,6 +78,7 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
 | `isTargetAchieved(double)` | `boolean` | Checks if target hit |
 | `isStopLossHit(double)` | `boolean` | Checks if SL hit |
 | `getProfit()` | `double` | Calculates P&L |
+| `getEntryTimeStamp()` | `int` | Entry minute index (for hold duration checks) |
 
 **Note:** For CSV export and logging, use `FileUtils.csvHeader()`, `FileUtils.toCSV()`, and `FileUtils.orderLog()` from fno-utils.
 
@@ -129,7 +130,7 @@ Factory methods: `ExitDetail.forRegularOrder(qty, price)`, `ExitDetail.forIndexO
 
 ### OrderSellReason Enum
 
-`TARGET_HIT`, `STOP_LOSS_HIT`, `EXPIRY_TIME_REACHED`
+`TARGET_HIT`, `STOP_LOSS_HIT`, `EXPIRY_TIME_REACHED`, `MAX_HOLD_DURATION_REACHED`
 
 ---
 

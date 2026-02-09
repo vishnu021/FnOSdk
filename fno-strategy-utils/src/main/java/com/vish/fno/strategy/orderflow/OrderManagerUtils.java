@@ -23,6 +23,20 @@ public final class OrderManagerUtils {
             return new OrderSellDetailModel(true, quantityToSell, OrderSellReason.EXPIRY_TIME_REACHED, order);
         }
 
+        // Check strategy-defined max hold duration (triple barrier time stop)
+        final String maxHoldStr = order.getExtraData().get("maxHoldDuration");
+        if(maxHoldStr != null) {
+            final int maxHoldDuration = Integer.parseInt(maxHoldStr);
+            final int elapsed = timestampIndex - order.getEntryTimeStamp();
+            if(elapsed > maxHoldDuration) {
+                final int quantityToSell = order.getBuyQuantity() - order.getSoldQuantity();
+                log.info("Max hold duration ({} min) reached after {} min, selling {} quantity for: {}",
+                        maxHoldDuration, elapsed, quantityToSell, order.getTag());
+                return new OrderSellDetailModel(true, quantityToSell,
+                        OrderSellReason.MAX_HOLD_DURATION_REACHED, order);
+            }
+        }
+
         final OrderSellDetailModel orderSellDetailModel = targetAndStopLossStrategy.isStopLossHit(order, ltp);
         if(orderSellDetailModel.sellOrder()) {
             return orderSellDetailModel;

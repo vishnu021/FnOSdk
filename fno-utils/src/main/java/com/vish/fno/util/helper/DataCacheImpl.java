@@ -30,13 +30,13 @@ import java.util.Optional;
  */
 @Slf4j
 public class DataCacheImpl extends AbstractDataCache {
-    private final String todaysDate;
     private final CandlestickDataProvider candlestickDataProvider;
 
     private final CandleStickCache minuteDataCache; // today's cache
     private final HistoricDataCache historicDataCache; // historical cache
     private final HolidayCalendar holidayCalendar;
     private final TimeSource timeSource;
+    private String lastIntradayCacheDate;
 
     public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
                          HolidayCalendar holidayCalendar,
@@ -46,7 +46,6 @@ public class DataCacheImpl extends AbstractDataCache {
         this.timeSource = timeSource;
         this.minuteDataCache = new CandleStickCache();
         this.historicDataCache = new HistoricDataCache();
-        this.todaysDate = timeSource.getTodaysDateString();
     }
 
     @Override
@@ -103,11 +102,20 @@ public class DataCacheImpl extends AbstractDataCache {
     }
 
     private void updateIntradayCache(String symbol) {
+        String currentDate = timeSource.getTodaysDateString();
+
+        if (!currentDate.equals(lastIntradayCacheDate)) {
+            log.info("Date changed from {} to {} — clearing intraday cache", lastIntradayCacheDate, currentDate);
+            minuteDataCache.clearAll();
+            clearTickCache();
+            lastIntradayCacheDate = currentDate;
+        }
+
         if (isDataAvailable(symbol)) {
             return;
         }
 
-        Optional<SymbolData> data = candlestickDataProvider.getEntireDayHistoryData(todaysDate, symbol);
+        Optional<SymbolData> data = candlestickDataProvider.getEntireDayHistoryData(currentDate, symbol);
         data.ifPresent(d -> {
             minuteDataCache.clear(symbol);
             minuteDataCache.update(symbol, d.data());

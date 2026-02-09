@@ -17,7 +17,6 @@ import java.util.Map;
 public class PositionSizingService {
 
     private final LotSizeProvider lotSizeProvider;
-    private final Map<String, Integer> lotSizeMap;
     private final int defaultLotSize;
     private final Map<String, Integer> quantityMultiplierMap;
     private final int defaultMultiplier;
@@ -96,29 +95,22 @@ public class PositionSizingService {
 
     /**
      * Get the lot size for a given symbol.
-     * Lookup order: 1) Dynamic provider (InstrumentCache), 2) Static config map, 3) Default
+     * Lookup order: 1) Dynamic provider (InstrumentCache / BacktestKiteService), 2) Default
      */
     private int getLotSize(String symbol) {
-        // Normalize symbol by removing spaces (YAML keys with spaces are normalized)
+        // Normalize symbol by removing spaces
         String normalizedSymbol = symbol.replace(" ", "");
 
         // First, try dynamic provider (InstrumentCache via KiteService)
         if (lotSizeProvider != null) {
             Integer providerLotSize = lotSizeProvider.getLotSize(normalizedSymbol);
             if (providerLotSize != null && providerLotSize > 0) {
-                log.debug("Lot size for '{}' from InstrumentCache: {}", symbol, providerLotSize);
+                log.debug("Lot size for '{}' from provider: {}", symbol, providerLotSize);
                 return providerLotSize;
             }
         }
 
-        // Second, try static configuration map (fallback)
-        if (lotSizeMap != null && lotSizeMap.containsKey(normalizedSymbol)) {
-            int configLotSize = lotSizeMap.get(normalizedSymbol);
-            log.debug("Lot size for '{}' from configuration fallback: {}", symbol, configLotSize);
-            return configLotSize;
-        }
-
-        // Finally, use default
+        // Fallback: use default
         log.debug("Lot size for '{}' using default: {}", symbol, defaultLotSize);
         return defaultLotSize;
     }

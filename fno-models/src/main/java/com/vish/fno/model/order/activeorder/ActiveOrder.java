@@ -29,6 +29,7 @@ public interface ActiveOrder {
     String getTradingSymbol();
     double getProfit();
     double getRealisedProfit();
+    int getEntryTimeStamp();
 
     /**
      * Returns whether this is a call order (true) or put order (false).
