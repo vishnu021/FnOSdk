@@ -11,6 +11,8 @@ import java.util.function.Supplier;
 @Slf4j
 class ApiRateLimiter {
 
+    private static final long LOCK_WAIT_LOG_THRESHOLD_MS = 100;
+
     static long lockTimeoutSeconds = 12;
 
     private final ReentrantLock apiLock = new ReentrantLock(true);
@@ -83,7 +85,7 @@ class ApiRateLimiter {
 
     private void logWaitTime(long waitStart, String operationName) {
         long waitMs = (System.nanoTime() - waitStart) / 1_000_000;
-        if (waitMs > 100) {
+        if (waitMs > LOCK_WAIT_LOG_THRESHOLD_MS) {
             log.info("API lock acquired for {} after {}ms wait", operationName, waitMs);
         }
     }

@@ -76,7 +76,9 @@ if (kiteService.isInitialised()) {
 | `getHistoricalData(from, to, symbol, interval, continuous)` | `Optional<HistoricalData>` | Historical candles |
 | `getEntireDayHistoricalData(from, to, symbol, interval)` | `Optional<HistoricalData>` | Intraday candles |
 
-**Note:** Both methods now return `Optional<HistoricalData>` instead of nullable `HistoricalData`. Returns `Optional.empty()` when KiteService is not initialized, instrument token is not found, or API call fails.
+**Note:** Both methods return `Optional<HistoricalData>`. Returns `Optional.empty()` when KiteService is not initialized, instrument token is not found, or API call fails.
+
+**Continuous mode (`continuous=true`):** When an expired futures symbol (e.g., `NIFTY25AUGFUT`) is not found in the instrument cache, the service automatically resolves it to the current active contract (e.g., `NIFTY25SEPFUT`) by extracting the base name and searching across year/month combinations. Uses pre-compiled regex patterns (`FUTURES_SYMBOL_PATTERN`, `BASE_NAME_PATTERN`) for efficient symbol parsing. All internal resolution methods use `Optional` with `.flatMap()` chains -- no null returns.
 
 ### Option Symbol Resolution
 
@@ -98,6 +100,8 @@ if (kiteService.isInitialised()) {
 | `getSubscribedWebSocketTokensCount()` | `int` | Count of subscribed tokens |
 | `isSymbolSubscribed(String)` | `boolean` | Check if symbol subscribed |
 | `getAllOptionSymbols(String)` | `List<String>` | All CE/PE symbols for index (nearest expiry) |
+
+**WebSocket defaults:** NIFTY 50 (token `256265`) and NIFTY BANK (token `260105`) are auto-subscribed on initialization. Reconnection: max 10 retries with up to 30-second intervals.
 
 ### Instrument Utilities
 
@@ -240,7 +244,7 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 
 Package-private class that serializes all Kite API calls through a fair `ReentrantLock` to prevent concurrent API access. Features:
 - 12-second lock acquisition timeout (configurable via `lockTimeoutSeconds`)
-- Wait time logging when lock contention exceeds 100ms
+- Wait time logging when lock contention exceeds `LOCK_WAIT_LOG_THRESHOLD_MS` (100ms)
 - `executeWithLockChecked` variant propagates `IOException`/`KiteException`
 
 ---

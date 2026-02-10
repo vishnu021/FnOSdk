@@ -22,6 +22,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.LooseCoupling", "PMD.AvoidCatchingGenericException"})
 public class KiteWebSocket {
+    private static final long NIFTY_50_TOKEN = 256265L;
+    private static final long NIFTY_BANK_TOKEN = 260105L;
+    private static final int MAX_RECONNECTION_RETRIES = 10;
+    private static final int MAX_RETRY_INTERVAL_SECONDS = 30;
 
     private KiteTicker tickerProvider;
     private final InstrumentCache instrumentCache;
@@ -40,8 +44,8 @@ public class KiteWebSocket {
         this.instrumentCache = instrumentCache;
         this.tokensToSubscribe = new CopyOnWriteArrayList<>();
         this.subscribedTokens = new CopyOnWriteArrayList<>();
-        this.tokensToSubscribe.add(256265L);
-        this.tokensToSubscribe.add(260105L);
+        this.tokensToSubscribe.add(NIFTY_50_TOKEN);
+        this.tokensToSubscribe.add(NIFTY_BANK_TOKEN);
         this.onOrderUpdateListener = order -> log.info("Order update complete : {}", JsonUtils.getFormattedObject(order));
     }
 
@@ -86,8 +90,8 @@ public class KiteWebSocket {
 
         tickerProvider.setTryReconnection(true);
         try {
-            tickerProvider.setMaximumRetries(10);
-            tickerProvider.setMaximumRetryInterval(30);
+            tickerProvider.setMaximumRetries(MAX_RECONNECTION_RETRIES);
+            tickerProvider.setMaximumRetryInterval(MAX_RETRY_INTERVAL_SECONDS);
         } catch (KiteException e) {
             log.error("Exception while setting retries", e);
             throw new InitialisationException("Error initializing kite web socket", e);
