@@ -44,6 +44,7 @@ class InstrumentCache {
     private volatile List<Instrument> filteredInstruments;
     private volatile Map<String, Long> symbolMap;
     private volatile Map<Long, String> instrumentMap;
+    private volatile Map<String, String> exchangeMap;
 
     public InstrumentCache(List<String> nifty100Symbols, KiteService kiteService) {
         this.nifty100Symbols = nifty100Symbols;
@@ -92,6 +93,8 @@ class InstrumentCache {
         Map<String, Long> symbols = buildSymbolMap(filtered);
         // Build instrument map (reverse of symbol map)
         Map<Long, String> instruments = buildInstrumentMap(symbols);
+        // Build exchange map (symbol → exchange)
+        Map<String, String> exchanges = buildExchangeMap(filtered);
 
         InstrumentFileUtils.saveFilteredInstrumentCache(symbols);
         log.info("Filtered instrument count: {}", symbols.size());
@@ -101,6 +104,7 @@ class InstrumentCache {
         // Assign to volatile fields (ensures visibility to other threads)
         this.symbolMap = symbols;
         this.instrumentMap = instruments;
+        this.exchangeMap = exchanges;
         this.filteredInstruments = filtered;  // Assign last for happens-before guarantee
     }
 
@@ -131,6 +135,26 @@ class InstrumentCache {
         }
 
         return Optional.ofNullable(this.symbolMap.get(symbol.toUpperCase(Locale.ENGLISH)));
+    }
+
+    /**
+     * Get the exchange (NFO or BFO) for a given trading symbol.
+     * Falls back to NFO if the symbol is not found in the cache.
+     *
+     * @param symbol the trading symbol (e.g., "BANKEX26FEB68000CE")
+     * @return the exchange string (e.g., "NFO" or "BFO")
+     */
+    public String getExchangeForSymbol(String symbol) {
+        getInstruments();  // Ensure initialized
+        if (symbol == null || exchangeMap == null) {
+            return NFO;
+        }
+        String exchange = exchangeMap.get(symbol.toUpperCase(Locale.ENGLISH));
+        if (exchange == null) {
+            log.warn("Exchange not found for symbol: {}, defaulting to NFO", symbol);
+            return NFO;
+        }
+        return exchange;
     }
 
     public String getSymbol(long instrument) {
@@ -269,6 +293,15 @@ class InstrumentCache {
     private Map<Long, String> buildInstrumentMap(Map<String, Long> symbols) {
         return symbols.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    }
+
+    private Map<String, String> buildExchangeMap(List<Instrument> filtered) {
+        return filtered.stream()
+                .collect(Collectors.toMap(
+                        i -> i.getTradingsymbol().toUpperCase(Locale.ENGLISH),
+                        Instrument::getExchange,
+                        (existing, replacement) -> existing,
+                        TreeMap::new));
     }
 
     private void logExpiryDates(List<Instrument> filtered) {

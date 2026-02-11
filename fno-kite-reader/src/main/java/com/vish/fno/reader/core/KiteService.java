@@ -275,11 +275,14 @@ public class KiteService {
         return apiRateLimiter.executeWithLock(() -> {
             Order order;
             try {
-                OrderParams orderParams = createMarketOrderWithParameters(symbol, orderSize, transactionType, tag);
+                String exchange = instrumentCache.getExchangeForSymbol(symbol);
+                OrderParams orderParams = createMarketOrderWithParameters(symbol, orderSize, transactionType, tag, exchange);
                 order = kiteSdk.placeOrder(orderParams, Constants.VARIETY_REGULAR);
-                log.info("order placed successfully with id: {}", order.orderId);
+                log.info("order placed successfully with id: {} for symbol: {}, orderSize: {}",
+                        symbol, orderSize, order.orderId);
             } catch (KiteException e) {
-                log.error("KiteException occurred while placing order, code: {}, message: {}", e.code, e.message);
+                log.error("KiteException occurred while placing order for symbol: {}, orderSize: {}, code: {}, message: {}",
+                        symbol, orderSize, e.code, e.message);
                 return Optional.of(new KiteOpenOrder(null, false, e.code, e.message));
             } catch (JSONException | IOException e) {
                 log.error("Error occurred while placing order", e);

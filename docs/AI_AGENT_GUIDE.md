@@ -81,7 +81,7 @@ When generating code using FnOSdk, AI agents should read the specific module gui
 | `RelativeStrengthIndex` | `com.vish.fno.technical.indicators` | RSI indicator |
 | `KiteService` | `com.vish.fno.reader.core` | Main Kite API facade |
 | `KiteWebSocket` | `com.vish.fno.reader.core` | Real-time tick streaming |
-| `InstrumentCache` | `com.vish.fno.reader.core` | Symbol/token mapping |
+| `InstrumentCache` | `com.vish.fno.reader.core` | Symbol/token/exchange mapping |
 | `HATrendUtils` | `com.vish.fno.strategy` | Heikin-Ashi trend analysis |
 | `CPRUtils` | `com.vish.fno.strategy.util` | Central Pivot Range calculations |
 | `PartialRevisingStopLoss` | `com.vish.fno.strategy.orderflow` | Dynamic stop-loss with partial profit |

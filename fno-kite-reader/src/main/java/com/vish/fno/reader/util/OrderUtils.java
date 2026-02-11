@@ -15,13 +15,14 @@ public class OrderUtils {
     public static OrderParams createMarketOrderWithParameters(String symbol,
                                                               int orderSize,
                                                               String transactionType,
-                                                              String tag) {
+                                                              String tag,
+                                                              String exchange) {
         OrderParams orderParams = new OrderParams();
         orderParams.quantity = orderSize;
         orderParams.orderType = Constants.ORDER_TYPE_MARKET;
         orderParams.tradingsymbol = symbol;
         orderParams.product = Constants.PRODUCT_MIS;
-        orderParams.exchange = Constants.EXCHANGE_NFO;
+        orderParams.exchange = exchange;
         orderParams.validity = Constants.VALIDITY_DAY;
         orderParams.transactionType = transactionType;
         orderParams.triggerPrice = 0.0; // order type is market
