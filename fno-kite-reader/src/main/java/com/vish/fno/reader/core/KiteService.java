@@ -77,10 +77,11 @@ public class KiteService {
                 kiteSdk.setPublicToken(user.publicToken);
                 addSessionExpiryHook();
 
-                // Add all option symbols for NIFTY 50 BEFORE WebSocket initialization
+                // Add all option symbols for all indices BEFORE WebSocket initialization
                 // The OnConnectedListener will subscribe to them automatically when WebSocket connects
-                appendAllOptionsForIndex(NIFTY_50);
-                appendAllOptionsForIndex(NIFTY_BANK);
+                for (String index : defaultIndices) {
+                    appendAllOptionsForIndex(index);
+                }
 
                 kiteWebSocket.initialize(kiteSdk);
                 Margin margins = kiteSdk.getMargins(EQUITY);

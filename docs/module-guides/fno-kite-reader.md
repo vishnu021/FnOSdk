@@ -101,7 +101,7 @@ if (kiteService.isInitialised()) {
 | `isSymbolSubscribed(String)` | `boolean` | Check if symbol subscribed |
 | `getAllOptionSymbols(String)` | `List<String>` | All CE/PE symbols for index (nearest expiry) |
 
-**WebSocket defaults:** NIFTY 50 (token `256265`) and NIFTY BANK (token `260105`) are auto-subscribed on initialization. Reconnection: max 10 retries with up to 30-second intervals.
+**WebSocket defaults:** All default indices (NIFTY 50, NIFTY BANK, BANKEX, SENSEX) have their option symbols auto-subscribed on initialization. Reconnection: max 10 retries with up to 30-second intervals.
 
 ### Instrument Utilities
 
