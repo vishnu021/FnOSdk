@@ -86,7 +86,7 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
 
 Base class with protected fields: `tag`, `date`, `entryTimeStamp`, `exitTimeStamp`, `buyThreshold`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `target`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`
 
-Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`).
+Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`). The `toString()` output conditionally includes `kiteOrderId` from the `extraData` map when present, aiding order tracking in logs.
 
 ### Implementations
 

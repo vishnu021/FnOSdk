@@ -23,12 +23,43 @@ import static com.vish.fno.util.JsonUtils.getNonFormattedObject;
 @SuppressWarnings("PMD.TooManyStaticImports")
 public final class OrderDetailsLogger {
 
+    /**
+     * Log market depth from a Ticker record.
+     *
+     * @param tick the ticker containing depth data
+     * @deprecated Use {@link #logMarketDepth(String, MarketDepthProvider)} for cache-based depth access.
+     */
+    @Deprecated(forRemoval = true)
     public static void logMarketDepth(Ticker tick) {
         Map<String, List<Ticker.Depth>> marketDepth = tick.depth();
         if(marketDepth == null) {
             return;
         }
         log.info("Market depth({}): {}", tick, getNonFormattedObject(marketDepth));
+        logDepthLevels(marketDepth);
+    }
+
+    /**
+     * Log market depth from a {@link MarketDepthProvider} (cache-based).
+     * Reads depth from the provider instead of the Ticker record, enabling
+     * depth-free Ticker pipelines while preserving order-time depth logging.
+     *
+     * @param symbol the instrument symbol
+     * @param depthProvider the depth data provider
+     */
+    public static void logMarketDepth(String symbol, MarketDepthProvider depthProvider) {
+        if(depthProvider == null) {
+            return;
+        }
+        Map<String, List<Ticker.Depth>> marketDepth = depthProvider.getDepth(symbol);
+        if(marketDepth == null) {
+            return;
+        }
+        log.info("Market depth({}): {}", symbol, getNonFormattedObject(marketDepth));
+        logDepthLevels(marketDepth);
+    }
+
+    private static void logDepthLevels(Map<String, List<Ticker.Depth>> marketDepth) {
         if(marketDepth.containsKey("buy") && !marketDepth.get("buy").isEmpty()) {
             List<Ticker.Depth> buyMarketDepth = marketDepth.get("buy");
             log.info("next buy price: {}", getFormattedObject(buyMarketDepth.get(0)));
