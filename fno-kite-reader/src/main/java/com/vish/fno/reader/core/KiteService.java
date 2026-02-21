@@ -279,7 +279,7 @@ public class KiteService {
                 OrderParams orderParams = createMarketOrderWithParameters(symbol, orderSize, transactionType, tag, exchange);
                 order = kiteSdk.placeOrder(orderParams, Constants.VARIETY_REGULAR);
                 log.info("order placed successfully with id: {} for symbol: {}, orderSize: {}",
-                        symbol, orderSize, order.orderId);
+                        order.orderId, symbol, orderSize);
             } catch (KiteException e) {
                 log.error("KiteException occurred while placing order for symbol: {}, orderSize: {}, code: {}, message: {}",
                         symbol, orderSize, e.code, e.message);

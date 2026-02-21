@@ -108,8 +108,11 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
                 .append(", target=").append(roundTo5Paise(target))
                 .append(", stopLoss=").append(roundTo5Paise(stopLoss))
                 .append(", buyQ=").append(buyQuantity)
-                .append(", soldQ=").append(soldQuantity)
-                .append("}");
+                .append(", soldQ=").append(soldQuantity);
+        if(this.extraData.containsKey("kiteOrderId")) {
+            sb.append(", kiteOrderId=").append(extraData.get("kiteOrderId"));
+        }
+        sb.append("}");
         return sb.toString();
     }
 
