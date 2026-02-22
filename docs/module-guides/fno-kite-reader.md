@@ -56,6 +56,32 @@ if (kiteService.isInitialised()) {
 
 ---
 
+## Architecture
+
+KiteService is a **thin facade** that delegates to focused internal components:
+
+| Component | Responsibility |
+|-----------|---------------|
+| `KiteSession` | Authentication, KiteConnect ownership, rate-limited API access |
+| `KiteOrderExecutor` | Order placement and position/order queries |
+| `HistoricalDataProvider` | Historical data retrieval with continuous contract resolution |
+| `InstrumentCache` | Instrument lookup, option indexing, exchange resolution |
+| `KiteWebSocket` | WebSocket subscriptions, tick/order listeners |
+
+All components are package-private except `KiteService` (the public entry point). The constructor wires everything internally:
+
+```java
+public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, connectToWebSocket) {
+    session = new KiteSession(apiKey, userId, apiSecret, placeOrders);
+    instrumentCache = new InstrumentCache(nifty100Symbols, session);
+    dataProvider = new HistoricalDataProvider(session, instrumentCache);
+    orderExecutor = new KiteOrderExecutor(session, instrumentCache);
+    kiteWebSocket = new KiteWebSocket(connectToWebSocket, instrumentCache);
+}
+```
+
+---
+
 ## KiteService - Primary API
 
 ### Core Methods
@@ -114,11 +140,19 @@ if (kiteService.isInitialised()) {
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
 | `isExpiryDayForOption(symbol, date)` | `boolean` | Check expiry |
 | `getInstrumentCacheSize()` | `int` | Cache size (diagnostics) |
-| `getFilteredInstruments()` | `List<Map<String, String>>` | All filtered instruments (exchange, symbol, expiry) |
+| `getFilteredInstruments()` | `List<InstrumentSummary>` | All filtered instruments (exchange, symbol, expiry) |
 
 ---
 
 ## Models
+
+### InstrumentSummary (Record)
+
+```java
+public record InstrumentSummary(String exchange, String symbol, String expiry)
+```
+
+Replaces the previous `Map<String, String>` representation for filtered instruments. Returned by `KiteService.getFilteredInstruments()`.
 
 ### KiteOpenOrder (Record)
 
@@ -191,22 +225,24 @@ OrderParams params = OrderUtils.createMarketOrderWithParameters(symbol, qty, Con
 
 ### InstrumentFileUtils
 
-Thread-safe instrument cache persistence.
+Thread-safe instrument cache persistence. Returns `List.of()` (never null) on load failure.
 
 | Method | Description |
 |--------|-------------|
 | `saveInstrumentCache(List<Instrument>)` | Save to `instrument_cache/instruments_<date>.json` |
-| `loadInstrumentCache(int)` | Load from N days ago (0=today) |
+| `saveFilteredInstrumentCache(Object)` | Save pretty-printed filtered instruments |
+| `loadInstrumentCache(int)` | Load from N days ago (0=today), returns `List.of()` if file missing |
 
 ### InstrumentCache
 
-Internal (package-private) thread-safe cache with double-checked locking. Returns defensive copies and unmodifiable collections.
+Internal (package-private) thread-safe cache with double-checked locking. Takes `KiteSession` (not `KiteService`) for API access. Returns defensive copies and unmodifiable collections.
 
 **Key fields (all `volatile`):**
 - `filteredInstruments` -- `List<Instrument>` of NSE/NFO/BSE/BFO instruments in the tracking list
 - `symbolMap` -- `Map<String, Long>` tradingSymbol to instrument token
 - `instrumentMap` -- `Map<Long, String>` reverse of symbolMap
 - `exchangeMap` -- `Map<String, String>` tradingSymbol (uppercased) to exchange (`"NFO"` or `"BFO"`)
+- `optionIndex` -- `Map<String, Map<String, NavigableMap<Date, List<Instrument>>>>` pre-indexed options (name → instrumentType → sorted expiry → instruments)
 
 **Public methods:**
 
@@ -224,6 +260,8 @@ Internal (package-private) thread-safe cache with double-checked locking. Return
 | `getLotSizeFromFuture(String)` | `Optional<Integer>` | Lot size for index via FUT contract |
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
 | `getInstrumentMapSize()` | `int` | Cache size (diagnostics) |
+| `getAllInstruments()` | `List<InstrumentSummary>` | All instruments as InstrumentSummary records |
+| `getEarliestExpiryInstruments(name, type)` | `Optional<List<Instrument>>` | Instruments for nearest expiry (from pre-indexed optionIndex) |
 
 #### getExchangeForSymbol
 
@@ -267,6 +305,50 @@ When `includeDepth=false`, the depth field is null. The `@JsonInclude(NON_NULL)`
 
 ---
 
+## Internal Components
+
+These are package-private classes, not directly accessible outside `com.vish.fno.reader.core`.
+
+### KiteSession
+
+Manages authentication, KiteConnect SDK instance, and rate-limited API execution.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `authenticate(String, Runnable)` | `void` | Generate session, run post-auth hook |
+| `isInitialised()` | `boolean` | Whether session is authenticated (`volatile`) |
+| `isPlaceOrders()` | `boolean` | Whether live orders are enabled |
+| `executeWithLock(Supplier<T>, String)` | `T` | Execute under rate limiter lock |
+| `executeWithLockVoid(Runnable, String)` | `void` | Void variant of executeWithLock |
+| `executeWithLockChecked(CheckedSupplier<T>, String)` | `T` | Checked variant (throws IOException, KiteException) |
+| `getKiteSdk()` | `KiteConnect` | Raw SDK access (package-private) |
+
+### KiteOrderExecutor
+
+Handles order placement, position/order queries. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `buyOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place buy order |
+| `sellOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place sell order |
+| `placeOptionOrder(OrderParams)` | `Order` | Place order with explicit params |
+| `getOrders()` | `List<Order>` | All orders for day |
+| `getPositions()` | `Map<String, List<Position>>` | Net and day positions |
+| `logExistingOrdersAndPositions(symbol, tag)` | `void` | Debug logging for existing orders |
+
+### HistoricalDataProvider
+
+Retrieves historical data with continuous contract resolution. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`. Absorbed the former `HistoricalDataService`.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getEntireDayHistoricalData(from, to, symbol, interval)` | `Optional<HistoricalData>` | Intraday candles |
+| `getHistoricalData(from, to, symbol, interval, continuous)` | `Optional<HistoricalData>` | Historical candles with optional continuous contract resolution |
+
+**Continuous contract resolution:** When `continuous=true` and a symbol is not found (e.g., expired `NIFTY24AUGFUT`), automatically resolves to the current active contract by extracting the base name and searching year/month combinations.
+
+---
+
 ## Error Handling
 
 ### Kite API Error Codes
@@ -296,18 +378,22 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
-| KiteService | ✅ | All API calls serialized via `ApiRateLimiter` (fair `ReentrantLock`) |
-| InstrumentCache | ✅ | Double-checked locking, volatile fields (filteredInstruments, symbolMap, instrumentMap, exchangeMap) |
-| KiteWebSocket | ✅ | CopyOnWriteArrayList for token lists, volatile isConnected |
+| KiteService | ✅ | Thin facade, delegates to thread-safe components |
+| KiteSession | ✅ | `volatile initialised` flag; API calls serialized via `ApiRateLimiter` (fair `ReentrantLock`) |
+| KiteOrderExecutor | ✅ | All operations go through KiteSession's lock |
+| HistoricalDataProvider | ✅ | All operations go through KiteSession's lock |
+| InstrumentCache | ✅ | Double-checked locking, volatile fields (filteredInstruments, symbolMap, instrumentMap, exchangeMap, optionIndex) |
+| KiteWebSocket | ✅ | `synchronized(tokenLock)` for all token mutations, `volatile isConnected` set in connected/disconnected listeners |
 | OrderUtils | ✅ | Static methods |
-| InstrumentFileUtils | ✅ | Thread-safe IO |
+| InstrumentFileUtils | ✅ | Thread-safe IO, `DateTimeFormatter` (immutable) |
 
 ### ApiRateLimiter (Internal)
 
-Package-private class that serializes all Kite API calls through a fair `ReentrantLock` to prevent concurrent API access. Features:
+Package-private class that serializes all Kite API calls through a fair `ReentrantLock` to prevent concurrent API access. Owned by `KiteSession`. Features:
 - 12-second lock acquisition timeout (configurable via `lockTimeoutSeconds`)
 - Wait time logging when lock contention exceeds `LOCK_WAIT_LOG_THRESHOLD_MS` (100ms)
 - `executeWithLockChecked` variant propagates `IOException`/`KiteException`
+- `executeWithLockVoid` variant for void operations
 
 ---
 

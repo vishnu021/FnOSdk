@@ -2,7 +2,7 @@ package com.vish.fno.reader.core;
 
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.HistoricalData;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
 
@@ -17,8 +17,9 @@ import static com.vish.fno.util.FnoConstants.FUT;
 import static com.vish.fno.util.PriceUtils.getTopNLines;
 
 @Slf4j
-@AllArgsConstructor
-class HistoricalDataService {
+@RequiredArgsConstructor
+@SuppressWarnings("PMD.TooManyStaticImports")
+class HistoricalDataProvider {
     private static final int ERROR_STACK_TRACE_LINES = 3;
     private static final int FUTURES_YEAR_RANGE = 3;
     private static final String YEAR_FORMAT = "%02d";
@@ -27,13 +28,12 @@ class HistoricalDataService {
         "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
     };
 
-    // Pre-compiled patterns for futures symbol matching
     private static final Pattern FUTURES_SYMBOL_PATTERN =
             Pattern.compile(".*\\d{2}(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC).*");
     private static final Pattern BASE_NAME_PATTERN =
             Pattern.compile("^([A-Z]+)\\d{2}[A-Z]{3}" + FUT + "$");
 
-    private final KiteService kiteService;
+    private final KiteSession session;
     private final InstrumentCache instrumentCache;
 
     Optional<HistoricalData> getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
@@ -46,7 +46,7 @@ class HistoricalDataService {
             return Optional.empty();
         }
 
-        if(!kiteService.isInitialised()) {
+        if (!session.isInitialised()) {
             log.warn("Kite service is not initialised yet");
             return Optional.empty();
         }
@@ -54,7 +54,10 @@ class HistoricalDataService {
         try {
             String token = instrument.get();
             log.debug("Collecting data for {} from: {}, to: {}, interval: {}, continuous: {}", token, from, to, interval, continuous);
-            return Optional.of(kiteService.getHistoricalDataInternal(from, to, token, interval, continuous));
+            HistoricalData data = session.executeWithLockChecked(
+                    () -> session.getKiteSdk().getHistoricalData(from, to, token, interval, continuous, true),
+                    "getHistoricalData");
+            return Optional.of(data);
         } catch (JSONException | IOException | KiteException e) {
             log.error("Error while requesting historical data (from: {}, to: {}, symbol: {}, continuous: {}), errorMessage: {}\n{}",
                     from, to, symbol, continuous, e.getMessage(), getTopNLines(e, ERROR_STACK_TRACE_LINES));
@@ -62,20 +65,6 @@ class HistoricalDataService {
         return Optional.empty();
     }
 
-    /**
-     * Retrieves instrument token for the given symbol with continuous mode support.
-     *
-     * <p>For continuous mode with futures contracts:
-     * <ul>
-     * <li>If the exact symbol exists, use it directly</li>
-     * <li>If the symbol doesn't exist (expired contract) and continuous=true,
-     *     try to find the current active contract for the same underlying</li>
-     * </ul>
-     *
-     * @param symbol The trading symbol (e.g., NIFTY25AUGFUT)
-     * @param continuous Whether continuous mode is enabled
-     * @return Instrument token as string, empty if not found
-     */
     private Optional<String> getInstrumentToken(String symbol, boolean continuous) {
         Optional<String> directToken = instrumentCache.getInstrument(symbol).map(String::valueOf);
         if (directToken.isPresent()) {
@@ -107,11 +96,6 @@ class HistoricalDataService {
         return symbol != null && (symbol.contains(FUT) || FUTURES_SYMBOL_PATTERN.matcher(symbol).matches());
     }
 
-    /**
-     * Attempts to find the current active futures contract for the same underlying.
-     *
-     * <p>Example: NIFTY25AUGFUT (expired) -> NIFTY25SEPFUT (current)
-     */
     private Optional<String> findCurrentFuturesContract(String expiredSymbol) {
         return extractBaseName(expiredSymbol)
                 .flatMap(this::findFirstAvailableContract);
@@ -132,12 +116,6 @@ class HistoricalDataService {
         return Optional.empty();
     }
 
-    /**
-     * Generates year codes for futures contracts based on current year.
-     * Returns last 2 digits of current year and next 2 years.
-     *
-     * @return Array of year codes (e.g., ["25", "26", "27"] for year 2025)
-     */
     private String[] generateYearCodes() {
         int currentYear = LocalDate.now().getYear() % 100;
         String[] yearCodes = new String[FUTURES_YEAR_RANGE];
@@ -147,15 +125,6 @@ class HistoricalDataService {
         return yearCodes;
     }
 
-    /**
-     * Extracts the base name from a futures symbol.
-     *
-     * <p>Examples:
-     * <ul>
-     * <li>NIFTY25AUGFUT -> NIFTY</li>
-     * <li>BANKNIFTY25SEPFUT -> BANKNIFTY</li>
-     * </ul>
-     */
     private Optional<String> extractBaseName(String symbol) {
         if (symbol == null) {
             return Optional.empty();

@@ -1,12 +1,14 @@
 package com.vish.fno.reader.core;
 
+import com.vish.fno.reader.model.InstrumentSummary;
 import com.vish.fno.reader.util.InstrumentFileUtils;
 import com.vish.fno.util.TimeUtils;
 import com.zerodhatech.models.Instrument;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONException;
 
+import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -14,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -36,7 +39,7 @@ import static com.vish.fno.util.TimeUtils.getLocalDateFromDate;
 @SuppressWarnings({"PMD.AvoidThrowingRawExceptionTypes", "PMD.TooManyStaticImports"})
 class InstrumentCache {
 
-    private final KiteService kiteService;
+    private final KiteSession session;
     private final List<String> nifty100Symbols;
 
     private final Object initLock;
@@ -45,10 +48,12 @@ class InstrumentCache {
     private volatile Map<String, Long> symbolMap;
     private volatile Map<Long, String> instrumentMap;
     private volatile Map<String, String> exchangeMap;
+    // name → instrumentType → sorted expiry → instruments
+    private volatile Map<String, Map<String, NavigableMap<Date, List<Instrument>>>> optionIndex;
 
-    public InstrumentCache(List<String> nifty100Symbols, KiteService kiteService) {
+    public InstrumentCache(List<String> nifty100Symbols, KiteSession session) {
         this.nifty100Symbols = nifty100Symbols;
-        this.kiteService = kiteService;
+        this.session = session;
         this.initLock = new Object();
     }
 
@@ -78,12 +83,43 @@ class InstrumentCache {
     }
 
     /**
+     * Gets instruments for the earliest expiry matching the given name and instrument type.
+     * Uses the pre-built option index for O(1) lookup instead of scanning all instruments.
+     *
+     * @param name the instrument name (e.g., "NIFTY", "BANKNIFTY")
+     * @param instrumentType the instrument type (e.g., "CE", "PE", "FUT")
+     * @return Optional containing the list of instruments for the earliest expiry, or empty
+     */
+    public Optional<List<Instrument>> getEarliestExpiryInstruments(String name, String instrumentType) {
+        getInstruments(); // ensure initialized
+        Map<String, NavigableMap<Date, List<Instrument>>> byType = optionIndex.get(name.toUpperCase(Locale.ENGLISH));
+        if (byType == null) {
+            return Optional.empty();
+        }
+        NavigableMap<Date, List<Instrument>> byExpiry = byType.get(instrumentType);
+        if (byExpiry == null || byExpiry.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(byExpiry.firstEntry().getValue());
+    }
+
+    /**
      * Initializes instrument cache by fetching from Kite API and filtering.
      * Should only be called from synchronized block in getInstruments().
      */
     private void initializeInstruments() {
-        // Fetch all instruments (network I/O)
-        List<Instrument> allInstruments = kiteService.getAllInstruments();
+        // Fetch all instruments (network I/O) via KiteSession
+        List<Instrument> allInstruments = session.executeWithLock(() -> {
+            try {
+                List<Instrument> instruments = session.getKiteSdk().getInstruments();
+                log.info("Loaded instrument cache from Kite server");
+                return instruments;
+            } catch (JSONException | IOException | com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException e) {
+                log.error("Failed to load instruments from Kite server", e);
+                return null;
+            }
+        }, "getAllInstruments");
+
         InstrumentFileUtils.saveInstrumentCache(allInstruments);
 
         // Filter instruments
@@ -95,6 +131,8 @@ class InstrumentCache {
         Map<Long, String> instruments = buildInstrumentMap(symbols);
         // Build exchange map (symbol → exchange)
         Map<String, String> exchanges = buildExchangeMap(filtered);
+        // Build option index for fast lookup
+        Map<String, Map<String, NavigableMap<Date, List<Instrument>>>> index = buildOptionIndex(filtered);
 
         InstrumentFileUtils.saveFilteredInstrumentCache(symbols);
         log.info("Filtered instrument count: {}", symbols.size());
@@ -105,19 +143,18 @@ class InstrumentCache {
         this.symbolMap = symbols;
         this.instrumentMap = instruments;
         this.exchangeMap = exchanges;
+        this.optionIndex = index;
         this.filteredInstruments = filtered;  // Assign last for happens-before guarantee
     }
 
-    public List<Map<String, String>> getAllInstruments() {
-        List<Map<String, String>> allInstrumentData = new ArrayList<>();
-        getInstruments().stream()
+    public List<InstrumentSummary> getAllInstruments() {
+        return getInstruments().stream()
                 .sorted(Comparator.comparing(Instrument::getName))
-                .forEach(i -> allInstrumentData.add(
-                        Map.of(
-                                "exchange", i.getExchange(),
-                                "symbol", i.getTradingsymbol(),
-                                "expiry", TimeUtils.getStringDate(i.getExpiry()))));
-        return allInstrumentData;
+                .map(i -> new InstrumentSummary(
+                        i.getExchange(),
+                        i.getTradingsymbol(),
+                        TimeUtils.getStringDate(i.getExpiry())))
+                .toList();
     }
 
     public Set<String> getExpiryDates() {
@@ -211,8 +248,6 @@ class InstrumentCache {
 
     /**
      * Get lot size for an index by searching for its future contract.
-     * This is useful for indices where we want the lot size but only have the index name.
-     * Futures and options for the same underlying have the same lot size.
      *
      * @param indexName the index name (e.g., "NIFTY 50", "NIFTY BANK", "SENSEX")
      * @return Optional containing lot size from the future contract, or empty if not found
@@ -225,8 +260,6 @@ class InstrumentCache {
 
         String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
 
-        // Find any future (FUT) instrument for this index
-        // Futures have the same lot size regardless of expiry
         return filteredInstruments.stream()
                 .filter(i -> FUT.equals(i.getInstrument_type()))
                 .filter(i -> derivativeName.equals(i.getName()))
@@ -236,7 +269,6 @@ class InstrumentCache {
 
     /**
      * Get lot sizes for all indices with future contracts.
-     * Returns a map with index name as key and lot size as value.
      *
      * @return map of index name to lot size
      */
@@ -302,6 +334,27 @@ class InstrumentCache {
                         Instrument::getExchange,
                         (existing, replacement) -> existing,
                         TreeMap::new));
+    }
+
+    /**
+     * Builds an option index for fast lookup of instruments by name, type, and expiry.
+     * Structure: name → instrumentType → sorted expiry → instruments
+     */
+    private Map<String, Map<String, NavigableMap<Date, List<Instrument>>>> buildOptionIndex(List<Instrument> filtered) {
+        return filtered.stream()
+                .filter(i -> i.getExpiry() != null)
+                .filter(i -> NFO.equals(i.getExchange()) || BFO.equals(i.getExchange()))
+                .collect(Collectors.groupingBy(
+                        i -> i.getName().toUpperCase(Locale.ENGLISH),
+                        Collectors.groupingBy(
+                                Instrument::getInstrument_type,
+                                Collectors.groupingBy(
+                                        Instrument::getExpiry,
+                                        TreeMap::new,
+                                        Collectors.toList()
+                                )
+                        )
+                ));
     }
 
     private void logExpiryDates(List<Instrument> filtered) {

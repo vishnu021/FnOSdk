@@ -66,3 +66,4 @@ spring.log
 *.swp
 *~.nib
 /docs/work-progress
+/docs/obsolete

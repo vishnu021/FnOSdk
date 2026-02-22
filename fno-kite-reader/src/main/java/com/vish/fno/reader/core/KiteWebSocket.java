@@ -16,11 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 @Slf4j
-@SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.LooseCoupling", "PMD.AvoidCatchingGenericException"})
+@SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.AvoidCatchingGenericException"})
 public class KiteWebSocket {
     private static final long NIFTY_50_TOKEN = 256265L;
     private static final long NIFTY_BANK_TOKEN = 260105L;
@@ -32,59 +31,59 @@ public class KiteWebSocket {
     @Getter
     private final boolean connectToWebSocket;
     private volatile boolean isConnected;
-    private final CopyOnWriteArrayList<Long> tokensToSubscribe;
-    private final CopyOnWriteArrayList<Long> subscribedTokens;
+    private final Object tokenLock = new Object();
+    private final List<Long> tokensToSubscribe;
+    private final List<Long> subscribedTokens;
     @Setter
     private OnTicks onTickerArrivalListener;
     @Setter
     private OnOrderUpdate onOrderUpdateListener;
 
+    @SuppressWarnings("PMD.LooseCoupling")
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {
         this.connectToWebSocket = connectToWebSocket;
         this.instrumentCache = instrumentCache;
-        this.tokensToSubscribe = new CopyOnWriteArrayList<>();
-        this.subscribedTokens = new CopyOnWriteArrayList<>();
+        this.tokensToSubscribe = new ArrayList<>();
+        this.subscribedTokens = new ArrayList<>();
         this.tokensToSubscribe.add(NIFTY_50_TOKEN);
         this.tokensToSubscribe.add(NIFTY_BANK_TOKEN);
         this.onOrderUpdateListener = order -> log.info("Order update complete : {}", JsonUtils.getFormattedObject(order));
     }
 
+    @SuppressWarnings("PMD.LooseCoupling")
     public void initialize(KiteConnect kiteSdk) {
-        if(connectToWebSocket) {
+        if (connectToWebSocket) {
             log.info("Initialising websocket...");
             this.tickerProvider = new KiteTicker(kiteSdk.getAccessToken(), kiteSdk.getApiKey());
             addWebSocketListeners(onTickerArrivalListener, onOrderUpdateListener);
             tickerProvider.connect();
-            isConnected = tickerProvider.isConnectionOpen();
-            log.info("isConnected : {}", isConnected);
+            log.info("WebSocket connect() called, waiting for onConnected callback");
 
-            /* set mode is used to set mode in which you need tick for list of tokens.
-             * Ticker allows three modes, modeFull, modeQuote, modeLTP.
-             * For getting only last traded price, use modeLTP
-             * For getting last traded price, last traded quantity, average price, volume traded today, total sell quantity and total buy quantity, open, high, low, close, change, use modeQuote
-             * For getting all data with depth, use modeFull*/
-            tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeLTP);
+            synchronized (tokenLock) {
+                tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeLTP);
+            }
         }
     }
 
     private void addWebSocketListeners(OnTicks onTickerArrivalListener, OnOrderUpdate onOrderUpdateListener) {
         tickerProvider.setOnConnectedListener(() -> {
-            /* Subscribe ticks for token.
-             * By default, all tokens are subscribed for modeQuote.
-             * */
-            log.info("Subscribing to following {} tokens: {}", tokensToSubscribe.size(), tokensToSubscribe);
-            tickerProvider.subscribe(new ArrayList<>(tokensToSubscribe));
-            tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeFull);
+            synchronized (tokenLock) {
+                log.info("Subscribing to following {} tokens: {}", tokensToSubscribe.size(), tokensToSubscribe);
+                tickerProvider.subscribe(new ArrayList<>(tokensToSubscribe));
+                tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeFull);
 
-            // Move tokens from queue to subscribed list AFTER subscribing
-            subscribedTokens.addAll(tokensToSubscribe);
-            tokensToSubscribe.clear();
-            log.info("Subscription complete. {} tokens now subscribed", subscribedTokens.size());
+                subscribedTokens.addAll(tokensToSubscribe);
+                tokensToSubscribe.clear();
+                isConnected = true;
+                log.info("Subscription complete. {} tokens now subscribed", subscribedTokens.size());
+            }
         });
 
-        tickerProvider.setOnDisconnectedListener(() -> log.info("disconnected"));
+        tickerProvider.setOnDisconnectedListener(() -> {
+            isConnected = false;
+            log.info("disconnected");
+        });
 
-        /* Set listener to get order updates.*/
         tickerProvider.setOnOrderUpdateListener(onOrderUpdateListener);
         tickerProvider.setOnTickerArrivalListener(onTickerArrivalListener);
 
@@ -107,41 +106,36 @@ public class KiteWebSocket {
         tickerProvider.unsubscribe(new ArrayList<>(tokens));
     }
 
-    /**
-     * Returns the list of currently subscribed WebSocket tokens
-     * @return Immutable copy of subscribed tokens list
-     */
     public List<Long> getSubscribedTokens() {
-        return new ArrayList<>(subscribedTokens);
+        synchronized (tokenLock) {
+            return new ArrayList<>(subscribedTokens);
+        }
     }
 
-    /**
-     * Returns the count of currently subscribed WebSocket tokens
-     * @return Number of subscribed tokens
-     */
     public int getSubscribedTokensCount() {
-        return subscribedTokens.size();
+        synchronized (tokenLock) {
+            return subscribedTokens.size();
+        }
     }
 
-    /**
-     * Checks if a symbol is already subscribed to WebSocket
-     * @param symbol The trading symbol to check
-     * @return true if symbol is subscribed, false otherwise
-     */
     public boolean isSymbolSubscribed(String symbol) {
         return instrumentCache.getInstrument(symbol)
-                .map(subscribedTokens::contains)
+                .map(token -> {
+                    synchronized (tokenLock) {
+                        return subscribedTokens.contains(token);
+                    }
+                })
                 .orElse(false);
     }
 
+    @SuppressWarnings("PMD.LooseCoupling")
     public void appendWebSocketSymbolsList(List<String> symbols, boolean addFutures) {
-        if(!connectToWebSocket) {
+        if (!connectToWebSocket) {
             return;
         }
 
-        // Adding futures of the symbols as well
         ArrayList<String> allSymbols = new ArrayList<>();
-        if(addFutures) {
+        if (addFutures) {
             for (String symbol : symbols) {
                 Optional<String> futureTradingSymbol = OptionPriceUtils.getNextExpiryFutureSymbol(symbol, instrumentCache.getInstruments());
                 futureTradingSymbol.ifPresent(allSymbols::add);
@@ -150,7 +144,6 @@ public class KiteWebSocket {
 
         allSymbols.addAll(symbols);
 
-        // Separate into new tokens and already existing tokens (filter out empty Optionals from unknown symbols)
         List<Long> allTokens = allSymbols
                 .stream()
                 .map(instrumentCache::getInstrument)
@@ -158,46 +151,44 @@ public class KiteWebSocket {
                 .map(Optional::get)
                 .toList();
 
-        List<Long> alreadySubscribed = allTokens
-                .stream()
-                .filter(subscribedTokens::contains)
-                .toList();
+        synchronized (tokenLock) {
+            List<Long> alreadySubscribed = allTokens
+                    .stream()
+                    .filter(subscribedTokens::contains)
+                    .toList();
 
-        List<Long> alreadyInQueue = allTokens
-                .stream()
-                .filter(t -> !subscribedTokens.contains(t) && tokensToSubscribe.contains(t))
-                .toList();
+            List<Long> alreadyInQueue = allTokens
+                    .stream()
+                    .filter(t -> !subscribedTokens.contains(t) && tokensToSubscribe.contains(t))
+                    .toList();
 
-        List<Long> newTokensToAdd = allTokens
-                .stream()
-                .filter(t -> !subscribedTokens.contains(t) && !tokensToSubscribe.contains(t))
-                .collect(Collectors.toCollection(ArrayList::new));
+            List<Long> newTokensToAdd = allTokens
+                    .stream()
+                    .filter(t -> !subscribedTokens.contains(t) && !tokensToSubscribe.contains(t))
+                    .collect(Collectors.toCollection(ArrayList::new));
 
-        // Log tokens that were skipped
-        if(!alreadySubscribed.isEmpty()) {
-            log.info("Skipping {} tokens - already subscribed: {}", alreadySubscribed.size(), alreadySubscribed);
-        }
-        if(!alreadyInQueue.isEmpty()) {
-            log.info("Skipping {} tokens - already in queue: {}", alreadyInQueue.size(), alreadyInQueue);
-        }
+            if (!alreadySubscribed.isEmpty()) {
+                log.info("Skipping {} tokens - already subscribed: {}", alreadySubscribed.size(), alreadySubscribed);
+            }
+            if (!alreadyInQueue.isEmpty()) {
+                log.info("Skipping {} tokens - already in queue: {}", alreadyInQueue.size(), alreadyInQueue);
+            }
 
-        if(newTokensToAdd.isEmpty()) {
-            log.info("No new tokens to add - all {} tokens were already subscribed or queued: {}", allTokens.size(), allTokens);
-        } else {
-            if(isConnected) {
-                // WebSocket is connected - subscribe immediately then add to subscribedTokens
-                log.info("WebSocket connected - subscribing to {} new tokens immediately: {}", newTokensToAdd.size(), newTokensToAdd);
-                tickerProvider.subscribe(new ArrayList<>(newTokensToAdd));
-                tickerProvider.setMode(new ArrayList<>(newTokensToAdd), KiteTicker.modeFull);
-
-                // Add to subscribedTokens AFTER subscribing
-                subscribedTokens.addAll(newTokensToAdd);
-                log.info("Subscription complete. Total subscribed tokens: {}", subscribedTokens.size());
+            if (newTokensToAdd.isEmpty()) {
+                log.info("No new tokens to add - all {} tokens were already subscribed or queued: {}", allTokens.size(), allTokens);
             } else {
-                // WebSocket not connected - add to queue
-                log.info("WebSocket not connected - adding {} tokens to queue (will subscribe on connect): {}", newTokensToAdd.size(), newTokensToAdd);
-                tokensToSubscribe.addAll(newTokensToAdd);
-                log.info("Total tokens in queue: {}", tokensToSubscribe.size());
+                if (isConnected) {
+                    log.info("WebSocket connected - subscribing to {} new tokens immediately: {}", newTokensToAdd.size(), newTokensToAdd);
+                    tickerProvider.subscribe(new ArrayList<>(newTokensToAdd));
+                    tickerProvider.setMode(new ArrayList<>(newTokensToAdd), KiteTicker.modeFull);
+
+                    subscribedTokens.addAll(newTokensToAdd);
+                    log.info("Subscription complete. Total subscribed tokens: {}", subscribedTokens.size());
+                } else {
+                    log.info("WebSocket not connected - adding {} tokens to queue (will subscribe on connect): {}", newTokensToAdd.size(), newTokensToAdd);
+                    tokensToSubscribe.addAll(newTokensToAdd);
+                    log.info("Total tokens in queue: {}", tokensToSubscribe.size());
+                }
             }
         }
     }

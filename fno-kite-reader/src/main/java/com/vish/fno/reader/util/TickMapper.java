@@ -11,7 +11,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * TickMapper - Converts Kite Tick objects to internal Ticker format.
@@ -52,26 +51,26 @@ public final class TickMapper {
         Map<String, List<Ticker.Depth>> marketDepth = includeDepth ? mapDepth(tick) : null;
 
         return new Ticker(
-                Optional.ofNullable(tick.getMode()).orElse(""),
+                tick.getMode(),
                 false,
-                Optional.ofNullable(tick.getInstrumentToken()).orElse(0L),
+                tick.getInstrumentToken(),
                 tickSymbol,
-                Optional.ofNullable(tick.getLastTradedPrice()).orElse(0.0),
-                Optional.ofNullable(tick.getHighPrice()).orElse(0.0),
-                Optional.ofNullable(tick.getLowPrice()).orElse(0.0),
-                Optional.ofNullable(tick.getOpenPrice()).orElse(0.0),
-                Optional.ofNullable(tick.getClosePrice()).orElse(0.0),
-                Optional.ofNullable(tick.getChange()).orElse(0.0),
-                Optional.ofNullable(tick.getLastTradedQuantity()).orElse(0.0),
-                Optional.ofNullable(tick.getAverageTradePrice()).orElse(0.0),
-                Optional.ofNullable(tick.getVolumeTradedToday()).orElse(0L),
-                Optional.ofNullable(tick.getTotalBuyQuantity()).orElse(0.0),
-                Optional.ofNullable(tick.getTotalSellQuantity()).orElse(0.0),
-                Optional.ofNullable(tick.getLastTradedTime()).orElse(new Date(0)),
-                Optional.ofNullable(tick.getOi()).orElse(0.0),
-                Optional.ofNullable(tick.getOpenInterestDayHigh()).orElse(0.0),
-                Optional.ofNullable(tick.getOpenInterestDayLow()).orElse(0.0),
-                Optional.ofNullable(tick.getTickTimestamp()).orElse(new Date(0)),
+                tick.getLastTradedPrice(),
+                tick.getHighPrice(),
+                tick.getLowPrice(),
+                tick.getOpenPrice(),
+                tick.getClosePrice(),
+                tick.getChange(),
+                tick.getLastTradedQuantity(),
+                tick.getAverageTradePrice(),
+                tick.getVolumeTradedToday(),
+                tick.getTotalBuyQuantity(),
+                tick.getTotalSellQuantity(),
+                tick.getLastTradedTime(),
+                tick.getOi(),
+                tick.getOpenInterestDayHigh(),
+                tick.getOpenInterestDayLow(),
+                tick.getTickTimestamp(),
                 new Date(),  // tickReceivedTime - captured at exact moment of mapping
                 marketDepth
         );

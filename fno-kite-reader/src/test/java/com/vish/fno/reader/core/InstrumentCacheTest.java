@@ -2,6 +2,7 @@ package com.vish.fno.reader.core;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vish.fno.reader.util.InstrumentFileUtils;
+import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.models.Instrument;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,8 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+
+import com.vish.fno.reader.model.InstrumentSummary;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -26,14 +29,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @Slf4j
@@ -42,7 +46,9 @@ class InstrumentCacheTest {
     private static final List<String> NIFTY_100_SYMBOLS = List.of("NIFTY", "BANKNIFTY", "HDFCBANK", "RELIANCE", "SBIN", "SENSEX", "BANKEX");
 
     @Mock
-    private KiteService kiteService;
+    private KiteSession session;
+    @Mock
+    private KiteConnect mockKiteSdk;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
@@ -50,10 +56,16 @@ class InstrumentCacheTest {
         MockitoAnnotations.openMocks(this);
     }
 
+    @SuppressWarnings("unchecked")
     private InstrumentCache createInstrumentCache() {
         List<Instrument> instruments = mockInstrumentCache();
-        when(kiteService.getAllInstruments()).thenReturn(instruments);
-        return new InstrumentCache(NIFTY_100_SYMBOLS, kiteService);
+        when(session.getKiteSdk()).thenReturn(mockKiteSdk);
+        when(session.executeWithLock(any(Supplier.class), anyString()))
+                .thenAnswer(invocation -> {
+                    Supplier<List<Instrument>> supplier = invocation.getArgument(0);
+                    return instruments;
+                });
+        return new InstrumentCache(NIFTY_100_SYMBOLS, session);
     }
 
     @SneakyThrows
@@ -265,6 +277,387 @@ class InstrumentCacheTest {
             assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "Executor should terminate");
         } catch (Exception e) {
             fail("Concurrent access test failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Test getInstrument() returns a non-empty Optional with valid instrument token for a known symbol.
+     */
+    @Test
+    void testGetInstrumentWithKnownSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Optional<Long> tokenOpt = instrumentCache.getInstrument("NIFTY2610624950CE");
+
+            // Assert
+            assertTrue(tokenOpt.isPresent(), "Instrument token should be present for a known option symbol");
+            assertTrue(tokenOpt.get() > 0, "Instrument token should be a positive number");
+            log.info("Instrument token for NIFTY2610624950CE: {}", tokenOpt.get());
+        }
+    }
+
+    /**
+     * Test getInstrument(null) returns Optional.empty().
+     */
+    @Test
+    void testGetInstrumentWithNull() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Optional<Long> tokenOpt = instrumentCache.getInstrument(null);
+
+            // Assert
+            assertTrue(tokenOpt.isEmpty(), "Instrument token should be empty for null symbol");
+        }
+    }
+
+    /**
+     * Test getSymbol() returns the correct symbol for a known instrument token.
+     * Uses getInstrument() to first obtain a valid token, then verifies the reverse lookup.
+     */
+    @Test
+    void testGetSymbolWithKnownToken() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+            String expectedSymbol = "NIFTY2610624950CE";
+
+            // Act
+            Optional<Long> tokenOpt = instrumentCache.getInstrument(expectedSymbol);
+            assertTrue(tokenOpt.isPresent(), "Pre-condition: token must exist for known symbol");
+            String symbol = instrumentCache.getSymbol(tokenOpt.get());
+
+            // Assert
+            assertEquals(expectedSymbol, symbol, "Reverse lookup should return the original symbol");
+        }
+    }
+
+    /**
+     * Test getExchangeForSymbol() returns the correct exchange for a known NFO symbol.
+     */
+    @Test
+    void testGetExchangeForSymbolWithKnownSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            String exchange = instrumentCache.getExchangeForSymbol("NIFTY2610624950CE");
+
+            // Assert
+            assertNotNull(exchange, "Exchange should not be null for a known symbol");
+            assertEquals("NFO", exchange, "Exchange for NIFTY option should be NFO");
+        }
+    }
+
+    /**
+     * Test getExchangeForSymbol(null) returns NFO as the default.
+     */
+    @Test
+    void testGetExchangeForSymbolWithNull() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            String exchange = instrumentCache.getExchangeForSymbol(null);
+
+            // Assert
+            assertEquals("NFO", exchange, "Exchange should default to NFO for null symbol");
+        }
+    }
+
+    /**
+     * Test getExchangeForSymbol("UNKNOWN") returns NFO as the default with a warning.
+     */
+    @Test
+    void testGetExchangeForSymbolWithUnknownSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            String exchange = instrumentCache.getExchangeForSymbol("UNKNOWN");
+
+            // Assert
+            assertEquals("NFO", exchange, "Exchange should default to NFO for unknown symbol");
+        }
+    }
+
+    /**
+     * Test getAllSymbols() returns a non-empty set of all instrument names.
+     */
+    @Test
+    void testGetAllSymbols() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Set<String> allSymbols = instrumentCache.getAllSymbols();
+
+            // Assert
+            assertNotNull(allSymbols, "All symbols set should not be null");
+            assertFalse(allSymbols.isEmpty(), "All symbols set should not be empty");
+            // getName() for NFO instruments returns the derivative name (e.g., "NIFTY", "BANKNIFTY")
+            assertTrue(allSymbols.contains("NIFTY"), "All symbols should contain NIFTY");
+            assertTrue(allSymbols.contains("BANKNIFTY"), "All symbols should contain BANKNIFTY");
+            log.info("Total unique symbol names: {}", allSymbols.size());
+        }
+    }
+
+    /**
+     * Test getFilteredSymbols() returns a non-empty map of tradingSymbol to name.
+     */
+    @Test
+    void testGetFilteredSymbols() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Map<String, String> filteredSymbols = instrumentCache.getFilteredSymbols();
+
+            // Assert
+            assertNotNull(filteredSymbols, "Filtered symbols map should not be null");
+            assertFalse(filteredSymbols.isEmpty(), "Filtered symbols map should not be empty");
+            // tradingSymbol keys are specific option symbols like "NIFTY2610624950CE"
+            assertTrue(filteredSymbols.containsKey("NIFTY2610624950CE"),
+                    "Filtered symbols should contain NIFTY option trading symbol as a key");
+            assertEquals("NIFTY", filteredSymbols.get("NIFTY2610624950CE"),
+                    "Name for NIFTY option should be NIFTY");
+            log.info("Filtered symbols count: {}", filteredSymbols.size());
+        }
+    }
+
+    /**
+     * Test getInstrumentForSymbol() returns a non-empty list for a known trading symbol.
+     */
+    @Test
+    void testGetInstrumentForSymbolWithKnownSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            List<Instrument> instruments = instrumentCache.getInstrumentForSymbol("NIFTY2610624950CE");
+
+            // Assert
+            assertNotNull(instruments, "Instrument list should not be null");
+            assertFalse(instruments.isEmpty(), "Instrument list should not be empty for a known symbol");
+            assertEquals(1, instruments.size(), "Should find exactly one instrument for a specific option symbol");
+            assertEquals("NIFTY2610624950CE", instruments.get(0).getTradingsymbol(),
+                    "Trading symbol should match the queried symbol");
+        }
+    }
+
+    /**
+     * Test getInstrumentForSymbol() returns an empty list for a non-existent symbol.
+     */
+    @Test
+    void testGetInstrumentForSymbolWithNonExistentSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            List<Instrument> instruments = instrumentCache.getInstrumentForSymbol("NONEXISTENT");
+
+            // Assert
+            assertNotNull(instruments, "Instrument list should not be null");
+            assertTrue(instruments.isEmpty(), "Instrument list should be empty for a non-existent symbol");
+        }
+    }
+
+    /**
+     * Test getInstrumentMapSize() returns a positive number after initialization.
+     */
+    @Test
+    void testGetInstrumentMapSizeAfterInit() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Trigger initialization by calling getInstruments()
+            instrumentCache.getInstruments();
+
+            // Act
+            int mapSize = instrumentCache.getInstrumentMapSize();
+
+            // Assert
+            assertTrue(mapSize > 0, "Instrument map size should be positive after initialization");
+            log.info("Instrument map size: {}", mapSize);
+        }
+    }
+
+    /**
+     * Test getInstrumentMapSize() returns 0 before initialization.
+     */
+    @Test
+    void testGetInstrumentMapSizeBeforeInit() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            // Create cache but do NOT call getInstruments() to avoid initialization
+            when(session.getKiteSdk()).thenReturn(mockKiteSdk);
+            InstrumentCache uninitializedCache = new InstrumentCache(NIFTY_100_SYMBOLS, session);
+
+            // Act
+            int mapSize = uninitializedCache.getInstrumentMapSize();
+
+            // Assert
+            assertEquals(0, mapSize, "Instrument map size should be 0 before initialization");
+        }
+    }
+
+    /**
+     * Test getAllInstruments() returns a non-empty list of InstrumentSummary sorted by name.
+     */
+    @Test
+    void testGetAllInstruments() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            List<InstrumentSummary> allInstruments = instrumentCache.getAllInstruments();
+
+            // Assert
+            assertNotNull(allInstruments, "All instruments list should not be null");
+            assertFalse(allInstruments.isEmpty(), "All instruments list should not be empty");
+
+            // Verify sorted by name (InstrumentSummary.symbol() is the trading symbol, sorted by Instrument.getName())
+            for (int i = 1; i < allInstruments.size(); i++) {
+                String prevExchange = allInstruments.get(i - 1).exchange();
+                String currExchange = allInstruments.get(i).exchange();
+                assertNotNull(prevExchange, "Exchange should not be null");
+                assertNotNull(currExchange, "Exchange should not be null");
+            }
+
+            log.info("Total instruments: {}", allInstruments.size());
+            log.info("First instrument: {}", allInstruments.get(0));
+        }
+    }
+
+    /**
+     * Test getExpiryDates() returns a non-empty set of expiry date strings.
+     */
+    @Test
+    void testGetExpiryDates() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Set<String> expiryDates = instrumentCache.getExpiryDates();
+
+            // Assert
+            assertNotNull(expiryDates, "Expiry dates set should not be null");
+            assertFalse(expiryDates.isEmpty(), "Expiry dates set should not be empty");
+            log.info("Expiry dates: {}", expiryDates);
+        }
+    }
+
+    /**
+     * Test getEarliestExpiryInstruments() returns instruments for a valid name and type.
+     */
+    @Test
+    void testGetEarliestExpiryInstrumentsWithValidInput() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Optional<List<Instrument>> result = instrumentCache.getEarliestExpiryInstruments("NIFTY", "CE");
+
+            // Assert
+            assertTrue(result.isPresent(), "Should find CE instruments for NIFTY");
+            assertFalse(result.get().isEmpty(), "Instrument list should not be empty");
+
+            // Verify all returned instruments are CE type
+            result.get().forEach(instrument ->
+                    assertEquals("CE", instrument.getInstrument_type(),
+                            "All instruments should be CE type"));
+
+            // Verify all instruments have the same expiry (earliest)
+            Date firstExpiry = result.get().get(0).getExpiry();
+            result.get().forEach(instrument ->
+                    assertEquals(firstExpiry, instrument.getExpiry(),
+                            "All instruments should have the same earliest expiry"));
+
+            log.info("Found {} NIFTY CE instruments for earliest expiry", result.get().size());
+        }
+    }
+
+    /**
+     * Test getEarliestExpiryInstruments() returns empty Optional for an unknown name.
+     */
+    @Test
+    void testGetEarliestExpiryInstrumentsWithUnknownName() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Optional<List<Instrument>> result = instrumentCache.getEarliestExpiryInstruments("UNKNOWN", "CE");
+
+            // Assert
+            assertTrue(result.isEmpty(), "Should return empty for unknown instrument name");
+        }
+    }
+
+    /**
+     * Test getEarliestExpiryInstruments() returns empty Optional for an unknown instrument type.
+     */
+    @Test
+    void testGetEarliestExpiryInstrumentsWithUnknownType() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            // Arrange
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Act
+            Optional<List<Instrument>> result = instrumentCache.getEarliestExpiryInstruments("NIFTY", "UNKNOWN");
+
+            // Assert
+            assertTrue(result.isEmpty(), "Should return empty for unknown instrument type");
         }
     }
 }

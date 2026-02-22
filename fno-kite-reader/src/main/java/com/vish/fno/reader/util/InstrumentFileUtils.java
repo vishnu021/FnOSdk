@@ -1,6 +1,7 @@
 package com.vish.fno.reader.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vish.fno.util.TimeUtils;
 import com.zerodhatech.models.Instrument;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -16,7 +17,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -62,7 +62,7 @@ public final class InstrumentFileUtils {
     }
 
     private static String getInstrumentFileName(int days) {
-        return "instruments_" + getFormattedDate(getNDaysBefore(days)) + ".json";
+        return "instruments_" + getFormattedDate(TimeUtils.getNDaysBefore(new Date(), days)) + ".json";
     }
 
     /**
@@ -76,21 +76,17 @@ public final class InstrumentFileUtils {
     }
 
     public static List<Instrument> loadInstrumentCache(int days) {
-        List<Instrument> instruments = null;
         String instrumentFileName = getInstrumentFileName(days);
         try {
-            instruments = MAPPER.readValue(
+            List<Instrument> instruments = MAPPER.readValue(
                 new File(FILE_PATH.resolve(instrumentFileName).toString()),
                 MAPPER.getTypeFactory().constructCollectionType(List.class, Instrument.class)
             );
             log.info("Loaded instrument cache from file {}", instrumentFileName);
+            return instruments;
         } catch (IOException e) {
             log.error("Instrument file not yet created");
+            return List.of();
         }
-        return instruments;
-    }
-
-    public static Date getNDaysBefore(long n) {
-        return new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(n));
     }
 }

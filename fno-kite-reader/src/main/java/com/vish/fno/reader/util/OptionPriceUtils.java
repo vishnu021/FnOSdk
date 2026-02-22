@@ -10,9 +10,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Optional;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.vish.fno.util.FnoConstants.BFO;
@@ -32,7 +32,7 @@ public final class OptionPriceUtils {
 
         Optional<List<Instrument>> earliestExpiryInstrument = getEarliestExpiryInstrument(instruments, symbolPrefix, FUT);
 
-        if(earliestExpiryInstrument.isPresent()) {
+        if (earliestExpiryInstrument.isPresent()) {
             List<Instrument> nextExpiryFuture = earliestExpiryInstrument.get();
             return Optional.of(nextExpiryFuture.get(0).getTradingsymbol());
         }
@@ -63,42 +63,44 @@ public final class OptionPriceUtils {
                                      List<Instrument> instruments) {
         String symbolsName = getOptionPrefix(indexSymbol);
         String instrumentType = isCall ? CE : PE;
-        Optional<List<Instrument>> earliestExpiryInstrument = getEarliestExpiryInstrument(instruments, symbolsName, instrumentType);
+        return getEarliestExpiryInstrument(instruments, symbolsName, instrumentType)
+                .map(expiryInstruments -> resolveStrike(expiryInstruments, price, selectLastBelow))
+                .orElse("");
+    }
 
-        AtomicReference<String> symbol = new AtomicReference<>("");
-        earliestExpiryInstrument.ifPresent(expiryInstruments -> {
-            Map<Long, String> strikeToSymbolMap = expiryInstruments.stream()
-                    .collect(Collectors.toMap(
-                            instrument -> {
-                                try {
-                                    return Long.parseLong(instrument.getStrike());
-                                } catch (NumberFormatException e) {
-                                    log.error("NumberFormatException while parsing the strike price");
-                                    return null;
-                                }
-                            },
-                            Instrument::getTradingsymbol,
-                            (existing, replacement) -> existing,
-                            TreeMap::new
-                    ));
+    private static String resolveStrike(List<Instrument> instruments, double price, boolean selectLastBelow) {
+        NavigableMap<Long, String> strikeToSymbolMap = instruments.stream()
+                .collect(Collectors.toMap(
+                        instrument -> {
+                            try {
+                                return Long.parseLong(instrument.getStrike());
+                            } catch (NumberFormatException e) {
+                                log.error("NumberFormatException while parsing the strike price");
+                                return null;
+                            }
+                        },
+                        Instrument::getTradingsymbol,
+                        (existing, replacement) -> existing,
+                        TreeMap::new
+                ));
 
-            if (selectLastBelow) {
-                for (long strikePrice : strikeToSymbolMap.keySet()) {
-                    if (strikePrice > price) {
-                        break;
-                    }
-                    symbol.set(strikeToSymbolMap.get(strikePrice));
+        if (selectLastBelow) {
+            String result = "";
+            for (long strikePrice : strikeToSymbolMap.keySet()) {
+                if (strikePrice > price) {
+                    break;
                 }
-            } else {
-                for (long strikePrice : strikeToSymbolMap.keySet()) {
-                    if (strikePrice > price) {
-                        symbol.set(strikeToSymbolMap.get(strikePrice));
-                        break;
-                    }
+                result = strikeToSymbolMap.get(strikePrice);
+            }
+            return result;
+        } else {
+            for (long strikePrice : strikeToSymbolMap.keySet()) {
+                if (strikePrice > price) {
+                    return strikeToSymbolMap.get(strikePrice);
                 }
             }
-        });
-        return symbol.get();
+            return "";
+        }
     }
 
     private static Optional<List<Instrument>> getEarliestExpiryInstrument(List<Instrument> instruments, String symbolsName, String instrumentType) {
@@ -124,20 +126,15 @@ public final class OptionPriceUtils {
     public static List<String> getAllOptionSymbols(String indexSymbol, List<Instrument> instruments) {
         String symbolsName = getOptionPrefix(indexSymbol);
 
-        // Get all CE options (nearest expiry)
         Optional<List<Instrument>> callOptions = getEarliestExpiryInstrument(instruments, symbolsName, CE);
-
-        // Get all PE options (nearest expiry)
         Optional<List<Instrument>> putOptions = getEarliestExpiryInstrument(instruments, symbolsName, PE);
 
         List<String> allOptionSymbols = new ArrayList<>();
 
-        // Add all CALL symbols
         callOptions.ifPresent(calls ->
             calls.forEach(instrument -> allOptionSymbols.add(instrument.getTradingsymbol()))
         );
 
-        // Add all PUT symbols
         putOptions.ifPresent(puts ->
             puts.forEach(instrument -> allOptionSymbols.add(instrument.getTradingsymbol()))
         );

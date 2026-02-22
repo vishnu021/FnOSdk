@@ -6,10 +6,14 @@ import com.zerodhatech.models.Tick;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @Slf4j
 class TickMapperTest {
@@ -92,5 +96,75 @@ class TickMapperTest {
 
         // Assert tickReceivedTime is captured at mapping time
         assertNotNull(ticker.tickReceivedTime(), "tickReceivedTime should be populated at mapping time");
+    }
+
+    @Test
+    void testMapTick_withoutDepth() throws Exception {
+        // Given
+        ObjectMapper objectMapper = new ObjectMapper();
+        Tick tick = objectMapper.readValue(TICK_JSON, Tick.class);
+        String symbol = "NIFTY24AUG24500CE";
+
+        // When
+        Ticker ticker = TickMapper.mapTick(tick, symbol, false);
+
+        // Then
+        assertNull(ticker.depth(), "depth should be null when includeDepth is false");
+        assertEquals(153.9, ticker.lastTradedPrice());
+        assertEquals(13259778, ticker.instrumentToken());
+        assertEquals(-43.53329664281783, ticker.change());
+        assertEquals(symbol, ticker.instrumentSymbol());
+        assertNotNull(ticker.tickReceivedTime());
+    }
+
+    @Test
+    void testMapTick_withNullMarketDepth() {
+        // Given
+        Tick tick = new Tick();
+        tick.setMode("full");
+        tick.setInstrumentToken(12345L);
+        tick.setLastTradedPrice(100.5);
+        tick.setMarketDepth(null);
+
+        // When
+        Ticker ticker = TickMapper.mapTick(tick, "TESTSTOCK", true);
+
+        // Then
+        assertNull(ticker.depth(), "depth should be null when marketDepth is null");
+        assertEquals(100.5, ticker.lastTradedPrice());
+        assertEquals(12345L, ticker.instrumentToken());
+    }
+
+    @Test
+    void testMapTick_symbolPreserved() throws Exception {
+        // Given
+        ObjectMapper objectMapper = new ObjectMapper();
+        Tick tick = objectMapper.readValue(TICK_JSON, Tick.class);
+        String expectedSymbol = "BANKNIFTY24AUG51000PE";
+
+        // When
+        Ticker ticker = TickMapper.mapTick(tick, expectedSymbol, false);
+
+        // Then
+        assertEquals(expectedSymbol, ticker.instrumentSymbol(),
+                "tickSymbol parameter should be used as instrumentSymbol in the output");
+    }
+
+    @Test
+    void testMapTick_withEmptyMarketDepth() {
+        // Given
+        Tick tick = new Tick();
+        tick.setMode("full");
+        tick.setInstrumentToken(67890L);
+        tick.setLastTradedPrice(200.0);
+        Map<String, ArrayList<com.zerodhatech.models.Depth>> emptyDepth = new HashMap<>();
+        tick.setMarketDepth(emptyDepth);
+
+        // When
+        Ticker ticker = TickMapper.mapTick(tick, "EMPTYSTOCK", true);
+
+        // Then
+        assertNull(ticker.depth(), "depth should be null when marketDepth map is empty");
+        assertEquals(200.0, ticker.lastTradedPrice());
     }
 }

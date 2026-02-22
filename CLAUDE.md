@@ -53,7 +53,7 @@ fno-phase-analyzer (Wyckoff analysis, market regimes)
 | fno-models | `OrderRequest`, `ActiveOrder`, `Candle`, `Ticker` | Core POJOs |
 | fno-utils | `TimeUtils`, `CandleUtils`, `PriceUtils`, `FileUtils` | Utilities |
 | fno-technicals | `SimpleMovingAverage`, `RSI`, `BlackScholes` | Indicators/Greeks |
-| fno-kite-reader | `KiteService`, `KiteWebSocket`, `InstrumentCache` | Kite API |
+| fno-kite-reader | `KiteService` (facade), `KiteSession`, `KiteOrderExecutor`, `HistoricalDataProvider`, `InstrumentCache`, `KiteWebSocket` | Kite API |
 | fno-strategy-utils | `CPRUtils`, `PCRUtils`, `TargetAndStopLossStrategy` | Strategy tools |
 | fno-phase-analyzer | `WyckoffPhaseIdentifier`, `CompositeWyckoffPhaseIdentifier` | Wyckoff analysis |
 

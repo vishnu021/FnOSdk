@@ -43,14 +43,19 @@ class KiteServiceConcurrencyTest {
     @BeforeEach
     void setUp() throws Throwable {
         kiteService = new KiteService("secret", "apiKey", "userId", List.of(), false, false);
-        // Inject mock KiteConnect via reflection
-        Field kiteSdkField = KiteService.class.getDeclaredField("kiteSdk");
+        // Inject mock KiteConnect into KiteSession via reflection
+        Field sessionField = KiteService.class.getDeclaredField("session");
+        sessionField.setAccessible(true);
+        KiteSession session = (KiteSession) sessionField.get(kiteService);
+
+        Field kiteSdkField = KiteSession.class.getDeclaredField("kiteSdk");
         kiteSdkField.setAccessible(true);
-        kiteSdkField.set(kiteService, mockKiteSdk);
+        kiteSdkField.set(session, mockKiteSdk);
+
         // Mark as initialised
-        Field initialisedField = KiteService.class.getDeclaredField("initialised");
+        Field initialisedField = KiteSession.class.getDeclaredField("initialised");
         initialisedField.setAccessible(true);
-        initialisedField.set(kiteService, true);
+        initialisedField.set(session, true);
     }
 
     @Test
@@ -153,9 +158,13 @@ class KiteServiceConcurrencyTest {
         ApiRateLimiter.lockTimeoutSeconds = 1;
 
         // Acquire the lock externally so KiteService cannot acquire it
-        Field rateLimiterField = KiteService.class.getDeclaredField("apiRateLimiter");
+        Field sessionField = KiteService.class.getDeclaredField("session");
+        sessionField.setAccessible(true);
+        KiteSession session = (KiteSession) sessionField.get(kiteService);
+
+        Field rateLimiterField = KiteSession.class.getDeclaredField("apiRateLimiter");
         rateLimiterField.setAccessible(true);
-        ApiRateLimiter rateLimiter = (ApiRateLimiter) rateLimiterField.get(kiteService);
+        ApiRateLimiter rateLimiter = (ApiRateLimiter) rateLimiterField.get(session);
 
         Field lockField = ApiRateLimiter.class.getDeclaredField("apiLock");
         lockField.setAccessible(true);
