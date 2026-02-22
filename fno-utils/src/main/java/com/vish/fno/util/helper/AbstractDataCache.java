@@ -2,18 +2,15 @@ package com.vish.fno.util.helper;
 
 import com.vish.fno.model.Ticker;
 
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 
 abstract class AbstractDataCache implements DataCache {
     private static final int MAX_TICKS_PER_SYMBOL = 500;
 
     protected final Map<String, Ticker> latestTicks;
-    protected final Map<String, Deque<Ticker>> ticksCache;
+    protected final Map<String, TickCircularBuffer> ticksCache;
 
     public AbstractDataCache() {
         this.latestTicks = new ConcurrentHashMap<>();
@@ -23,14 +20,10 @@ abstract class AbstractDataCache implements DataCache {
     public void appendTick(String symbol, Ticker tick) {
         latestTicks.put(symbol, tick);
 
-        // Thread-safe deque: O(1) addLast and O(1) removeFirst
-        Deque<Ticker> ticks = ticksCache.computeIfAbsent(symbol, k -> new ConcurrentLinkedDeque<>());
-        ticks.addLast(tick);
-
-        // Keep only latest 100 ticks to prevent memory overflow
-        if (ticks.size() > MAX_TICKS_PER_SYMBOL) {
-            ticks.removeFirst();
-        }
+        // Zero-allocation circular buffer: O(1) add, overwrites oldest when full
+        TickCircularBuffer buffer = ticksCache.computeIfAbsent(
+                symbol, k -> new TickCircularBuffer(MAX_TICKS_PER_SYMBOL));
+        buffer.add(tick);
     }
 
     public Ticker getLatestTick(String symbol) {
@@ -38,13 +31,14 @@ abstract class AbstractDataCache implements DataCache {
     }
 
     public List<Ticker> getTicks(String symbol) {
-        Deque<Ticker> deque = ticksCache.get(symbol);
-        // Convert Deque to List for backward compatibility
-        return deque == null ? List.of() : new ArrayList<>(deque);
+        TickCircularBuffer buffer = ticksCache.get(symbol);
+        // Returns lightweight unmodifiable List view — no element copying
+        return buffer == null ? List.of() : buffer.asList();
     }
 
     protected void clearTickCache() {
         latestTicks.clear();
+        ticksCache.values().forEach(TickCircularBuffer::clear);
         ticksCache.clear();
     }
 }

@@ -159,7 +159,7 @@ Factory methods: `ExitDetail.forRegularOrder(qty, price)`, `ExitDetail.forIndexO
 
 ### OrderCache
 
-Thread-safe cache for order requests, active orders, and completed orders with cash management.
+Thread-safe cache for order requests, active orders, and completed orders with cash management. Maintains secondary symbol indices (`ConcurrentHashMap`) for O(1) lookups by index symbol. The hot-path methods `checkEntryInOpenOrders` and `getActiveOrderForSymbol` are called on every tick (~520/sec); the symbol index avoids full-list scans.
 
 ```java
 OrderCache cache = new OrderCache(100000.0);
@@ -175,14 +175,16 @@ List<ActiveOrder> completed = cache.getCompletedOrders();  // Orders moved from 
 | `getAvailableCash()` | ✅ Volatile | Read cash balance |
 | `deductCash(double)` | ✅ Synchronized | Atomic deduction |
 | `addCash(double)` | ✅ Synchronized | Atomic addition |
-| `checkEntryInOpenOrders(Ticker, String)` | ✅ | Check trigger conditions |
-| `addOrderRequest(OrderRequest)` | ✅ | Add (removes duplicates) |
-| `appendActiveOrder(ActiveOrder)` | ✅ | Add active order |
-| `removeActiveOrder(ActiveOrder)` | ✅ | Remove from active, add to completed |
+| `checkEntryInOpenOrders(Ticker, String)` | ✅ | O(1) symbol index lookup, check trigger conditions |
+| `isNotInActiveOrders(OrderRequest)` | ✅ | Check if order is not already active (uses symbol index) |
+| `addOrderRequest(OrderRequest)` | ✅ | Add (removes duplicates, updates symbol index) |
+| `appendActiveOrder(ActiveOrder)` | ✅ | Add active order + update symbol index |
+| `removeActiveOrder(ActiveOrder)` | ✅ | Remove from active + index, add to completed |
+| `getActiveOrderForSymbol(String)` | ✅ | O(1) symbol index lookup, returns `List.copyOf()` |
 | `getCompletedOrders()` | ✅ | Get list of completed orders |
-| `removeExpiredOpenOrders(int)` | ✅ | Clean expired orders |
+| `removeExpiredOpenOrders(int)` | ✅ | Clean expired orders + update symbol index |
 
-**Note:** `removeActiveOrder()` moves the order to `completedOrders` for historical tracking before removing from `activeOrders`.
+**Note:** `removeActiveOrder()` removes from `activeOrders` and the symbol index, then moves the order to `completedOrders` for historical tracking.
 
 ---
 
@@ -303,7 +305,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
 | OrderCache (cash ops) | ✅ | Synchronized methods |
-| OrderCache (collections) | ✅ | CopyOnWriteArrayList |
+| OrderCache (collections) | ✅ | CopyOnWriteArrayList + ConcurrentHashMap symbol indices |
 | Wyckoff Records | ✅ | Immutable |
 | Model POJOs | ❌ | Use synchronization if shared |
 
@@ -313,8 +315,9 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 
 - **OrderRequest tag**: Null becomes empty string
 - **ActiveOrder stop loss**: Trailing only in beneficial direction
-- **OrderCache**: `addOrderRequest()` removes duplicates first
-- **OrderCache**: `removeActiveOrder()` moves order to completed before removing from active
+- **OrderCache**: `addOrderRequest()` removes duplicates first, rebuilds symbol index entry
+- **OrderCache**: `removeActiveOrder()` removes from active list + symbol index, then moves to completed
+- **OrderCache**: Symbol indices (`orderRequestsBySymbol`, `activeOrdersBySymbol`) are updated on every mutation
 
 ---
 

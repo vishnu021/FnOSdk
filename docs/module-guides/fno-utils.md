@@ -270,7 +270,18 @@ Abstraction for time injection (production, backtest, unit test).
 
 ### AbstractDataCache
 
-Package-private base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + ConcurrentLinkedDeque). Max 500 ticks per symbol with FIFO eviction. Provides `clearTickCache()` to reset all tick data (used on date change).
+Package-private base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + TickCircularBuffer). Max 500 ticks per symbol; ring buffer overwrites oldest when full (zero allocation per tick). Provides `clearTickCache()` to reset all tick data (used on date change).
+
+### TickCircularBuffer
+
+Package-private, lock-free circular buffer replacing `ConcurrentLinkedDeque<Ticker>`. Pre-allocated `Ticker[]` array with volatile write index. Thread safety: single-writer (tick ingestion thread), multiple-reader (strategy threads).
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `add(Ticker)` | `void` | O(1) append, overwrites oldest when full, zero allocation |
+| `asList()` | `List<Ticker>` | Lightweight `AbstractList` view (no element copying) |
+| `size()` | `int` | Current tick count |
+| `clear()` | `void` | Nulls all slots for GC |
 
 ### DataCacheImpl
 
@@ -374,7 +385,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 |-----------|-------------|-------|
 | CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
 | JsonUtils, CompressionUtils | ✅ | Static methods |
-| AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + ConcurrentLinkedDeque |
+| AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer) |
 | TimeProvider | ✅ | Instance methods |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |

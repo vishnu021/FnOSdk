@@ -242,21 +242,45 @@ Resolves the exchange (`"NFO"` or `"BFO"`) for a given trading symbol by looking
 ### TickMapper
 
 ```java
+// With depth (backward-compatible)
 Ticker ticker = TickMapper.mapTick(tick, symbol);
+
+// Without depth (saves ~15 object allocations per tick)
+Ticker ticker = TickMapper.mapTick(tick, symbol, false);
 ```
 
 Converts Zerodha Tick to internal Ticker format. Sets `tickReceivedTime` to the exact moment of mapping for latency analysis.
+
+| Method | Description |
+|--------|-------------|
+| `mapTick(Tick, String)` | Map with depth included (backward-compatible) |
+| `mapTick(Tick, String, boolean)` | Map with optional depth; `includeDepth=false` sets depth to null |
+
+When `includeDepth=false`, the depth field is null. The `@JsonInclude(NON_NULL)` annotation on `Ticker` automatically omits null depth from JSON output. Depth mapping internally uses a loop-based implementation instead of Stream chains, eliminating ~10 intermediate object allocations even when depth IS included.
 
 | Field | Source |
 |-------|--------|
 | `tickTimestamp` | From Kite `Tick.getTickTimestamp()` |
 | `tickReceivedTime` | `new Date()` at mapping time |
 
+### MarketDepthProvider
+
+Interface that decouples depth access from the Ticker record. Enables depth-free tick pipelines while preserving order-time depth logging.
+
+```java
+public interface MarketDepthProvider {
+    Map<String, List<Ticker.Depth>> getDepth(String symbol);
+}
+```
+
+Production implementations cache the latest depth per symbol from raw tick data. Backtest implementations may read depth from tick files or return null.
+
 ### OrderDetailsLogger
 
 | Method | Description |
 |--------|-------------|
-| `logMarketDepth(Ticker)` | Log buy/sell depth |
+| `logMarketDepth(Ticker)` | Log buy/sell depth (deprecated, use provider-based overload) |
+| `logMarketDepth(String, MarketDepthProvider)` | Log depth from cache-based provider |
 | `logOrderLifeCycle(orders, order, orderId)` | Log order state transitions |
 | `getActiveOrdersByOrderId(orders, orderId)` | Filter by Kite order ID |
 
