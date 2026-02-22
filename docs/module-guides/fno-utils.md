@@ -71,8 +71,6 @@ All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Tradin
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `currentTime()` | `Date` | Current system time (**@Deprecated** - use `TimeSource`) |
-| `getTime()` | `String` | Current time as "HH:mm" (**@Deprecated** - use `TimeSource.now()`) |
-| `getTodayDate()` | `String` | Today as "yyyy-MM-dd" (**@Deprecated** - use `TimeSource.getTodaysDateString()` or `getStringDate(date)`) |
 | `getStringDate(Date)` | `String` | Date as "yyyy-MM-dd" (empty string if null) |
 | `getStringYear(Date)` | `String` | Year as format string (empty if null) |
 | `getIndexOfTimeStamp(Date)` | `int` | Minute index (0-375, -1 if outside hours) |
@@ -82,7 +80,6 @@ All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Tradin
 | `appendClosingTimeToDate(Date)` | `Date` | Set time to 3:30 PM |
 | `getPreviousWorkDay(Date)` | `Date` | Previous weekday |
 | `getDatesBetween(Date, Date)` | `List<Date>` | Weekdays in range |
-| `getNDaysBefore(long)` | `Date` | N days before today (**@Deprecated** - use `getNDaysBefore(Date, long)`) |
 | `getNDaysBefore(Date, long)` | `Date` | N days before given date |
 | `getTimeElapsed(long)` | `String` | Human-readable elapsed time |
 | `isWithinTradingHours(long)` | `boolean` | Check if in trading hours |

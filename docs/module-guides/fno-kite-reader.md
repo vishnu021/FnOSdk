@@ -263,26 +263,7 @@ When `includeDepth=false`, the depth field is null. The `@JsonInclude(NON_NULL)`
 | `tickTimestamp` | From Kite `Tick.getTickTimestamp()` |
 | `tickReceivedTime` | `new Date()` at mapping time |
 
-### MarketDepthProvider
-
-Interface that decouples depth access from the Ticker record. Enables depth-free tick pipelines while preserving order-time depth logging.
-
-```java
-public interface MarketDepthProvider {
-    Map<String, List<Ticker.Depth>> getDepth(String symbol);
-}
-```
-
-Production implementations cache the latest depth per symbol from raw tick data. Backtest implementations may read depth from tick files or return null.
-
-### OrderDetailsLogger
-
-| Method | Description |
-|--------|-------------|
-| `logMarketDepth(Ticker)` | Log buy/sell depth (deprecated, use provider-based overload) |
-| `logMarketDepth(String, MarketDepthProvider)` | Log depth from cache-based provider |
-| `logOrderLifeCycle(orders, order, orderId)` | Log order state transitions |
-| `getActiveOrdersByOrderId(orders, orderId)` | Filter by Kite order ID |
+**Note:** `MarketDepthProvider` and `OrderDetailsLogger` were previously in this module but have been removed. Order detail logging and market depth access are now handled in the consuming application layer.
 
 ---
 

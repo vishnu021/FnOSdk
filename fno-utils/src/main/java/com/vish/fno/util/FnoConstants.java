@@ -34,16 +34,6 @@ public interface FnoConstants {
     String PE = "PE";
     String FUT = "FUT";
 
-    // Order Transaction Types
-    String BUY = "BUY";
-    String SELL = "SELL";
-
-    // Order Status
-    String COMPLETE = "COMPLETE";
-
-    // Order Metadata Keys
-    String KITE_ORDER_ID = "kiteOrderId";
-
     // Account/Position Types
     String EQUITY = "equity";
     String NET = "net";
@@ -81,18 +71,9 @@ public interface FnoConstants {
             SENSEX, DERIVATIVE_SENSEX
     );
 
-    String BAJFINANCE = "BAJFINANCE";
-    String HDFCBANK = "HDFCBANK";
-    String HINDUNILVR = "HINDUNILVR";
-    String RELIANCE = "RELIANCE";
     String directory = "instrument_cache";
     String tick_directory = "tick";
     String MINUTE = "minute";
-    String STOCK_PRICE = "Stock Price";
-    String CANDLESTICK = "candlestick";
-    String VOLUME = "Volume";
-    String LINE = "line";
-    String BAR = "bar";
 
     String DATE_TIME_SEC_T_FORMAT = "yyyy-MM-dd'T'HH:mm:ssX";
     String DATE_TIME_MS_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS";

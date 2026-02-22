@@ -4,11 +4,9 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.text.ParseException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -190,17 +188,6 @@ public final class TimeUtils {
     }
 
     /**
-     * Gets today's date in DATE_FORMAT (thread-safe).
-     *
-     * @return formatted date string
-     * @deprecated Use {@code TimeSource.getTodaysDateString()} or {@code TimeUtils.getStringDate(date)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public static String getTodayDate() {
-        return DATE_FORMATTER.format(LocalDate.now());
-    }
-
-    /**
      * Converts Date to string in DATE_FORMAT (thread-safe).
      *
      * @param date the date to format
@@ -309,27 +296,8 @@ public final class TimeUtils {
         return String.format("%s minutes, %s seconds, %s milliseconds", minutes, seconds, millis);
     }
 
-    /**
-     * @deprecated Use {@code getNDaysBefore(date, n)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    public static Date getNDaysBefore(long n) {
-        return new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(n));
-    }
-
     public static Date getNDaysBefore(Date date, long n) {
         return new Date(date.getTime() - TimeUnit.DAYS.toMillis(n));
-    }
-
-    /**
-     * Gets current time in HH:mm format (thread-safe).
-     *
-     * @return formatted time string
-     * @deprecated Use {@code TimeSource.now()} with formatting instead.
-     */
-    @Deprecated(forRemoval = true)
-    public static String getTime() {
-        return TIME_FORMATTER.format(LocalTime.now());
     }
 
     private static String toTimeValue(int timeVal) {
