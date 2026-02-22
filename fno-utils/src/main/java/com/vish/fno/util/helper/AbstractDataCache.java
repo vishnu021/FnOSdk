@@ -26,6 +26,21 @@ abstract class AbstractDataCache implements DataCache {
         buffer.add(tick);
     }
 
+    /**
+     * Appends a tick and returns an immutable snapshot of the current state.
+     * Used by the Disruptor pipeline to create the snapshot once in CacheHandler,
+     * then share it across all downstream handlers without repeated {@code getTicks()} calls.
+     *
+     * @param symbol the instrument symbol
+     * @param ticker the tick to append
+     * @return immutable snapshot containing the ticker and recent tick history
+     */
+    public TickSnapshot appendAndSnapshot(String symbol, Ticker ticker) {
+        appendTick(symbol, ticker);
+        List<Ticker> ticks = getTicks(symbol);
+        return new TickSnapshot(symbol, ticker, ticks, ticks.size());
+    }
+
     public Ticker getLatestTick(String symbol) {
         return latestTicks.get(symbol);
     }
