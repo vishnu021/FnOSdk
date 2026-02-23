@@ -1011,4 +1011,103 @@ class InstrumentCacheTest {
             assertEquals(7067, mapSize, "Instrument map should have 7067 unique token-to-symbol mappings");
         }
     }
+
+    // ===== resolveNearestFutureToken tests =====
+
+    @Test
+    void testResolveNearestFutureToken_expiredNiftyFuture() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // NIFTY24AUGFUT → base name "NIFTY" → nearest expiry FUT → NIFTY26JANFUT
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken("NIFTY24AUGFUT");
+
+            assertTrue(token.isPresent());
+            assertEquals(12602626L, token.get(), "Should resolve to NIFTY26JANFUT token");
+        }
+    }
+
+    @Test
+    void testResolveNearestFutureToken_expiredBankniftyFuture() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken("BANKNIFTY25SEPFUT");
+
+            assertTrue(token.isPresent());
+            assertEquals(12601346L, token.get(), "Should resolve to BANKNIFTY26JANFUT token");
+        }
+    }
+
+    @Test
+    void testResolveNearestFutureToken_shorthandFutSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // "NIFTYFUT" ends with FUT and "NIFTY" matches as base name
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken("NIFTYFUT");
+
+            assertTrue(token.isPresent(), "NIFTYFUT should resolve via base name matching");
+            assertEquals(12602626L, token.get(), "Should resolve to NIFTY26JANFUT token");
+        }
+    }
+
+    @Test
+    void testResolveNearestFutureToken_nullSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken(null);
+
+            assertTrue(token.isEmpty(), "Null symbol should return empty");
+        }
+    }
+
+    @Test
+    void testResolveNearestFutureToken_nonFutSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken("NIFTY2610624950CE");
+
+            assertTrue(token.isEmpty(), "Non-FUT symbol should return empty");
+        }
+    }
+
+    @Test
+    void testResolveNearestFutureToken_unknownBaseName() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken("UNKNOWNSYMBOLFUT");
+
+            assertTrue(token.isEmpty(), "Unknown base name should return empty");
+        }
+    }
+
+    @Test
+    void testResolveNearestFutureToken_bfoFuture() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<Long> token = instrumentCache.resolveNearestFutureToken("SENSEX24AUGFUT");
+
+            assertTrue(token.isPresent());
+            assertEquals(292786437L, token.get(), "Should resolve to SENSEX26JANFUT (BFO) token");
+        }
+    }
 }

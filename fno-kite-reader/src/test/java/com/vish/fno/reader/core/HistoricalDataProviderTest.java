@@ -18,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -106,7 +105,7 @@ class HistoricalDataProviderTest {
         // Arrange
         when(instrumentCache.getInstrument(SYMBOL)).thenReturn(Optional.empty());
 
-        // Act
+        // Act — continuous=false, so resolveNearestFutureToken is not called
         Optional<HistoricalData> result = provider.getHistoricalData(fromDate, toDate, SYMBOL, INTERVAL, false);
 
         // Assert
@@ -189,7 +188,7 @@ class HistoricalDataProviderTest {
     }
 
     // =======================================================================
-    // Continuous contract resolution tests
+    // Continuous contract resolution tests (mock-based)
     // =======================================================================
 
     @Test
@@ -222,20 +221,12 @@ class HistoricalDataProviderTest {
 
     @Test
     void testGetHistoricalData_continuousMode_resolveCurrentContract() throws IOException, KiteException {
-        // Arrange - expired symbol not in cache, but a current contract is found via iteration
+        // Arrange - expired symbol not in cache, resolved via InstrumentCache
         String expiredSymbol = "NIFTY24AUGFUT";
         long resolvedToken = 99999L;
 
-        // The expired symbol is not in the cache
         when(instrumentCache.getInstrument(expiredSymbol)).thenReturn(Optional.empty());
-
-        // Build the current year/month contract that will be found during iteration
-        int currentYear = LocalDate.now().getYear() % 100;
-        String currentYearCode = String.format("%02d", currentYear);
-        // The iteration goes year by year, month by month (JAN first).
-        // We make the first candidate for the current year found:
-        String currentContract = "NIFTY" + currentYearCode + "JANFUT";
-        when(instrumentCache.getInstrument(currentContract)).thenReturn(Optional.of(resolvedToken));
+        when(instrumentCache.resolveNearestFutureToken(expiredSymbol)).thenReturn(Optional.of(resolvedToken));
 
         when(session.isInitialised()).thenReturn(true);
         mockExecuteWithLockChecked();
@@ -258,10 +249,10 @@ class HistoricalDataProviderTest {
 
     @Test
     void testGetHistoricalData_continuousMode_noContractFound() {
-        // Arrange - expired futures symbol, no current contract found in any year/month combo
+        // Arrange - expired futures symbol, no contract found via InstrumentCache
         String expiredSymbol = "NIFTY24AUGFUT";
-        // Return empty for all instrument lookups
-        when(instrumentCache.getInstrument(anyString())).thenReturn(Optional.empty());
+        when(instrumentCache.getInstrument(expiredSymbol)).thenReturn(Optional.empty());
+        when(instrumentCache.resolveNearestFutureToken(expiredSymbol)).thenReturn(Optional.empty());
 
         // Act
         Optional<HistoricalData> result = provider.getHistoricalData(
@@ -273,48 +264,59 @@ class HistoricalDataProviderTest {
 
     @Test
     void testGetHistoricalData_continuousMode_nonFuturesSymbol() {
-        // Arrange - symbol without FUT and not matching the futures pattern, continuous=true
+        // Arrange - symbol without FUT, continuous=true → resolveNearestFutureToken returns empty
         String nonFuturesSymbol = "RELIANCE";
         when(instrumentCache.getInstrument(nonFuturesSymbol)).thenReturn(Optional.empty());
+        when(instrumentCache.resolveNearestFutureToken(nonFuturesSymbol)).thenReturn(Optional.empty());
 
         // Act
         Optional<HistoricalData> result = provider.getHistoricalData(
                 fromDate, toDate, nonFuturesSymbol, INTERVAL, true);
 
-        // Assert - isFuturesSymbol returns false, so no contract resolution attempted
+        // Assert
         assertFalse(result.isPresent());
     }
 
-    // =======================================================================
-    // extractBaseName (tested indirectly through continuous resolution)
-    // =======================================================================
-
     @Test
-    void testGetHistoricalData_continuousMode_invalidBaseNamePattern() {
-        // Arrange - symbol that contains FUT but doesn't match BASE_NAME_PATTERN
-        // BASE_NAME_PATTERN requires: ^([A-Z]+)\d{2}[A-Z]{3}FUT$
-        // "123INVALIDFUT" starts with digits, so group(1) won't match [A-Z]+
+    void testGetHistoricalData_continuousMode_invalidSymbolFormat() {
+        // Arrange - symbol that contains FUT but with invalid format
         String invalidSymbol = "123INVALIDFUT";
         when(instrumentCache.getInstrument(invalidSymbol)).thenReturn(Optional.empty());
+        when(instrumentCache.resolveNearestFutureToken(invalidSymbol)).thenReturn(Optional.empty());
 
         // Act
         Optional<HistoricalData> result = provider.getHistoricalData(
                 fromDate, toDate, invalidSymbol, INTERVAL, true);
 
-        // Assert - extractBaseName returns empty, so no contract resolution
+        // Assert
         assertFalse(result.isPresent());
     }
 
     @Test
     void testGetHistoricalData_continuousMode_nullSymbol() {
-        // Arrange - null symbol passed
+        // Arrange - null symbol
         when(instrumentCache.getInstrument(null)).thenReturn(Optional.empty());
+        when(instrumentCache.resolveNearestFutureToken(null)).thenReturn(Optional.empty());
 
         // Act
         Optional<HistoricalData> result = provider.getHistoricalData(
                 fromDate, toDate, null, INTERVAL, true);
 
-        // Assert - isFuturesSymbol handles null safely, returns empty
+        // Assert
+        assertFalse(result.isPresent());
+    }
+
+    @Test
+    void testGetHistoricalData_nonContinuousMode_expiredSymbolNotResolved() {
+        // Arrange - expired symbol, continuous=false → no resolution attempted
+        String expiredSymbol = "NIFTY24AUGFUT";
+        when(instrumentCache.getInstrument(expiredSymbol)).thenReturn(Optional.empty());
+
+        // Act
+        Optional<HistoricalData> result = provider.getHistoricalData(
+                fromDate, toDate, expiredSymbol, INTERVAL, false);
+
+        // Assert
         assertFalse(result.isPresent());
     }
 
@@ -468,11 +470,7 @@ class HistoricalDataProviderTest {
         }
     }
 
-    // --- resolveCurrentContract / findCurrentFuturesContract / extractBaseName ---
-    // These tests use continuous=true with expired symbols. The expired symbol's base name
-    // is extracted and the first available contract in the cache is found.
-    // generateYearCodes() produces year codes from the current year, so these tests
-    // work when the current year overlaps with the instrument file data (2026).
+    // --- Continuous mode resolution with real instrument cache ---
 
     @Test
     void testContinuousMode_expiredNiftyResolvesToJanContract() throws IOException, KiteException {
@@ -483,8 +481,7 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // "NIFTY24AUGFUT" is expired → extractBaseName → "NIFTY"
-            // findFirstAvailableContract tries NIFTY{year}JANFUT first → found
+            // "NIFTY24AUGFUT" → base name "NIFTY" → nearest expiry FUT → NIFTY26JANFUT
             Optional<HistoricalData> result = realProvider.getHistoricalData(
                     fromDate, toDate, "NIFTY24AUGFUT", INTERVAL, true);
 
@@ -503,7 +500,7 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // "BANKNIFTY24AUGFUT" → extractBaseName → "BANKNIFTY" → BANKNIFTY26JANFUT
+            // "BANKNIFTY24AUGFUT" → base name "BANKNIFTY" → BANKNIFTY26JANFUT
             Optional<HistoricalData> result = realProvider.getHistoricalData(
                     fromDate, toDate, "BANKNIFTY24AUGFUT", INTERVAL, true);
 
@@ -522,7 +519,7 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // "SENSEX24AUGFUT" → extractBaseName → "SENSEX" → SENSEX26JANFUT (BFO)
+            // "SENSEX24AUGFUT" → base name "SENSEX" → SENSEX26JANFUT (BFO)
             Optional<HistoricalData> result = realProvider.getHistoricalData(
                     fromDate, toDate, "SENSEX24AUGFUT", INTERVAL, true);
 
@@ -541,7 +538,6 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // Test multiple stock futures: RELIANCE, HDFCBANK, SBIN
             realProvider.getHistoricalData(fromDate, toDate, "RELIANCE25MARFUT", INTERVAL, true);
             realProvider.getHistoricalData(fromDate, toDate, "HDFCBANK24DECFUT", INTERVAL, true);
             realProvider.getHistoricalData(fromDate, toDate, "SBIN25JUNFUT", INTERVAL, true);
@@ -558,7 +554,7 @@ class HistoricalDataProviderTest {
         }
     }
 
-    // --- isFuturesSymbol: non-futures symbols should not trigger resolution ---
+    // --- Edge cases with real instrument cache ---
 
     @Test
     void testContinuousMode_nonFuturesSymbolNotInCacheReturnsEmpty() {
@@ -568,7 +564,7 @@ class HistoricalDataProviderTest {
 
             HistoricalDataProvider realProvider = createProviderWithRealCache();
 
-            // "INVALIDXYZ" has no FUT and no month code pattern → isFuturesSymbol returns false
+            // "INVALIDXYZ" doesn't end with FUT → resolveNearestFutureToken returns empty
             Optional<HistoricalData> result = realProvider.getHistoricalData(
                     fromDate, toDate, "INVALIDXYZ", INTERVAL, true);
 
@@ -576,46 +572,24 @@ class HistoricalDataProviderTest {
         }
     }
 
-    // --- extractBaseName: invalid patterns should not resolve ---
-
     @Test
-    void testContinuousMode_invalidBaseNamePatternWithRealCache() {
+    void testContinuousMode_invalidBaseNameWithRealCache() {
         try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
 
             HistoricalDataProvider realProvider = createProviderWithRealCache();
 
-            // "123ABCFUT" contains FUT → isFuturesSymbol true
-            // but BASE_NAME_PATTERN requires ^([A-Z]+)\d{2}[A-Z]{3}FUT$ → "123" fails [A-Z]+
+            // "123ABCFUT" ends with FUT but no instrument name starts with "123ABC"
             Optional<HistoricalData> result = realProvider.getHistoricalData(
                     fromDate, toDate, "123ABCFUT", INTERVAL, true);
 
-            assertFalse(result.isPresent(), "Invalid base name pattern should not resolve");
+            assertFalse(result.isPresent(), "Invalid base name should not resolve");
         }
     }
 
     @Test
-    void testContinuousMode_futWithoutProperFormat() {
-        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
-            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
-            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
-
-            HistoricalDataProvider realProvider = createProviderWithRealCache();
-
-            // "NIFTYFUT" contains FUT → isFuturesSymbol true
-            // but doesn't match ^([A-Z]+)\d{2}[A-Z]{3}FUT$ (missing digits and month code)
-            Optional<HistoricalData> result = realProvider.getHistoricalData(
-                    fromDate, toDate, "NIFTYFUT", INTERVAL, true);
-
-            assertFalse(result.isPresent(), "FUT without proper YY+MMM format should not resolve");
-        }
-    }
-
-    // --- findFirstAvailableContract: iteration order verification ---
-
-    @Test
-    void testFindFirstAvailableContract_prefersJanOverLaterMonths() throws IOException, KiteException {
+    void testContinuousMode_shorthandFutSymbolResolvesToNearestContract() throws IOException, KiteException {
         try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
@@ -623,8 +597,28 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // All 3 NIFTY futures exist (JAN, FEB, MAR).
-            // findFirstAvailableContract iterates months JAN→DEC, so JAN should be found first.
+            // "NIFTYFUT" ends with FUT + "NIFTY" matches as base name → resolves to nearest NIFTY FUT
+            Optional<HistoricalData> result = realProvider.getHistoricalData(
+                    fromDate, toDate, "NIFTYFUT", INTERVAL, true);
+
+            assertTrue(result.isPresent(), "NIFTYFUT should resolve to nearest NIFTY future contract");
+            verify(mockKiteSdk).getHistoricalData(
+                    eq(fromDate), eq(toDate), eq("12602626"), eq(INTERVAL), eq(true), eq(true));
+        }
+    }
+
+    // --- Month preference and year-independent resolution ---
+
+    @Test
+    void testContinuousMode_resolvesToEarliestExpiry() throws IOException, KiteException {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+
+            HistoricalDataProvider realProvider = createProviderWithRealCache();
+            setupSessionForFullFlow();
+
+            // All 3 NIFTY futures exist (JAN, FEB, MAR). Earliest expiry (JAN) should be picked.
             Optional<HistoricalData> result = realProvider.getHistoricalData(
                     fromDate, toDate, "NIFTY23OCTFUT", INTERVAL, true);
 
@@ -635,10 +629,8 @@ class HistoricalDataProviderTest {
         }
     }
 
-    // --- generateYearCodes: expired symbols from any past year resolve to current year ---
-
     @Test
-    void testGenerateYearCodes_differentExpiredYearsResolveToSameContract() throws IOException, KiteException {
+    void testContinuousMode_differentExpiredYearsResolveToSameContract() throws IOException, KiteException {
         try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
@@ -646,9 +638,7 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // extractBaseName extracts the same base "BANKNIFTY" regardless of year/month
-            // generateYearCodes always starts from current year
-            // So all expired symbols with same base should resolve to the same current contract
+            // All expired BANKNIFTY symbols should resolve to the same nearest contract
             realProvider.getHistoricalData(fromDate, toDate, "BANKNIFTY23JANFUT", INTERVAL, true);
             realProvider.getHistoricalData(fromDate, toDate, "BANKNIFTY24AUGFUT", INTERVAL, true);
             realProvider.getHistoricalData(fromDate, toDate, "BANKNIFTY25DECFUT", INTERVAL, true);
@@ -666,10 +656,8 @@ class HistoricalDataProviderTest {
         }
     }
 
-    // --- getInstrumentToken: symbol not in cache without continuous mode ---
-
     @Test
-    void testGetInstrumentToken_expiredFuturesWithoutContinuousModeReturnsEmpty() {
+    void testExpiredFuturesWithoutContinuousModeReturnsEmpty() {
         try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
             mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
             mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);

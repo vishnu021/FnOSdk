@@ -262,6 +262,7 @@ Internal (package-private) thread-safe cache with double-checked locking. Takes 
 | `getInstrumentMapSize()` | `int` | Cache size (diagnostics) |
 | `getAllInstruments()` | `List<InstrumentSummary>` | All instruments as InstrumentSummary records |
 | `getEarliestExpiryInstruments(name, type)` | `Optional<List<Instrument>>` | Instruments for nearest expiry (from pre-indexed optionIndex) |
+| `resolveNearestFutureToken(String)` | `Optional<Long>` | Resolve expired FUT symbol to nearest active contract token (longest base-name match, earliest expiry) |
 
 #### getExchangeForSymbol
 
@@ -345,7 +346,7 @@ Retrieves historical data with continuous contract resolution. Uses `@RequiredAr
 | `getEntireDayHistoricalData(from, to, symbol, interval)` | `Optional<HistoricalData>` | Intraday candles |
 | `getHistoricalData(from, to, symbol, interval, continuous)` | `Optional<HistoricalData>` | Historical candles with optional continuous contract resolution |
 
-**Continuous contract resolution:** When `continuous=true` and a symbol is not found (e.g., expired `NIFTY24AUGFUT`), automatically resolves to the current active contract by extracting the base name and searching year/month combinations.
+**Continuous contract resolution:** When `continuous=true` and a symbol is not found (e.g., expired `NIFTY24AUGFUT`), delegates to `InstrumentCache.resolveNearestFutureToken()` which matches the base name against known FUT instruments and returns the earliest-expiry contract token.
 
 ---
 

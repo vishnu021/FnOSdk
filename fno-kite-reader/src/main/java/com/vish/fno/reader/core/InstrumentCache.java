@@ -16,7 +16,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -41,15 +40,18 @@ class InstrumentCache {
 
     private final KiteSession session;
     private final List<String> nifty100Symbols;
-
     private final Object initLock;
-    // Volatile for safe publication in double-checked locking
-    private volatile List<Instrument> filteredInstruments;
-    private volatile Map<String, Long> symbolMap;
-    private volatile Map<Long, String> instrumentMap;
-    private volatile Map<String, String> exchangeMap;
-    // name → instrumentType → sorted expiry → instruments
-    private volatile Map<String, Map<String, NavigableMap<Date, List<Instrument>>>> optionIndex;
+    private volatile CacheData cache;
+
+    /** Holds both token and exchange for a trading symbol — replaces separate symbolMap + exchangeMap. */
+    record SymbolInfo(long token, String exchange) {}
+
+    /** Immutable holder for all cached instrument data. Single volatile reference eliminates fragile field ordering. */
+    private record CacheData(
+        List<Instrument> filteredInstruments,
+        Map<String, SymbolInfo> symbolInfoMap,     // symbol → (token, exchange)
+        Map<Long, String> tokenToSymbolMap          // token → symbol (reverse lookup)
+    ) {}
 
     public InstrumentCache(List<String> nifty100Symbols, KiteSession session) {
         this.nifty100Symbols = nifty100Symbols;
@@ -64,43 +66,55 @@ class InstrumentCache {
      * @return unmodifiable list of instruments
      */
     public List<Instrument> getInstruments() {
-        // First check (no locking) - fast path for already initialized
-        if (filteredInstruments != null) {
-            return Collections.unmodifiableList(filteredInstruments);
+        CacheData data = cache;
+        if (data != null) {
+            return Collections.unmodifiableList(data.filteredInstruments());
         }
 
-        // Synchronize for initialization
         synchronized (initLock) {
-            // Second check (with locking) - ensure only one thread initializes
-            if (filteredInstruments != null) {
-                return Collections.unmodifiableList(filteredInstruments);
+            data = cache;
+            if (data != null) {
+                return Collections.unmodifiableList(data.filteredInstruments());
             }
 
-            // Perform initialization outside of method-level synchronization
             initializeInstruments();
-            return Collections.unmodifiableList(filteredInstruments);
+            return Collections.unmodifiableList(cache.filteredInstruments());
         }
     }
 
     /**
      * Gets instruments for the earliest expiry matching the given name and instrument type.
-     * Uses the pre-built option index for O(1) lookup instead of scanning all instruments.
+     * Computed on-the-fly from filteredInstruments (O(n) scan — only used in tests, not on production hot paths).
      *
      * @param name the instrument name (e.g., "NIFTY", "BANKNIFTY")
      * @param instrumentType the instrument type (e.g., "CE", "PE", "FUT")
      * @return Optional containing the list of instruments for the earliest expiry, or empty
      */
     public Optional<List<Instrument>> getEarliestExpiryInstruments(String name, String instrumentType) {
-        getInstruments(); // ensure initialized
-        Map<String, NavigableMap<Date, List<Instrument>>> byType = optionIndex.get(name.toUpperCase(Locale.ENGLISH));
-        if (byType == null) {
+        List<Instrument> instruments = getInstruments();
+        String upperName = name.toUpperCase(Locale.ENGLISH);
+
+        List<Instrument> matching = instruments.stream()
+                .filter(i -> upperName.equals(i.getName()))
+                .filter(i -> instrumentType.equals(i.getInstrument_type()))
+                .filter(i -> NFO.equals(i.getExchange()) || BFO.equals(i.getExchange()))
+                .filter(i -> i.getExpiry() != null)
+                .toList();
+
+        if (matching.isEmpty()) {
             return Optional.empty();
         }
-        NavigableMap<Date, List<Instrument>> byExpiry = byType.get(instrumentType);
-        if (byExpiry == null || byExpiry.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(byExpiry.firstEntry().getValue());
+
+        Date earliestExpiry = matching.stream()
+                .map(Instrument::getExpiry)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+
+        List<Instrument> result = matching.stream()
+                .filter(i -> i.getExpiry().equals(earliestExpiry))
+                .toList();
+
+        return Optional.of(result);
     }
 
     /**
@@ -122,29 +136,21 @@ class InstrumentCache {
 
         InstrumentFileUtils.saveInstrumentCache(allInstruments);
 
-        // Filter instruments
         List<Instrument> filtered = filterInstruments(allInstruments);
+        Map<String, SymbolInfo> symbolInfoMap = buildSymbolInfoMap(filtered);
+        Map<Long, String> tokenToSymbolMap = buildTokenToSymbolMap(symbolInfoMap);
 
-        // Build symbol map
-        Map<String, Long> symbols = buildSymbolMap(filtered);
-        // Build instrument map (reverse of symbol map)
-        Map<Long, String> instruments = buildInstrumentMap(symbols);
-        // Build exchange map (symbol → exchange)
-        Map<String, String> exchanges = buildExchangeMap(filtered);
-        // Build option index for fast lookup
-        Map<String, Map<String, NavigableMap<Date, List<Instrument>>>> index = buildOptionIndex(filtered);
+        // Extract Map<String, Long> for file cache (preserves existing cache file format)
+        Map<String, Long> symbolTokenMap = symbolInfoMap.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().token(), (a, b) -> a, TreeMap::new));
 
-        InstrumentFileUtils.saveFilteredInstrumentCache(symbols);
-        log.info("Filtered instrument count: {}", symbols.size());
+        InstrumentFileUtils.saveFilteredInstrumentCache(symbolTokenMap);
+        log.info("Filtered instrument count: {}", symbolInfoMap.size());
 
         logExpiryDates(filtered);
 
-        // Assign to volatile fields (ensures visibility to other threads)
-        this.symbolMap = symbols;
-        this.instrumentMap = instruments;
-        this.exchangeMap = exchanges;
-        this.optionIndex = index;
-        this.filteredInstruments = filtered;  // Assign last for happens-before guarantee
+        // Single atomic assignment — immutable record ensures safe publication
+        this.cache = new CacheData(filtered, symbolInfoMap, tokenToSymbolMap);
     }
 
     public List<InstrumentSummary> getAllInstruments() {
@@ -171,7 +177,8 @@ class InstrumentCache {
             return Optional.empty();
         }
 
-        return Optional.ofNullable(this.symbolMap.get(symbol.toUpperCase(Locale.ENGLISH)));
+        SymbolInfo info = cache.symbolInfoMap().get(symbol.toUpperCase(Locale.ENGLISH));
+        return info != null ? Optional.of(info.token()) : Optional.empty();
     }
 
     /**
@@ -183,20 +190,20 @@ class InstrumentCache {
      */
     public String getExchangeForSymbol(String symbol) {
         getInstruments();  // Ensure initialized
-        if (symbol == null || exchangeMap == null) {
+        if (symbol == null) {
             return NFO;
         }
-        String exchange = exchangeMap.get(symbol.toUpperCase(Locale.ENGLISH));
-        if (exchange == null) {
+        SymbolInfo info = cache.symbolInfoMap().get(symbol.toUpperCase(Locale.ENGLISH));
+        if (info == null) {
             log.warn("Exchange not found for symbol: {}, defaulting to NFO", symbol);
             return NFO;
         }
-        return exchange;
+        return info.exchange();
     }
 
     public String getSymbol(long instrument) {
         getInstruments();  // Ensure initialized
-        return this.instrumentMap.get(instrument);
+        return cache.tokenToSymbolMap().get(instrument);
     }
 
     public Set<String> getAllSymbols() {
@@ -212,7 +219,8 @@ class InstrumentCache {
      * @return size of instrument map, 0 if not initialized
      */
     public int getInstrumentMapSize() {
-        return instrumentMap != null ? instrumentMap.size() : 0;
+        CacheData data = cache;
+        return data != null ? data.tokenToSymbolMap().size() : 0;
     }
 
     public Map<String, String> getFilteredSymbols() {
@@ -253,14 +261,13 @@ class InstrumentCache {
      * @return Optional containing lot size from the future contract, or empty if not found
      */
     public Optional<Integer> getLotSizeFromFuture(String indexName) {
-        getInstruments();  // Ensure initialized
         if (indexName == null) {
             return Optional.empty();
         }
 
         String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
 
-        return filteredInstruments.stream()
+        return getInstruments().stream()
                 .filter(i -> FUT.equals(i.getInstrument_type()))
                 .filter(i -> derivativeName.equals(i.getName()))
                 .findFirst()
@@ -273,7 +280,7 @@ class InstrumentCache {
      * @return map of index name to lot size
      */
     public Map<String, Integer> getAllFutureLotSizeInfo() {
-        getInstruments();
+        List<Instrument> instruments = getInstruments();
 
         Map<String, String> reverseMap = INDEX_TO_DERIVATIVE.entrySet()
                 .stream()
@@ -282,7 +289,7 @@ class InstrumentCache {
                         Map.Entry::getKey
                 ));
 
-        return filteredInstruments.stream()
+        return instruments.stream()
                 .filter(i -> FUT.equals(i.getInstrument_type()))
                 .filter(i -> i.getName() != null)
                 .collect(Collectors.toMap(
@@ -291,6 +298,47 @@ class InstrumentCache {
                         (existing, replacement) -> existing,
                         LinkedHashMap::new
                 ));
+    }
+
+    /**
+     * Resolves an expired futures symbol to the nearest available futures contract token.
+     * Finds the base name by matching against known derivative names in the instrument cache,
+     * then returns the token of the earliest-expiry FUT contract for that name.
+     *
+     * @param expiredFutSymbol the expired futures symbol (e.g., "NIFTY24AUGFUT")
+     * @return Optional containing the instrument token of the nearest futures contract, or empty
+     */
+    public Optional<Long> resolveNearestFutureToken(String expiredFutSymbol) {
+        if (expiredFutSymbol == null || !expiredFutSymbol.endsWith(FUT)) {
+            return Optional.empty();
+        }
+
+        List<Instrument> instruments = getInstruments();
+
+        // Find base name by matching against known FUT instrument names (longest match wins)
+        Optional<String> baseName = instruments.stream()
+                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .map(Instrument::getName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(expiredFutSymbol::startsWith)
+                .max(Comparator.comparingInt(String::length));
+
+        if (baseName.isEmpty()) {
+            return Optional.empty();
+        }
+
+        String resolvedBaseName = baseName.get();
+        return instruments.stream()
+                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> resolvedBaseName.equals(i.getName()))
+                .filter(i -> i.getExpiry() != null)
+                .min(Comparator.comparing(Instrument::getExpiry))
+                .map(instrument -> {
+                    log.info("Resolved expired symbol {} → {} (token: {})",
+                            expiredFutSymbol, instrument.getTradingsymbol(), instrument.getInstrument_token());
+                    return instrument.getInstrument_token();
+                });
     }
 
     private List<Instrument> filterInstruments(List<Instrument> allInstruments) {
@@ -313,48 +361,18 @@ class InstrumentCache {
                 || (i.getExchange().contentEquals(BFO) && i.expiry != null);
     }
 
-    private Map<String, Long> buildSymbolMap(List<Instrument> filtered) {
-        return filtered.stream()
-                .collect(Collectors.toMap(
-                        Instrument::getTradingsymbol,
-                        Instrument::getInstrument_token,
-                        (token, symbol) -> token,
-                        TreeMap::new));
-    }
-
-    private Map<Long, String> buildInstrumentMap(Map<String, Long> symbols) {
-        return symbols.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
-    }
-
-    private Map<String, String> buildExchangeMap(List<Instrument> filtered) {
+    private Map<String, SymbolInfo> buildSymbolInfoMap(List<Instrument> filtered) {
         return filtered.stream()
                 .collect(Collectors.toMap(
                         i -> i.getTradingsymbol().toUpperCase(Locale.ENGLISH),
-                        Instrument::getExchange,
+                        i -> new SymbolInfo(i.getInstrument_token(), i.getExchange()),
                         (existing, replacement) -> existing,
                         TreeMap::new));
     }
 
-    /**
-     * Builds an option index for fast lookup of instruments by name, type, and expiry.
-     * Structure: name → instrumentType → sorted expiry → instruments
-     */
-    private Map<String, Map<String, NavigableMap<Date, List<Instrument>>>> buildOptionIndex(List<Instrument> filtered) {
-        return filtered.stream()
-                .filter(i -> i.getExpiry() != null)
-                .filter(i -> NFO.equals(i.getExchange()) || BFO.equals(i.getExchange()))
-                .collect(Collectors.groupingBy(
-                        i -> i.getName().toUpperCase(Locale.ENGLISH),
-                        Collectors.groupingBy(
-                                Instrument::getInstrument_type,
-                                Collectors.groupingBy(
-                                        Instrument::getExpiry,
-                                        TreeMap::new,
-                                        Collectors.toList()
-                                )
-                        )
-                ));
+    private Map<Long, String> buildTokenToSymbolMap(Map<String, SymbolInfo> symbolInfoMap) {
+        return symbolInfoMap.entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getValue().token(), Map.Entry::getKey));
     }
 
     private void logExpiryDates(List<Instrument> filtered) {
