@@ -45,34 +45,6 @@ public record Ticker(
     ) {
     }
 
-    // Copy constructor
-    public Ticker(Ticker t) {
-        this(
-            null,
-            false,
-            t.instrumentToken,
-            t.instrumentSymbol,
-            t.lastTradedPrice,
-            0,
-            0,
-            0,
-            0,
-            0,
-            t.lastTradedQuantity,
-            0,
-            0,
-            0,
-            0,
-            t.lastTradedTime,
-            t.oi,
-            0,
-            0,
-            t.tickTimestamp,
-            t.tickReceivedTime,
-            null
-        );
-    }
-
     @Override
     public int compareTo(Ticker other) {
         return this.tickTimestamp.compareTo(other.tickTimestamp);

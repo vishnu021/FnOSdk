@@ -276,10 +276,12 @@ Package-private base class for DataCache with automatic tick memory management. 
 
 Package-private, lock-free circular buffer replacing `ConcurrentLinkedDeque<Ticker>`. Pre-allocated `Ticker[]` array with volatile write index. Thread safety: single-writer (tick ingestion thread), multiple-reader (strategy threads).
 
+`CircularBufferView` (returned by `asList()`) is a **static inner class** to prevent GC pinning of the outer `TickCircularBuffer` instance. A non-static inner class captures an implicit `this$0` reference, causing any held `List<Ticker>` view to pin the entire buffer array in Old gen. The static class holds only a direct array reference (zero-copy), allowing the `TickCircularBuffer` to be GC'd independently.
+
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `add(Ticker)` | `void` | O(1) append, overwrites oldest when full, zero allocation |
-| `asList()` | `List<Ticker>` | Lightweight `AbstractList` view (no element copying) |
+| `asList()` | `List<Ticker>` | Lightweight static `AbstractList` view (no element copying, no outer-instance pinning) |
 | `size()` | `int` | Current tick count |
 | `clear()` | `void` | Nulls all slots for GC |
 
@@ -287,7 +289,9 @@ Package-private, lock-free circular buffer replacing `ConcurrentLinkedDeque<Tick
 
 Consolidated DataCache implementation. Constructor: `DataCacheImpl(CandlestickDataProvider, HolidayCalendar, TimeSource)`
 
-Automatically detects date changes and clears both intraday candle and tick caches when the trading date rolls over. Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
+Automatically detects date changes and clears both intraday candle, tick, and per-symbol fetch lock caches when the trading date rolls over. Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
+
+**Per-symbol fetch locking:** Uses `ConcurrentHashMap<String, Object> symbolFetchLocks` with `computeIfAbsent` for per-symbol lock objects. When multiple virtual threads request the same uncached symbol simultaneously, only the first thread fetches from the Kite API; others wait on the synchronized lock and then see the cached result via a double-check on `isDataAvailable()`. Locks are cleared on date change.
 
 ### CandlestickDataProvider Interface
 
@@ -385,7 +389,8 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 |-----------|-------------|-------|
 | CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
 | JsonUtils, CompressionUtils | ✅ | Static methods; VT-safe ObjectMapper (shared bounded recycler pool) |
-| AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer) |
+| AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer); static CircularBufferView prevents GC pinning |
+| DataCacheImpl (candle fetch) | ✅ | Per-symbol fetch locks (ConcurrentHashMap + synchronized) prevent redundant API calls from concurrent virtual threads |
 | TimeProvider | ✅ | Instance methods |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |

@@ -660,4 +660,355 @@ class InstrumentCacheTest {
             assertTrue(result.isEmpty(), "Should return empty for unknown instrument type");
         }
     }
+
+    // ===== Tests validating real values from instruments_2025-12-31.json =====
+
+    @Test
+    void testTotalFilteredInstrumentCount() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            List<Instrument> instruments = instrumentCache.getInstruments();
+
+            assertEquals(7070, instruments.size(),
+                    "Total filtered instruments for 7 NIFTY_100_SYMBOLS should be 7070");
+        }
+    }
+
+    @Test
+    void testInstrumentCountByName() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            List<Instrument> instruments = instrumentCache.getInstruments();
+
+            long niftyCount = instruments.stream().filter(i -> "NIFTY".equals(i.getName())).count();
+            long bankniftyCount = instruments.stream().filter(i -> "BANKNIFTY".equals(i.getName())).count();
+            long sensexCount = instruments.stream().filter(i -> "SENSEX".equals(i.getName())).count();
+            long bankexCount = instruments.stream().filter(i -> "BANKEX".equals(i.getName())).count();
+
+            assertEquals(1439, niftyCount, "NIFTY instrument count");
+            assertEquals(817, bankniftyCount, "BANKNIFTY instrument count");
+            assertEquals(3204, sensexCount, "SENSEX instrument count");
+            assertEquals(984, bankexCount, "BANKEX instrument count");
+        }
+    }
+
+    @Test
+    void testFuturesCountIs21WithThreePerSymbol() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            List<Instrument> futures = instrumentCache.getInstruments().stream()
+                    .filter(i -> "FUT".equals(i.getInstrument_type()))
+                    .toList();
+
+            assertEquals(21, futures.size(), "Total futures: 3 contracts (near/next/far) x 7 symbols");
+
+            // Each symbol has exactly 3 future contracts (Jan, Feb, Mar 2026)
+            for (String name : List.of("NIFTY", "BANKNIFTY", "SENSEX", "BANKEX", "HDFCBANK", "RELIANCE", "SBIN")) {
+                long count = futures.stream().filter(i -> name.equals(i.getName())).count();
+                assertEquals(3, count, name + " should have 3 future contracts");
+            }
+        }
+    }
+
+    @Test
+    void testSpecificInstrumentTokenForNiftyOption() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<Long> token = instrumentCache.getInstrument("NIFTY2610624950CE");
+
+            assertTrue(token.isPresent());
+            assertEquals(10340610L, token.get(), "NIFTY2610624950CE should have exact token 10340610");
+        }
+    }
+
+    @Test
+    void testNiftyEarliestExpiryContractCounts() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // NIFTY earliest expiry is Jan 6, 2026 (weekly)
+            Optional<List<Instrument>> niftyCE = instrumentCache.getEarliestExpiryInstruments("NIFTY", "CE");
+            Optional<List<Instrument>> niftyPE = instrumentCache.getEarliestExpiryInstruments("NIFTY", "PE");
+
+            assertTrue(niftyCE.isPresent());
+            assertTrue(niftyPE.isPresent());
+            assertEquals(80, niftyCE.get().size(), "NIFTY earliest expiry (Jan 6, 2026) should have 80 CE strikes");
+            assertEquals(80, niftyPE.get().size(), "NIFTY earliest expiry (Jan 6, 2026) should have 80 PE strikes");
+
+            // All should have the same expiry date and lot size 65
+            niftyCE.get().forEach(i -> {
+                assertEquals("CE", i.getInstrument_type());
+                assertEquals(65, i.getLot_size());
+            });
+        }
+    }
+
+    @Test
+    void testBankniftyEarliestExpiryContractCounts() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // BANKNIFTY earliest expiry is Jan 27, 2026 (monthly)
+            Optional<List<Instrument>> bnCE = instrumentCache.getEarliestExpiryInstruments("BANKNIFTY", "CE");
+            Optional<List<Instrument>> bnPE = instrumentCache.getEarliestExpiryInstruments("BANKNIFTY", "PE");
+
+            assertTrue(bnCE.isPresent());
+            assertTrue(bnPE.isPresent());
+            assertEquals(135, bnCE.get().size(), "BANKNIFTY earliest expiry (Jan 27, 2026) should have 135 CE strikes");
+            assertEquals(135, bnPE.get().size(), "BANKNIFTY earliest expiry (Jan 27, 2026) should have 135 PE strikes");
+
+            // All should have lot size 30
+            bnCE.get().forEach(i -> assertEquals(30, i.getLot_size()));
+        }
+    }
+
+    @Test
+    void testSensexEarliestExpiryContractCount() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // SENSEX earliest expiry is Jan 1, 2026
+            Optional<List<Instrument>> sensexCE = instrumentCache.getEarliestExpiryInstruments("SENSEX", "CE");
+
+            assertTrue(sensexCE.isPresent());
+            assertEquals(164, sensexCE.get().size(), "SENSEX earliest expiry (Jan 1, 2026) should have 164 CE strikes");
+
+            // SENSEX trades on BFO with lot size 20
+            sensexCE.get().forEach(i -> {
+                assertEquals("BFO", i.getExchange());
+                assertEquals(20, i.getLot_size());
+            });
+        }
+    }
+
+    @Test
+    void testBankexEarliestExpiryContractCount() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // BANKEX earliest expiry is Jan 29, 2026
+            Optional<List<Instrument>> bankexCE = instrumentCache.getEarliestExpiryInstruments("BANKEX", "CE");
+
+            assertTrue(bankexCE.isPresent());
+            assertEquals(174, bankexCE.get().size(), "BANKEX earliest expiry (Jan 29, 2026) should have 174 CE strikes");
+
+            // BANKEX trades on BFO with lot size 30
+            bankexCE.get().forEach(i -> {
+                assertEquals("BFO", i.getExchange());
+                assertEquals(30, i.getLot_size());
+            });
+        }
+    }
+
+    @Test
+    void testLotSizesForAllSymbolsWithFutures() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // Index lot sizes
+            assertEquals(65, instrumentCache.getLotSizeFromFuture("NIFTY").orElseThrow());
+            assertEquals(30, instrumentCache.getLotSizeFromFuture("BANKNIFTY").orElseThrow());
+            assertEquals(20, instrumentCache.getLotSizeFromFuture("SENSEX").orElseThrow());
+            assertEquals(30, instrumentCache.getLotSizeFromFuture("BANKEX").orElseThrow());
+
+            // Stock lot sizes
+            assertEquals(550, instrumentCache.getLotSizeFromFuture("HDFCBANK").orElseThrow());
+            assertEquals(500, instrumentCache.getLotSizeFromFuture("RELIANCE").orElseThrow());
+            assertEquals(750, instrumentCache.getLotSizeFromFuture("SBIN").orElseThrow());
+        }
+    }
+
+    @Test
+    void testBfoExchangeForBseDerivatives() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // SENSEX and BANKEX futures trade on BFO
+            assertEquals("BFO", instrumentCache.getExchangeForSymbol("SENSEX26JANFUT"));
+            assertEquals("BFO", instrumentCache.getExchangeForSymbol("BANKEX26JANFUT"));
+
+            // NIFTY and BANKNIFTY futures trade on NFO
+            assertEquals("NFO", instrumentCache.getExchangeForSymbol("NIFTY26JANFUT"));
+            assertEquals("NFO", instrumentCache.getExchangeForSymbol("BANKNIFTY26JANFUT"));
+
+            // Stock futures trade on NFO
+            assertEquals("NFO", instrumentCache.getExchangeForSymbol("HDFCBANK26JANFUT"));
+            assertEquals("NFO", instrumentCache.getExchangeForSymbol("SBIN26JANFUT"));
+            assertEquals("NFO", instrumentCache.getExchangeForSymbol("RELIANCE26JANFUT"));
+        }
+    }
+
+    @Test
+    void testTotalUniqueExpiryDateCount() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Set<String> expiryDates = instrumentCache.getExpiryDates();
+
+            assertEquals(38, expiryDates.size(),
+                    "Should have 38 unique expiry dates across all filtered instruments");
+        }
+    }
+
+    @Test
+    void testAllSymbolNamesArePresent() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Set<String> allSymbols = instrumentCache.getAllSymbols();
+
+            // 7 NFO/BFO derivative names + 4 BSE equity names (HDFC BANK, RELIANCE INDUSTRIES, etc.)
+            assertEquals(11, allSymbols.size(), "Should have 11 unique instrument names");
+
+            // NFO/BFO derivative names
+            for (String name : List.of("NIFTY", "BANKNIFTY", "SENSEX", "BANKEX",
+                    "HDFCBANK", "RELIANCE", "SBIN")) {
+                assertTrue(allSymbols.contains(name), "Should contain " + name);
+            }
+        }
+    }
+
+    @Test
+    void testNiftyHas18UniqueExpiries() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // NIFTY has weekly + monthly + quarterly expiries
+            long niftyExpiries = instrumentCache.getInstruments().stream()
+                    .filter(i -> "NIFTY".equals(i.getName()))
+                    .filter(i -> i.getExpiry() != null)
+                    .map(Instrument::getExpiry)
+                    .distinct()
+                    .count();
+
+            assertEquals(18, niftyExpiries, "NIFTY should have 18 unique expiry dates (weekly + monthly + quarterly)");
+        }
+    }
+
+    @Test
+    void testBankniftyHas6MonthlyExpiries() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // BANKNIFTY has monthly expiries only (no weekly in this dataset)
+            long bnExpiries = instrumentCache.getInstruments().stream()
+                    .filter(i -> "BANKNIFTY".equals(i.getName()))
+                    .filter(i -> i.getExpiry() != null)
+                    .map(Instrument::getExpiry)
+                    .distinct()
+                    .count();
+
+            assertEquals(6, bnExpiries, "BANKNIFTY should have 6 unique expiry dates (monthly)");
+        }
+    }
+
+    @Test
+    void testSensexHas20WeeklyExpiries() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            long sensexExpiries = instrumentCache.getInstruments().stream()
+                    .filter(i -> "SENSEX".equals(i.getName()))
+                    .filter(i -> i.getExpiry() != null)
+                    .map(Instrument::getExpiry)
+                    .distinct()
+                    .count();
+
+            assertEquals(20, sensexExpiries, "SENSEX should have 20 unique expiry dates (weekly + quarterly)");
+        }
+    }
+
+    @Test
+    void testAllFutureLotSizeInfoMapKeysAndValues() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Map<String, Integer> lotSizes = instrumentCache.getAllFutureLotSizeInfo();
+
+            assertEquals(7, lotSizes.size(), "Should have lot sizes for all 7 symbols with futures");
+
+            // INDEX_TO_DERIVATIVE reverse-maps derivative names to index names
+            assertEquals(65, lotSizes.get("NIFTY 50"), "NIFTY 50 lot size");
+            assertEquals(30, lotSizes.get("NIFTY BANK"), "NIFTY BANK lot size");
+            assertEquals(20, lotSizes.get("SENSEX"), "SENSEX lot size");
+            assertEquals(30, lotSizes.get("BANKEX"), "BANKEX lot size");
+
+            // Stocks not in INDEX_TO_DERIVATIVE keep their derivative name as key
+            assertEquals(550, lotSizes.get("HDFCBANK"), "HDFCBANK lot size");
+            assertEquals(500, lotSizes.get("RELIANCE"), "RELIANCE lot size");
+            assertEquals(750, lotSizes.get("SBIN"), "SBIN lot size");
+        }
+    }
+
+    @Test
+    void testNiftyEarliestExpiryFutureContract() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Optional<List<Instrument>> niftyFut = instrumentCache.getEarliestExpiryInstruments("NIFTY", "FUT");
+
+            assertTrue(niftyFut.isPresent());
+            assertEquals(1, niftyFut.get().size(), "NIFTY nearest expiry should have exactly 1 FUT contract");
+
+            Instrument nearMonthFut = niftyFut.get().get(0);
+            assertEquals("NIFTY26JANFUT", nearMonthFut.getTradingsymbol());
+            assertEquals("NFO", nearMonthFut.getExchange());
+            assertEquals(65, nearMonthFut.getLot_size());
+        }
+    }
+
+    @Test
+    void testFilteredSymbolsMapSize() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(invocationOnMock -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            Map<String, String> filtered = instrumentCache.getFilteredSymbols();
+            int mapSize = instrumentCache.getInstrumentMapSize();
+
+            // 7070 instruments, but 3 have duplicate tradingsymbols (NSE/BSE equity share names)
+            // that get deduplicated by the merge function, leaving 7067 unique entries
+            assertEquals(7067, filtered.size(), "Filtered symbols map should have 7067 unique tradingsymbol entries");
+            assertEquals(7067, mapSize, "Instrument map should have 7067 unique token-to-symbol mappings");
+        }
+    }
 }

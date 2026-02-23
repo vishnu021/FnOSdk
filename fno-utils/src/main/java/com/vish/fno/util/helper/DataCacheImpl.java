@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Consolidated DataCache implementation that works with both production and backtest environments.
@@ -37,6 +38,9 @@ public class DataCacheImpl extends AbstractDataCache {
     private final HolidayCalendar holidayCalendar;
     private final TimeSource timeSource;
     private volatile String lastIntradayCacheDate;
+    // ConcurrentHashMap required for computeIfAbsent atomicity — Map interface lacks this guarantee
+    @SuppressWarnings("PMD.LooseCoupling")
+    private final ConcurrentHashMap<String, Object> symbolFetchLocks = new ConcurrentHashMap<>();
 
     public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
                          HolidayCalendar holidayCalendar,
@@ -108,6 +112,7 @@ public class DataCacheImpl extends AbstractDataCache {
             log.info("Date changed from {} to {} — clearing intraday cache", lastIntradayCacheDate, currentDate);
             minuteDataCache.clearAll();
             clearTickCache();
+            symbolFetchLocks.clear();
             lastIntradayCacheDate = currentDate;
         }
 
@@ -115,11 +120,20 @@ public class DataCacheImpl extends AbstractDataCache {
             return;
         }
 
-        Optional<SymbolData> data = candlestickDataProvider.getEntireDayHistoryData(currentDate, symbol);
-        data.ifPresent(d -> {
-            minuteDataCache.clear(symbol);
-            minuteDataCache.update(symbol, d.data());
-        });
+        // Per-symbol lock prevents 18+ virtual threads from all calling the Kite API
+        // for the same uncached symbol. Only the first thread fetches; others wait and
+        // then see the cached result via the double-check on isDataAvailable().
+        Object lock = symbolFetchLocks.computeIfAbsent(symbol, k -> new Object());
+        synchronized (lock) {
+            if (isDataAvailable(symbol)) {
+                return;
+            }
+            Optional<SymbolData> data = candlestickDataProvider.getEntireDayHistoryData(currentDate, symbol);
+            data.ifPresent(d -> {
+                minuteDataCache.clear(symbol);
+                minuteDataCache.update(symbol, d.data());
+            });
+        }
     }
 
     private boolean isDataAvailable(String symbol) {
