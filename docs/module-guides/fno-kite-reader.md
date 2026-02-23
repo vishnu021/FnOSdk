@@ -225,7 +225,7 @@ OrderParams params = OrderUtils.createMarketOrderWithParameters(symbol, qty, Con
 
 ### InstrumentFileUtils
 
-Thread-safe instrument cache persistence. Returns `List.of()` (never null) on load failure.
+Thread-safe instrument cache persistence. Uses VT-safe `ObjectMapper` via `JsonUtils.createObjectMapper()`. Returns `List.of()` (never null) on load failure.
 
 | Method | Description |
 |--------|-------------|

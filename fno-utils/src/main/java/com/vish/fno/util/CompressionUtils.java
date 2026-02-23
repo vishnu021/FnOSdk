@@ -16,7 +16,8 @@ import java.util.zip.GZIPOutputStream;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CompressionUtils {
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    // VT-safe ObjectMapper: uses shared bounded pool instead of ThreadLocal BufferRecycler
+    private static final ObjectMapper objectMapper = JsonUtils.createObjectMapper();
 
     // Method to compress a List of Tickers
     public static byte[] compressTickers(List<Ticker> tickers) throws IOException {

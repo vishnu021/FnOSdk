@@ -188,10 +188,12 @@ All methods static and thread-safe.
 
 ### JsonUtils
 
-Static, thread-safe.
+Static, thread-safe. Provides VT-safe `ObjectMapper` factory methods using Jackson 2.16+'s `JsonRecyclerPools.sharedBoundedPool()` instead of the default `ThreadLocal<BufferRecycler>` pooling. All production `ObjectMapper` instances should be created via `createObjectMapper()` to avoid memory pressure with virtual threads.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
+| `createObjectMapper()` | `ObjectMapper` | VT-safe mapper using shared bounded recycler pool |
+| `createIndentedObjectMapper()` | `ObjectMapper` | VT-safe mapper with pretty-print + `FAIL_ON_EMPTY_BEANS` disabled |
 | `getNonFormattedObject(Object)` | `String` | Compact JSON |
 | `getFormattedObject(Object)` | `String` | Pretty-printed JSON |
 
@@ -215,7 +217,8 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 | `saveCandlestickData(List<Candle>, symbol, date)` | Save to `data/{symbol}_{date}.json` |
 | `createDirectoryIfNotExist(path)` | Create directory |
 | `saveTickData(symbol, tick)` | Save tick (overwrite) |
-| `appendTickToFile(symbol, tick)` | Buffer tick; auto-flushes at 100 ticks per symbol |
+| `appendTickToFile(symbol, tick)` | Serialize tick and buffer; auto-flushes at 100 ticks or 5s timeout |
+| `appendSerializedTickToFile(symbol, jsonString)` | Buffer pre-serialized JSON tick; supports caller-thread serialization pattern to avoid VT memory pressure |
 | `flushTickBuffer(symbol)` | Flush buffered ticks for a symbol to disk |
 | `flushAllTickBuffers()` | Flush all buffered ticks (call at end of day / shutdown) |
 | `logCompletedOrder(ActiveOrder)` | Log to `orderLog/` directory |
@@ -381,13 +384,13 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
 | CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
-| JsonUtils, CompressionUtils | ✅ | Static methods |
+| JsonUtils, CompressionUtils | ✅ | Static methods; VT-safe ObjectMapper (shared bounded recycler pool) |
 | AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer) |
 | TimeProvider | ✅ | Instance methods |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
-| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering |
+| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers |
 | FileUtils (other instance), HistoricDataCache | ❌ | Instance-based |
 
 ---

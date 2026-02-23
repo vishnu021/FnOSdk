@@ -122,6 +122,7 @@ list.stream().filter(...).toList();
 | Catching generic `Exception` | Catch specific exceptions |
 | `ArrayList` in parameters | Use `List` interface |
 | Forgetting PMD | Always run `mvn clean package` before commit |
+| `new ObjectMapper()` | Use `JsonUtils.createObjectMapper()` — VT-safe shared recycler pool |
 
 ---
 

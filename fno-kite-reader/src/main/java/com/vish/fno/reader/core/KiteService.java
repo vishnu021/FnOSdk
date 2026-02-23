@@ -137,9 +137,10 @@ public class KiteService {
     }
 
     public Optional<KiteOpenOrder> sellOrder(String symbol, int orderSize, String tag, boolean isPlaceOrder) {
-        if (log.isDebugEnabled()) {
-            orderExecutor.logExistingOrdersAndPositions(symbol, tag);
-        }
+//        TODO: log at end of session
+//        if (log.isDebugEnabled()) {
+//            orderExecutor.logExistingOrdersAndPositions(symbol, tag);
+//        }
         return orderExecutor.sellOrder(symbol, orderSize, tag, isPlaceOrder);
     }
 

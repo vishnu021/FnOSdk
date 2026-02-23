@@ -1,6 +1,7 @@
 package com.vish.fno.reader.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vish.fno.util.JsonUtils;
 import com.vish.fno.util.TimeUtils;
 import com.zerodhatech.models.Instrument;
 import lombok.AccessLevel;
@@ -22,7 +23,8 @@ import java.util.Locale;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class InstrumentFileUtils {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    // VT-safe ObjectMapper: uses shared bounded pool instead of ThreadLocal BufferRecycler
+    private static final ObjectMapper MAPPER = JsonUtils.createObjectMapper();
     private static final String DIRECTORY = "instrument_cache";
     private static final String DATE_FORMAT = "yyyy-MM-dd";
 

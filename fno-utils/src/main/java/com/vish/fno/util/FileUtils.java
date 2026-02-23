@@ -3,7 +3,6 @@ package com.vish.fno.util;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
@@ -40,25 +39,32 @@ import java.util.stream.Stream;
 @SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.AvoidCatchingGenericException", "PMD.AvoidThrowingRawExceptionTypes"})
 public final class FileUtils implements FnoConstants {
 
-    private static final ObjectMapper staticMapper = new ObjectMapper();
+    // VT-safe ObjectMapper: uses shared bounded pool instead of ThreadLocal BufferRecycler
+    private static final ObjectMapper staticMapper = JsonUtils.createObjectMapper();
     private static final String CANDLESTICK_PATH = "data";
     private static final String ORDER_LOG_FOLDER = "orderLog";
     private static final int ESTIMATED_BUFFER_SIZE = 125;
     private static final int CSV_HEADER_BUFFER_SIZE = 250;
     private static final int TICK_BUFFER_SIZE = 100;
+    /**
+     * Maximum time (ms) between flushes. Prevents partial buffers from lingering
+     * indefinitely when a symbol stops ticking before reaching {@link #TICK_BUFFER_SIZE}.
+     * Without this, symbols with fewer than 100 ticks would never flush until shutdown.
+     */
+    private static final long FLUSH_INTERVAL_MS = 5000;
 
     private final ObjectMapper indentedMapper;
     private final ObjectMapper mapper;
     private final Map<String, Queue<String>> tickBuffer = new ConcurrentHashMap<>();
+    private volatile long lastFlushTimeMs = System.currentTimeMillis();
     String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
     String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
     int bufferLength;
 
     public FileUtils() {
-        mapper = new ObjectMapper();
-        indentedMapper = new ObjectMapper();
-        indentedMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-        indentedMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        // VT-safe ObjectMappers: use shared bounded pool instead of ThreadLocal BufferRecycler
+        mapper = JsonUtils.createObjectMapper();
+        indentedMapper = JsonUtils.createIndentedObjectMapper();
         bufferLength = 0;
         createDirectoryIfNotExist(filePath);
     }
@@ -95,13 +101,45 @@ public final class FileUtils implements FnoConstants {
     public void appendTickToFile(String symbol, Object tick) {
         try {
             String jsonString = mapper.writeValueAsString(tick);
-            Queue<String> queue = tickBuffer.computeIfAbsent(symbol, k -> new ConcurrentLinkedQueue<>());
-            queue.add(jsonString);
-            if (queue.size() >= TICK_BUFFER_SIZE) {
-                flushTickBuffer(symbol);
-            }
+            appendSerializedTickToFile(symbol, jsonString);
         } catch (IOException e) {
             log.warn("Failed to serialize tick for {}", symbol, e);
+        }
+    }
+
+    /**
+     * Append a pre-serialized JSON string to the tick buffer for the given symbol.
+     *
+     * <p>This method exists to support caller-thread serialization: the caller serializes
+     * the tick to JSON on its own thread (reusing Jackson's {@code BufferRecycler} via
+     * ThreadLocal), then passes the result here. This avoids creating a new
+     * {@code BufferRecycler} per virtual thread — the root cause of ~500MB/hr old-gen
+     * memory pressure observed in production (Feb 2026, JFR analysis). Not a classical
+     * leak (SoftReference-wrapped, eventually GC-eligible), but allocation rate outpaced
+     * collection, causing 60-118ms GC pauses.
+     *
+     * <p>The buffer flushes to disk when either:
+     * <ul>
+     *   <li>The per-symbol queue reaches {@link #TICK_BUFFER_SIZE} (100 ticks), or</li>
+     *   <li>{@link #FLUSH_INTERVAL_MS} (5s) has elapsed since the last flush of any symbol,
+     *       preventing partial buffers from lingering indefinitely</li>
+     * </ul>
+     *
+     * @param symbol the instrument symbol (e.g., "NIFTY_50")
+     * @param jsonString pre-serialized JSON string of the tick
+     * @see #appendTickToFile(String, Object) the original method (serializes internally)
+     */
+    public void appendSerializedTickToFile(String symbol, String jsonString) {
+        Queue<String> queue = tickBuffer.computeIfAbsent(symbol, k -> new ConcurrentLinkedQueue<>());
+        queue.add(jsonString);
+        if (queue.size() >= TICK_BUFFER_SIZE) {
+            flushTickBuffer(symbol);
+            lastFlushTimeMs = System.currentTimeMillis();
+        } else if (System.currentTimeMillis() - lastFlushTimeMs > FLUSH_INTERVAL_MS) {
+            // Time-based flush: prevents partial buffers from lingering when a symbol
+            // stops ticking before reaching TICK_BUFFER_SIZE
+            flushAllTickBuffers();
+            lastFlushTimeMs = System.currentTimeMillis();
         }
     }
 
