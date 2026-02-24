@@ -23,22 +23,6 @@ public interface FnoConstants {
     /** Strategy execution ends at 15:30 */
     LocalTime DEFAULT_STRATEGY_END_TIME = MARKET_CLOSE_TIME;
 
-    // Exchange Names
-    String NSE = "NSE";
-    String NFO = "NFO";
-    String BFO = "BFO";
-    String BSE = "BSE";
-
-    // Instrument Types
-    String CE = "CE";
-    String PE = "PE";
-    String FUT = "FUT";
-
-    // Account/Position Types
-    String EQUITY = "equity";
-    String NET = "net";
-    String DAY = "day";
-
     // Index Names (as displayed in NSE)
     String NIFTY_BANK = "NIFTY BANK";
     String NIFTY_50 = "NIFTY 50";

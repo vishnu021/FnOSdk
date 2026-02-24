@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -62,6 +63,11 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     protected void updateStopLoss(double stopLoss) {
         stopLossRevision.put(++stopLossRevisionCount, this.stopLoss);
         this.stopLoss = stopLoss;
+    }
+
+    @Override
+    public Map<String, String> getExtraData() {
+        return Collections.unmodifiableMap(extraData);
     }
 
     @Override

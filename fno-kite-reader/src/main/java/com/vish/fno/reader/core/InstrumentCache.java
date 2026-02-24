@@ -1,5 +1,7 @@
 package com.vish.fno.reader.core;
 
+import com.vish.fno.model.Exchange;
+import com.vish.fno.model.InstrumentType;
 import com.vish.fno.reader.model.InstrumentSummary;
 import com.vish.fno.reader.util.InstrumentFileUtils;
 import com.vish.fno.util.TimeUtils;
@@ -12,6 +14,7 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -22,12 +25,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static com.vish.fno.util.FnoConstants.BFO;
-import static com.vish.fno.util.FnoConstants.BSE;
-import static com.vish.fno.util.FnoConstants.FUT;
 import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
-import static com.vish.fno.util.FnoConstants.NFO;
-import static com.vish.fno.util.FnoConstants.NSE;
 import static com.vish.fno.util.TimeUtils.getLocalDateFromDate;
 
 /**
@@ -35,11 +33,11 @@ import static com.vish.fno.util.TimeUtils.getLocalDateFromDate;
  * Thread-safe lazy initialization using double-checked locking pattern.
  */
 @Slf4j
-@SuppressWarnings({"PMD.AvoidThrowingRawExceptionTypes", "PMD.TooManyStaticImports"})
+@SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
 class InstrumentCache {
 
     private final KiteSession session;
-    private final List<String> nifty100Symbols;
+    private final Set<String> nifty100Symbols;
     private final Object initLock;
     private volatile CacheData cache;
 
@@ -54,7 +52,7 @@ class InstrumentCache {
     ) {}
 
     public InstrumentCache(List<String> nifty100Symbols, KiteSession session) {
-        this.nifty100Symbols = nifty100Symbols;
+        this.nifty100Symbols = new HashSet<>(nifty100Symbols);
         this.session = session;
         this.initLock = new Object();
     }
@@ -97,7 +95,7 @@ class InstrumentCache {
         List<Instrument> matching = instruments.stream()
                 .filter(i -> upperName.equals(i.getName()))
                 .filter(i -> instrumentType.equals(i.getInstrument_type()))
-                .filter(i -> NFO.equals(i.getExchange()) || BFO.equals(i.getExchange()))
+                .filter(i -> Exchange.NFO.matches(i.getExchange()) || Exchange.BFO.matches(i.getExchange()))
                 .filter(i -> i.getExpiry() != null)
                 .toList();
 
@@ -191,12 +189,12 @@ class InstrumentCache {
     public String getExchangeForSymbol(String symbol) {
         getInstruments();  // Ensure initialized
         if (symbol == null) {
-            return NFO;
+            return Exchange.NFO.getCode();
         }
         SymbolInfo info = cache.symbolInfoMap().get(symbol.toUpperCase(Locale.ENGLISH));
         if (info == null) {
             log.warn("Exchange not found for symbol: {}, defaulting to NFO", symbol);
-            return NFO;
+            return Exchange.NFO.getCode();
         }
         return info.exchange();
     }
@@ -268,7 +266,7 @@ class InstrumentCache {
         String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
 
         return getInstruments().stream()
-                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> InstrumentType.FUT.matches(i.getInstrument_type()))
                 .filter(i -> derivativeName.equals(i.getName()))
                 .findFirst()
                 .map(Instrument::getLot_size);
@@ -290,7 +288,7 @@ class InstrumentCache {
                 ));
 
         return instruments.stream()
-                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> InstrumentType.FUT.matches(i.getInstrument_type()))
                 .filter(i -> i.getName() != null)
                 .collect(Collectors.toMap(
                         i -> reverseMap.getOrDefault(i.getName(), i.getName()),
@@ -309,7 +307,7 @@ class InstrumentCache {
      * @return Optional containing the instrument token of the nearest futures contract, or empty
      */
     public Optional<Long> resolveNearestFutureToken(String expiredFutSymbol) {
-        if (expiredFutSymbol == null || !expiredFutSymbol.endsWith(FUT)) {
+        if (expiredFutSymbol == null || !expiredFutSymbol.endsWith(InstrumentType.FUT.getCode())) {
             return Optional.empty();
         }
 
@@ -317,7 +315,7 @@ class InstrumentCache {
 
         // Find base name by matching against known FUT instrument names (longest match wins)
         Optional<String> baseName = instruments.stream()
-                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> InstrumentType.FUT.matches(i.getInstrument_type()))
                 .map(Instrument::getName)
                 .filter(Objects::nonNull)
                 .distinct()
@@ -330,7 +328,7 @@ class InstrumentCache {
 
         String resolvedBaseName = baseName.get();
         return instruments.stream()
-                .filter(i -> FUT.equals(i.getInstrument_type()))
+                .filter(i -> InstrumentType.FUT.matches(i.getInstrument_type()))
                 .filter(i -> resolvedBaseName.equals(i.getName()))
                 .filter(i -> i.getExpiry() != null)
                 .min(Comparator.comparing(Instrument::getExpiry))
@@ -355,10 +353,10 @@ class InstrumentCache {
     }
 
     private boolean isNSEOrBSEFNO(Instrument i) {
-        return i.getExchange().contentEquals(NSE)
-                || (i.getExchange().contentEquals(NFO) && i.expiry != null)
-                || i.getExchange().contentEquals(BSE)
-                || (i.getExchange().contentEquals(BFO) && i.expiry != null);
+        return Exchange.NSE.matches(i.getExchange())
+                || (Exchange.NFO.matches(i.getExchange()) && i.expiry != null)
+                || Exchange.BSE.matches(i.getExchange())
+                || (Exchange.BFO.matches(i.getExchange()) && i.expiry != null);
     }
 
     private Map<String, SymbolInfo> buildSymbolInfoMap(List<Instrument> filtered) {

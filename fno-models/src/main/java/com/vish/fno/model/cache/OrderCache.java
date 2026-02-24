@@ -7,8 +7,10 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -32,6 +34,8 @@ public class OrderCache {
     // Symbol indices for O(1) lookup — updated on every mutation
     private final Map<String, List<OrderRequest>> orderRequestsBySymbol;
     private final Map<String, List<ActiveOrder>> activeOrdersBySymbol;
+    // Composite key set for O(1) "is this (tag, index) already active?" checks
+    private final Set<String> activeOrderKeys;
 
     public OrderCache(double availableCash) {
         this.availableCash = availableCash;
@@ -40,6 +44,7 @@ public class OrderCache {
         completedOrders = new CopyOnWriteArrayList<>();
         orderRequestsBySymbol = new ConcurrentHashMap<>();
         activeOrdersBySymbol = new ConcurrentHashMap<>();
+        activeOrderKeys = ConcurrentHashMap.newKeySet();
         log.info("Initialising order cache with available cash: {}", this.availableCash);
     }
 
@@ -59,10 +64,8 @@ public class OrderCache {
             return Optional.empty();
         }
 
-        List<ActiveOrder> symbolActiveOrders = activeOrdersBySymbol.getOrDefault(tickSymbol, List.of());
-
         for (OrderRequest order : symbolOrders) {
-            if (isNotInActiveOrders(order, symbolActiveOrders)) {
+            if (isNotInActiveOrders(order)) {
                 Optional<OrderRequest> openOrderOptional = order.verifyBuyThreshold(tick);
                 if (!orderRequests.isEmpty()) {
                     return openOrderOptional;
@@ -73,17 +76,8 @@ public class OrderCache {
     }
 
     public boolean isNotInActiveOrders(OrderRequest tickOrderRequest) {
-        List<ActiveOrder> symbolActiveOrders = activeOrdersBySymbol.getOrDefault(
-                tickOrderRequest.getIndex(), List.of());
-        return isNotInActiveOrders(tickOrderRequest, symbolActiveOrders);
-    }
-
-    private boolean isNotInActiveOrders(OrderRequest tickOrderRequest,
-                                         List<ActiveOrder> symbolActiveOrders) {
-        boolean isNotInActiveOrder = symbolActiveOrders
-                .stream()
-                .noneMatch(a -> a.getTag().equalsIgnoreCase(tickOrderRequest.getTag())
-                        && a.getIndex().equalsIgnoreCase(tickOrderRequest.getIndex()));
+        String key = activeOrderKey(tickOrderRequest.getTag(), tickOrderRequest.getIndex());
+        boolean isNotInActiveOrder = !activeOrderKeys.contains(key);
         if(!isNotInActiveOrder) {
             log.info("Already an active order present for symbol: {}, open order: {}",
                     tickOrderRequest.getIndex(), tickOrderRequest);
@@ -94,6 +88,7 @@ public class OrderCache {
     public void removeActiveOrder(ActiveOrder order) {
         activeOrders.remove(order);
         removeFromIndex(activeOrdersBySymbol, order.getIndex(), order);
+        activeOrderKeys.remove(activeOrderKey(order.getTag(), order.getIndex()));
         completedOrders.add(order);
         log.debug("Order completed and moved to completedOrders: {}", order.getTag());
     }
@@ -131,6 +126,7 @@ public class OrderCache {
     public void appendActiveOrder(ActiveOrder activeOrder) {
         this.activeOrders.add(activeOrder);
         addToIndex(activeOrdersBySymbol, activeOrder.getIndex(), activeOrder);
+        activeOrderKeys.add(activeOrderKey(activeOrder.getTag(), activeOrder.getIndex()));
     }
 
     private <T> void addToIndex(Map<String, List<T>> index, String key, T value) {
@@ -142,6 +138,10 @@ public class OrderCache {
         if (list != null) {
             list.remove(value);
         }
+    }
+
+    private static String activeOrderKey(String tag, String index) {
+        return tag.toUpperCase(Locale.ENGLISH) + ":" + index.toUpperCase(Locale.ENGLISH);
     }
 
     public double getAvailableCash() {

@@ -4,10 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vish.fno.model.Candle;
-import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
-import com.vish.fno.model.order.activeorder.OptionBasedActiveOrder;
-import com.vish.fno.model.order.activeorder.TickBasedActiveOrder;
 import lombok.extern.slf4j.Slf4j;
 
 import static com.vish.fno.model.util.ModelUtils.getStringDate;
@@ -36,7 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-@SuppressWarnings({"PMD.UnusedPrivateMethod", "PMD.AvoidCatchingGenericException", "PMD.AvoidThrowingRawExceptionTypes"})
+@SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidThrowingRawExceptionTypes"})
 public final class FileUtils implements FnoConstants {
 
     // VT-safe ObjectMapper: uses shared bounded pool instead of ThreadLocal BufferRecycler
@@ -177,11 +174,6 @@ public final class FileUtils implements FnoConstants {
         tickBuffer.keySet().forEach(this::flushTickBuffer);
     }
 
-    private String candleFileName(String instrument, Date fromDate) {
-        createDirectoryIfNotExist(filePath + getFormattedDate(fromDate));
-        return filePath + getFormattedDate(fromDate) + File.separator + instrument + ".json";
-    }
-
     private String getFormattedDate(Date date) {
         return new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(date);
     }
@@ -293,126 +285,48 @@ public final class FileUtils implements FnoConstants {
 
     /**
      * Converts ActiveOrder to CSV format.
-     * Handles type-specific formatting for ActiveIndexOrder, TickBasedActiveOrder, and OptionBasedActiveOrder.
+     * Uses the ActiveOrder interface — no concrete type dispatch needed.
      *
      * @param order ActiveOrder instance to convert
      * @return CSV formatted string
      */
     public static String toCSV(ActiveOrder order) {
-        if (order instanceof ActiveIndexOrder) {
-            return formatActiveIndexOrderToCSV((ActiveIndexOrder) order);
-        } else if (order instanceof TickBasedActiveOrder) {
-            return formatTickBasedActiveOrderToCSV((TickBasedActiveOrder) order);
-        } else if (order instanceof OptionBasedActiveOrder) {
-            return formatOptionBasedActiveOrderToCSV((OptionBasedActiveOrder) order);
+        final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
+        sb.append(order.getIndex())
+                .append(',').append(' ').append(getStringDate(order.getDate()))
+                .append(' ').append(order.getEntryTimeStamp())
+                .append(',').append(' ').append(getStringDate(order.getDate()))
+                .append(' ').append(order.getExitTimeStamp())
+                .append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold()))
+                .append(',').append(' ').append(roundTo5Paise(order.getBuyPrice()))
+                .append(',').append(' ').append(roundTo5Paise(order.getTarget()))
+                .append(',').append(' ').append(roundTo5Paise(order.getSellPrice()))
+                .append(',').append(' ').append(roundTo5Paise(order.getStopLoss()))
+                .append(',').append(' ').append(roundTo5Paise(order.getProfit()))
+                .append(',').append(' ').append(roundTo5Paise(order.getBuyQuantity()));
+
+        if (order.isCallOrder()) {
+            sb.append(',').append(' ').append(roundTo5Paise(order.getTarget() - order.getBuyThreshold()));
         } else {
-            throw new IllegalArgumentException("Unsupported ActiveOrder type: " + order.getClass().getName());
+            sb.append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold() - order.getTarget()));
         }
+        sb.append(',').append(' ').append(order.isCallOrder());
+        if (order.getExtraData() != null) {
+            for (String key : order.getExtraData().keySet()) {
+                sb.append(',').append(' ').append(order.getExtraData().get(key));
+            }
+        }
+        return sb.toString();
     }
 
     /**
      * Generates order log string for ActiveOrder.
-     * Handles type-specific formatting for ActiveIndexOrder, TickBasedActiveOrder, and OptionBasedActiveOrder.
+     * Uses the ActiveOrder interface — no concrete type dispatch needed.
      *
      * @param order ActiveOrder instance to log
      * @return Formatted order log string
      */
     public static String orderLog(ActiveOrder order) {
-        if (order instanceof ActiveIndexOrder) {
-            return formatActiveIndexOrderLog((ActiveIndexOrder) order);
-        } else if (order instanceof TickBasedActiveOrder) {
-            return formatTickBasedActiveOrderLog((TickBasedActiveOrder) order);
-        } else if (order instanceof OptionBasedActiveOrder) {
-            return formatOptionBasedActiveOrderLog((OptionBasedActiveOrder) order);
-        } else {
-            throw new IllegalArgumentException("Unsupported ActiveOrder type: " + order.getClass().getName());
-        }
-    }
-
-    // CPD-OFF
-    private static String formatActiveIndexOrderToCSV(ActiveIndexOrder order) {
-        final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
-        sb.append(order.getIndex())
-                .append(',').append(' ').append(getStringDate(order.getDate()))
-                .append(' ').append(order.getEntryTimeStamp())
-                .append(',').append(' ').append(getStringDate(order.getDate()))
-                .append(' ').append(order.getExitTimeStamp())
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold()))
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getTarget()))
-                .append(',').append(' ').append(roundTo5Paise(order.getSellPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getStopLoss()))
-                .append(',').append(' ').append(roundTo5Paise(order.getProfit()))
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyQuantity()));
-
-        if (order.isCallOrder()) {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getTarget() - order.getBuyThreshold()));
-        } else {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold() - order.getTarget()));
-        }
-        sb.append(',').append(' ').append(order.isCallOrder());
-        if (order.getExtraData() != null) {
-            for (String key : order.getExtraData().keySet()) {
-                sb.append(',').append(' ').append(order.getExtraData().get(key));
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String formatTickBasedActiveOrderToCSV(TickBasedActiveOrder order) {
-        final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
-        sb.append(order.getIndex())
-                .append(',').append(' ').append(getStringDate(order.getDate()))
-                .append(' ').append(order.getEntryTimeStamp())
-                .append(',').append(' ').append(getStringDate(order.getDate()))
-                .append(' ').append(order.getExitTimeStamp())
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold()))
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getTarget()))
-                .append(',').append(' ').append(roundTo5Paise(order.getSellPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getStopLoss()))
-                .append(',').append(' ').append(roundTo5Paise(order.getProfit()))
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyQuantity()));
-
-        if (order.isCallOrder()) {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getTarget() - order.getBuyThreshold()));
-        } else {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold() - order.getTarget()));
-        }
-        sb.append(',').append(' ').append(order.isCallOrder());
-        if (order.getExtraData() != null) {
-            for (String key : order.getExtraData().keySet()) {
-                sb.append(',').append(' ').append(order.getExtraData().get(key));
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String formatOptionBasedActiveOrderToCSV(OptionBasedActiveOrder order) {
-        final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
-        sb.append(order.getIndex())
-                .append(',').append(' ').append(getStringDate(order.getDate()))
-                .append(' ').append(order.getEntryTimeStamp())
-                .append(',').append(' ').append(getStringDate(order.getDate()))
-                .append(' ').append(order.getExitTimeStamp())
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyThreshold()))
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getTarget()))
-                .append(',').append(' ').append(roundTo5Paise(order.getSellPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getStopLoss()))
-                .append(',').append(' ').append(roundTo5Paise(order.getProfit()))
-                .append(',').append(' ').append(roundTo5Paise(order.getBuyQuantity()))
-                .append(',').append(' ').append(roundTo5Paise(order.getTarget() - order.getBuyThreshold()));
-
-        if (order.getExtraData() != null) {
-            for (String key : order.getExtraData().keySet()) {
-                sb.append(',').append(' ').append(order.getExtraData().get(key));
-            }
-        }
-        return sb.toString();
-    }
-
-    private static String formatActiveIndexOrderLog(ActiveIndexOrder order) {
         final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
         sb.append("OrderLog{")
                 .append("index='").append(order.getIndex()).append("'")
@@ -434,50 +348,4 @@ public final class FileUtils implements FnoConstants {
 
         return sb.toString();
     }
-
-    private static String formatTickBasedActiveOrderLog(TickBasedActiveOrder order) {
-        final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
-        sb.append("OrderLog{")
-                .append("index='").append(order.getIndex()).append("'")
-                .append(",\ttag=").append(order.getTag())
-                .append(",\tentry=").append(getStringDateTime(order.getDate()))
-                .append(",\texit=").append(order.getExitTimeStamp())
-                .append(",\tbuy=").append(roundTo5Paise(order.getBuyPrice()))
-                .append(",\ttarget=").append(roundTo5Paise(order.getTarget()))
-                .append(",\tsell=").append(roundTo5Paise(order.getSellPrice()))
-                .append(",\tcall=").append(order.isCallOrder());
-
-        if (order.getProfit() > 0) {
-            sb.append(",\tprofit=");
-        } else {
-            sb.append(",\tloss=");
-        }
-
-        sb.append(roundTo5Paise(order.getProfit())).append("}");
-
-        return sb.toString();
-    }
-
-    private static String formatOptionBasedActiveOrderLog(OptionBasedActiveOrder order) {
-        final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
-        sb.append("OrderLog{")
-                .append("index='").append(order.getIndex()).append("'")
-                .append(",\ttag=").append(order.getTag())
-                .append(",\tentry=").append(getStringDateTime(order.getDate()))
-                .append(",\texit=").append(order.getExitTimeStamp())
-                .append(",\tbuy=").append(roundTo5Paise(order.getBuyPrice()))
-                .append(",\ttarget=").append(roundTo5Paise(order.getTarget()))
-                .append(",\tsell=").append(roundTo5Paise(order.getSellPrice()));
-
-        if (order.getProfit() > 0) {
-            sb.append(",\tprofit=");
-        } else {
-            sb.append(",\tloss=");
-        }
-
-        sb.append(roundTo5Paise(order.getProfit())).append("}");
-
-        return sb.toString();
-    }
-    // CPD-ON
 }

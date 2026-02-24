@@ -2,6 +2,7 @@ package com.vish.fno.util.helper;
 
 import com.vish.fno.model.Candle;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,7 +16,8 @@ class CandleStickCache {
     private final Map<String, List<Candle>> candlesCache = new ConcurrentHashMap<>();
 
     public List<Candle> get(String symbol) {
-        return candlesCache.get(symbol);
+        List<Candle> candles = candlesCache.get(symbol);
+        return candles != null ? Collections.unmodifiableList(candles) : null;
     }
 
     public Optional<Candle> getLatestCandle(String symbol) {
@@ -27,7 +29,7 @@ class CandleStickCache {
     }
 
     public void update(String symbol, List<Candle> data) {
-        candlesCache.put(symbol, data);
+        candlesCache.put(symbol, List.copyOf(data));
     }
 
     public void clear(String symbol) {

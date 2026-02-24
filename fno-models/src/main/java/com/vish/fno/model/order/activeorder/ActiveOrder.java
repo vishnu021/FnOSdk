@@ -15,7 +15,9 @@ public interface ActiveOrder {
     void setStopLoss(double stopLoss);
     Task getTask();
     void setSellPrice(double sellPrice);
+    int getExitTimeStamp();
     void setExitTimeStamp(int exitTimeStamp);
+    double getBuyThreshold();
     int getBuyQuantity();
     int getLotSize();
     int getSoldQuantity();

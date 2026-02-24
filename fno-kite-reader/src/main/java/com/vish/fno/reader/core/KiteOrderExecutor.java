@@ -1,5 +1,6 @@
 package com.vish.fno.reader.core;
 
+import com.vish.fno.model.PositionType;
 import com.vish.fno.reader.model.KiteOpenOrder;
 import com.vish.fno.util.JsonUtils;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
@@ -17,13 +18,10 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.vish.fno.reader.util.OrderUtils.createMarketOrderWithParameters;
-import static com.vish.fno.util.FnoConstants.DAY;
-import static com.vish.fno.util.FnoConstants.NET;
 import static com.vish.fno.util.JsonUtils.getFormattedObject;
 
 @Slf4j
 @RequiredArgsConstructor
-@SuppressWarnings("PMD.TooManyStaticImports")
 class KiteOrderExecutor {
 
     private final KiteSession session;
@@ -90,13 +88,13 @@ class KiteOrderExecutor {
                 .map(JsonUtils::getFormattedObject)
                 .toList();
 
-        List<String> netPositions = getPositions().get(NET)
+        List<String> netPositions = getPositions().get(PositionType.NET.getCode())
                 .stream()
                 .filter(o -> o.tradingSymbol.equals(symbol))
                 .map(JsonUtils::getFormattedObject)
                 .toList();
 
-        List<String> dayPositions = getPositions().get(DAY)
+        List<String> dayPositions = getPositions().get(PositionType.DAY.getCode())
                 .stream()
                 .filter(o -> o.tradingSymbol.equals(symbol))
                 .map(JsonUtils::getFormattedObject)

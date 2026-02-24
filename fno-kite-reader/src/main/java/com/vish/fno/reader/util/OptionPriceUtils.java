@@ -1,5 +1,7 @@
 package com.vish.fno.reader.util;
 
+import com.vish.fno.model.Exchange;
+import com.vish.fno.model.InstrumentType;
 import com.zerodhatech.models.Instrument;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -15,22 +17,16 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static com.vish.fno.util.FnoConstants.BFO;
-import static com.vish.fno.util.FnoConstants.CE;
-import static com.vish.fno.util.FnoConstants.FUT;
 import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
-import static com.vish.fno.util.FnoConstants.NFO;
-import static com.vish.fno.util.FnoConstants.PE;
 
 @Slf4j
-@SuppressWarnings("PMD.TooManyStaticImports")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class OptionPriceUtils {
 
     public static Optional<String> getNextExpiryFutureSymbol(String symbol, List<Instrument> instruments) {
         String symbolPrefix = getOptionPrefix(symbol);
 
-        Optional<List<Instrument>> earliestExpiryInstrument = getEarliestExpiryInstrument(instruments, symbolPrefix, FUT);
+        Optional<List<Instrument>> earliestExpiryInstrument = getEarliestExpiryInstrument(instruments, symbolPrefix, InstrumentType.FUT.getCode());
 
         if (earliestExpiryInstrument.isPresent()) {
             List<Instrument> nextExpiryFuture = earliestExpiryInstrument.get();
@@ -62,7 +58,7 @@ public final class OptionPriceUtils {
     private static String findStrike(String indexSymbol, double price, boolean isCall, boolean selectLastBelow,
                                      List<Instrument> instruments) {
         String symbolsName = getOptionPrefix(indexSymbol);
-        String instrumentType = isCall ? CE : PE;
+        String instrumentType = isCall ? InstrumentType.CE.getCode() : InstrumentType.PE.getCode();
         return getEarliestExpiryInstrument(instruments, symbolsName, instrumentType)
                 .map(expiryInstruments -> resolveStrike(expiryInstruments, price, selectLastBelow))
                 .orElse("");
@@ -106,7 +102,7 @@ public final class OptionPriceUtils {
     private static Optional<List<Instrument>> getEarliestExpiryInstrument(List<Instrument> instruments, String symbolsName, String instrumentType) {
         final Map<Date, List<Instrument>> indexSymbolsInstruments = instruments.stream()
                 .filter(i -> i.getName().toUpperCase(Locale.ENGLISH).equalsIgnoreCase(symbolsName))
-                .filter(instrument -> instrument.exchange.equals(NFO) || instrument.exchange.equals(BFO))
+                .filter(instrument -> Exchange.NFO.matches(instrument.exchange) || Exchange.BFO.matches(instrument.exchange))
                 .filter(i -> i.getInstrument_type().equals(instrumentType))
                 .collect(Collectors.groupingBy(Instrument::getExpiry));
 
@@ -126,8 +122,8 @@ public final class OptionPriceUtils {
     public static List<String> getAllOptionSymbols(String indexSymbol, List<Instrument> instruments) {
         String symbolsName = getOptionPrefix(indexSymbol);
 
-        Optional<List<Instrument>> callOptions = getEarliestExpiryInstrument(instruments, symbolsName, CE);
-        Optional<List<Instrument>> putOptions = getEarliestExpiryInstrument(instruments, symbolsName, PE);
+        Optional<List<Instrument>> callOptions = getEarliestExpiryInstrument(instruments, symbolsName, InstrumentType.CE.getCode());
+        Optional<List<Instrument>> putOptions = getEarliestExpiryInstrument(instruments, symbolsName, InstrumentType.PE.getCode());
 
         List<String> allOptionSymbols = new ArrayList<>();
 

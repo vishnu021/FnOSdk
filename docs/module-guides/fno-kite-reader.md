@@ -235,14 +235,19 @@ Thread-safe instrument cache persistence. Uses VT-safe `ObjectMapper` via `JsonU
 
 ### InstrumentCache
 
-Internal (package-private) thread-safe cache with double-checked locking. Takes `KiteSession` (not `KiteService`) for API access. Returns defensive copies and unmodifiable collections.
+Internal (package-private) thread-safe cache with double-checked locking. Takes `KiteSession` (not `KiteService`) for API access. Returns defensive copies and unmodifiable collections. Constructor accepts `List<String>` but stores as `Set<String>` internally for O(1) `contains()` checks in `isInTheTrackingList()`.
 
-**Key fields (all `volatile`):**
+**Internal state (single volatile `CacheData` record):**
+
+All cached data is held in an immutable `CacheData` record, assigned atomically via a single volatile reference. This replaces the former pattern of separate volatile fields (`symbolMap`, `exchangeMap`, `instrumentMap`).
+
 - `filteredInstruments` -- `List<Instrument>` of NSE/NFO/BSE/BFO instruments in the tracking list
-- `symbolMap` -- `Map<String, Long>` tradingSymbol to instrument token
-- `instrumentMap` -- `Map<Long, String>` reverse of symbolMap
-- `exchangeMap` -- `Map<String, String>` tradingSymbol (uppercased) to exchange (`"NFO"` or `"BFO"`)
-- `optionIndex` -- `Map<String, Map<String, NavigableMap<Date, List<Instrument>>>>` pre-indexed options (name → instrumentType → sorted expiry → instruments)
+- `symbolInfoMap` -- `Map<String, SymbolInfo>` tradingSymbol (uppercased) to `SymbolInfo(long token, String exchange)` -- merges the former `symbolMap` and `exchangeMap` into a single lookup
+- `tokenToSymbolMap` -- `Map<Long, String>` reverse lookup (token to symbol)
+
+The `nifty100Symbols` field is now `Set<String>` (stored as `HashSet`) for O(1) `contains()` in `isInTheTrackingList()`.
+
+Option index data is built lazily via `getEarliestExpiryInstruments()` / `resolveNearestFutureToken()` from `filteredInstruments`.
 
 **Public methods:**
 
@@ -270,7 +275,7 @@ Internal (package-private) thread-safe cache with double-checked locking. Takes 
 public String getExchangeForSymbol(String symbol)
 ```
 
-Resolves the exchange (`"NFO"` or `"BFO"`) for a given trading symbol by looking up the `exchangeMap` built during initialization. Falls back to `"NFO"` with a warning log if the symbol is not found or is null. Used internally by `KiteService.placeOrder()` to route orders to the correct exchange.
+Resolves the exchange (`"NFO"` or `"BFO"`) for a given trading symbol by looking up the `symbolInfoMap` built during initialization. Falls back to `Exchange.NFO.getCode()` with a warning log if the symbol is not found or is null. Used internally by `KiteService.placeOrder()` to route orders to the correct exchange.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -383,7 +388,7 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 | KiteSession | ✅ | `volatile initialised` flag; API calls serialized via `ApiRateLimiter` (fair `ReentrantLock`) |
 | KiteOrderExecutor | ✅ | All operations go through KiteSession's lock |
 | HistoricalDataProvider | ✅ | All operations go through KiteSession's lock |
-| InstrumentCache | ✅ | Double-checked locking, volatile fields (filteredInstruments, symbolMap, instrumentMap, exchangeMap, optionIndex) |
+| InstrumentCache | ✅ | Double-checked locking, single volatile `CacheData` record (immutable, atomic assignment), `Set<String>` for nifty100Symbols |
 | KiteWebSocket | ✅ | `synchronized(tokenLock)` for all token mutations, `volatile isConnected` set in connected/disconnected listeners |
 | OrderUtils | ✅ | Static methods |
 | InstrumentFileUtils | ✅ | Thread-safe IO, `DateTimeFormatter` (immutable) |

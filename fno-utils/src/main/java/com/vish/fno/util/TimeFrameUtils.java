@@ -84,17 +84,28 @@ public class TimeFrameUtils {
         }
 
         if(candleList.size() == 1) {
-            return candleList.get(0);
+            return candleList.getFirst();
         }
 
-        double open = candleList.get(0).open();
-        double close = candleList.get(candleList.size() - 1).close();
-        double high = candleList.stream().mapToDouble(Candle::high).max().orElse(0d);
-        double low = candleList.stream().mapToDouble(Candle::low).min().orElse(0d);
-        long volume = (long) candleList.stream().mapToDouble(c -> c.volume() != null ? c.volume() : 0).sum();
-        long oi = (long) candleList.stream().mapToDouble(c -> c.oi() != null ? c.oi() : 0).sum();
-        String time = candleList.get(0).time();
+        Candle first = candleList.getFirst();
+        double high = first.high();
+        double low = first.low();
+        long volume = first.volume() != null ? first.volume() : 0;
+        long oi = first.oi() != null ? first.oi() : 0;
 
-        return new Candle(time, open, high, low, close, volume, oi);
+        for (int i = 1; i < candleList.size(); i++) {
+            Candle c = candleList.get(i);
+            if (c.high() > high) {
+                high = c.high();
+            }
+            if (c.low() < low) {
+                low = c.low();
+            }
+            volume += c.volume() != null ? c.volume() : 0;
+            oi += c.oi() != null ? c.oi() : 0;
+        }
+
+        return new Candle(first.time(), first.open(), high, low,
+                candleList.getLast().close(), volume, oi);
     }
 }

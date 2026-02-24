@@ -1,5 +1,6 @@
 package com.vish.fno.reader.core;
 
+import com.vish.fno.model.PositionType;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Margin;
@@ -9,8 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.util.function.Supplier;
-
-import static com.vish.fno.util.FnoConstants.EQUITY;
 
 @Slf4j
 class KiteSession {
@@ -41,7 +40,7 @@ class KiteSession {
 
                 postAuthHook.run();
 
-                Margin margins = kiteSdk.getMargins(EQUITY);
+                Margin margins = kiteSdk.getMargins(PositionType.EQUITY.getCode());
                 log.info("available_cash={}", margins.available.cash);
                 log.info("utilised_debits={}", margins.utilised.debits);
                 initialised = true;

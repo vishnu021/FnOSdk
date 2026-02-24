@@ -17,6 +17,7 @@ Foundation module providing core POJOs and interfaces for F&O trading operations
 
 | Package | Description |
 |---------|-------------|
+| `com.vish.fno.model` | Core enums (Exchange, InstrumentType, PositionType), Candle, Ticker |
 | `com.vish.fno.model.order.orderrequest` | Order request interfaces and implementations |
 | `com.vish.fno.model.order.activeorder` | Active order tracking and lifecycle |
 | `com.vish.fno.model.order` | Order sell details, exit reasons |
@@ -26,6 +27,66 @@ Foundation module providing core POJOs and interfaces for F&O trading operations
 | `com.vish.fno.model.wyckoff` | Wyckoff phase models and interfaces |
 | `com.vish.fno.model.strategy` | Strategy interfaces (Task, Strategy) |
 | `com.vish.fno.model.candle` | Candle metadata records |
+
+---
+
+## Core Enums
+
+Type-safe replacements for the string constants previously in `FnoConstants` (fno-utils). All three enums share the same API: `getCode()`, `matches(String)`, `toString()`.
+
+### Exchange
+
+```java
+import com.vish.fno.model.Exchange;
+```
+
+| Constant | Code | Usage |
+|----------|------|-------|
+| `Exchange.NSE` | `"NSE"` | National Stock Exchange |
+| `Exchange.NFO` | `"NFO"` | NSE F&O segment |
+| `Exchange.BFO` | `"BFO"` | BSE F&O segment |
+| `Exchange.BSE` | `"BSE"` | Bombay Stock Exchange |
+
+### InstrumentType
+
+```java
+import com.vish.fno.model.InstrumentType;
+```
+
+| Constant | Code | Usage |
+|----------|------|-------|
+| `InstrumentType.CE` | `"CE"` | Call option |
+| `InstrumentType.PE` | `"PE"` | Put option |
+| `InstrumentType.FUT` | `"FUT"` | Futures contract |
+
+### PositionType
+
+```java
+import com.vish.fno.model.PositionType;
+```
+
+| Constant | Code | Usage |
+|----------|------|-------|
+| `PositionType.EQUITY` | `"equity"` | Equity position |
+| `PositionType.NET` | `"net"` | Net position |
+| `PositionType.DAY` | `"day"` | Day position |
+
+### Shared Enum API
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getCode()` | `String` | Raw string code (e.g., `"NFO"`, `"CE"`, `"equity"`) |
+| `matches(String value)` | `boolean` | Case-insensitive match against a raw string |
+| `toString()` | `String` | Returns `getCode()` |
+
+```java
+// Migration from old FnoConstants string constants:
+// Before: if (exchange.equals(FnoConstants.NFO)) { ... }
+// After:  if (Exchange.NFO.matches(exchange)) { ... }
+
+// Before: String exch = FnoConstants.NSE;
+// After:  String exch = Exchange.NSE.getCode();
+```
 
 ---
 
@@ -70,21 +131,31 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
 | `getDate()` | `Date` | Order date |
 | `getTarget()` / `getStopLoss()` | `double` | Price levels |
 | `getBuyPrice()` / `getSellPrice()` | `double` | Execution prices |
+| `getBuyThreshold()` | `double` | Original buy threshold from order request |
 | `setStopLoss(double)` | `void` | Updates stop loss (trailing logic) |
+| `setSellPrice(double)` | `void` | Sets sell execution price |
 | `getBuyQuantity()` / `getSoldQuantity()` | `int` | Quantities |
+| `getLotSize()` | `int` | Lot size for the instrument |
 | `incrementSoldQuantity(int, double)` | `void` | Tracks partial exits |
 | `isActive()` / `setActive(boolean)` | `boolean`/`void` | Active status |
 | `closeOrder(double, int, String)` | `void` | Closes the order |
-| `isTargetAchieved(double)` | `boolean` | Checks if target hit |
-| `isStopLossHit(double)` | `boolean` | Checks if SL hit |
-| `getProfit()` | `double` | Calculates P&L |
+| `getProfit()` / `getRealisedProfit()` | `double` | Unrealised and realised P&L |
 | `getEntryTimeStamp()` | `int` | Entry minute index (for hold duration checks) |
+| `getExitTimeStamp()` / `setExitTimeStamp(int)` | `int`/`void` | Exit minute index |
+| `getTag()` | `String` | Unique order tag |
+| `getTask()` | `Task` | Associated task |
+| `getTradingSymbol()` | `String` | Trading symbol |
+| `getExtraData()` | `Map<String, String>` | Read-only extra data (unmodifiable) |
+| `appendExtraData(String, String)` | `void` | Add key-value to extra data |
+| `isCallOrder()` | `boolean` | Default `true`; `false` for put orders |
 
-**Note:** For CSV export and logging, use `FileUtils.csvHeader()`, `FileUtils.toCSV()`, and `FileUtils.orderLog()` from fno-utils.
+**Note:** `getExitTimeStamp()` and `getBuyThreshold()` are now on the interface (previously only available on concrete classes via Lombok). For CSV export and logging, use `FileUtils.csvHeader()`, `FileUtils.toCSV()`, and `FileUtils.orderLog()` from fno-utils.
 
 ### AbstractActiveOrder
 
 Base class with protected fields: `tag`, `date`, `entryTimeStamp`, `exitTimeStamp`, `buyThreshold`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `target`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`
+
+`getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries.
 
 Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`). The `toString()` output conditionally includes `kiteOrderId` from the `extraData` map when present, aiding order tracking in logs.
 
@@ -159,7 +230,7 @@ Factory methods: `ExitDetail.forRegularOrder(qty, price)`, `ExitDetail.forIndexO
 
 ### OrderCache
 
-Thread-safe cache for order requests, active orders, and completed orders with cash management. Maintains secondary symbol indices (`ConcurrentHashMap`) for O(1) lookups by index symbol. The hot-path methods `checkEntryInOpenOrders` and `getActiveOrderForSymbol` are called on every tick (~520/sec); the symbol index avoids full-list scans.
+Thread-safe cache for order requests, active orders, and completed orders with cash management. Maintains secondary symbol indices (`ConcurrentHashMap`) for O(1) lookups by index symbol and a composite key set (`activeOrderKeys`) for O(1) duplicate detection. The hot-path methods `checkEntryInOpenOrders` and `getActiveOrderForSymbol` are called on every tick (~520/sec); the symbol index and key set avoid full-list scans.
 
 ```java
 OrderCache cache = new OrderCache(100000.0);
@@ -176,7 +247,7 @@ List<ActiveOrder> completed = cache.getCompletedOrders();  // Orders moved from 
 | `deductCash(double)` | ✅ Synchronized | Atomic deduction |
 | `addCash(double)` | ✅ Synchronized | Atomic addition |
 | `checkEntryInOpenOrders(Ticker, String)` | ✅ | O(1) symbol index lookup, check trigger conditions |
-| `isNotInActiveOrders(OrderRequest)` | ✅ | Check if order is not already active (uses symbol index) |
+| `isNotInActiveOrders(OrderRequest)` | ✅ | O(1) check via `activeOrderKeys` composite key set (tag + index) |
 | `addOrderRequest(OrderRequest)` | ✅ | Add (removes duplicates, updates symbol index) |
 | `appendActiveOrder(ActiveOrder)` | ✅ | Add active order + update symbol index |
 | `removeActiveOrder(ActiveOrder)` | ✅ | Remove from active + index, add to completed |
@@ -305,7 +376,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
 | OrderCache (cash ops) | ✅ | Synchronized methods |
-| OrderCache (collections) | ✅ | CopyOnWriteArrayList + ConcurrentHashMap symbol indices |
+| OrderCache (collections) | ✅ | CopyOnWriteArrayList + ConcurrentHashMap symbol indices + ConcurrentHashMap.newKeySet() for activeOrderKeys |
 | Wyckoff Records | ✅ | Immutable |
 | Model POJOs | ❌ | Use synchronization if shared |
 
@@ -317,7 +388,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 - **ActiveOrder stop loss**: Trailing only in beneficial direction
 - **OrderCache**: `addOrderRequest()` removes duplicates first, rebuilds symbol index entry
 - **OrderCache**: `removeActiveOrder()` removes from active list + symbol index, then moves to completed
-- **OrderCache**: Symbol indices (`orderRequestsBySymbol`, `activeOrdersBySymbol`) are updated on every mutation
+- **OrderCache**: Symbol indices (`orderRequestsBySymbol`, `activeOrdersBySymbol`) and `activeOrderKeys` set are updated on every mutation
 
 ---
 

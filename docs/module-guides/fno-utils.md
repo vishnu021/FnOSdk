@@ -140,21 +140,35 @@ Renamed from `Utils`. All methods static and thread-safe.
 
 ### FnoConstants
 
-Interface with trading constants.
+Interface with trading constants. **Breaking change:** Exchange, instrument type, and position type string constants have been removed and replaced by type-safe enums in fno-models.
 
-**Exchanges:** `NSE`, `NFO`, `BFO`, `BSE`
+**Removed constants (use enums from `com.vish.fno.model` instead):**
+- `NSE`, `NFO`, `BFO`, `BSE` -- use `Exchange.NSE.getCode()` or `Exchange.NFO.matches(value)`
+- `CE`, `PE`, `FUT` -- use `InstrumentType.CE.getCode()` or `InstrumentType.FUT.matches(value)`
+- `EQUITY`, `NET`, `DAY` -- use `PositionType.EQUITY.getCode()` or `PositionType.NET.matches(value)`
 
-**Instruments:** `CE`, `PE`, `FUT`
-
-**Account Types:** `EQUITY`, `NET`, `DAY`
+**Market Hours:** `MARKET_OPEN_HOUR` (9), `MARKET_OPEN_MINUTE` (15), `MARKET_CLOSE_HOUR` (15), `MARKET_CLOSE_MINUTE` (30), `TOTAL_TRADING_MINUTES` (375), `MARKET_OPEN_TIME`, `MARKET_CLOSE_TIME`, `DEFAULT_STRATEGY_START_TIME`, `DEFAULT_STRATEGY_END_TIME`
 
 **Index Names:** `NIFTY_50`, `NIFTY_BANK`, `NIFTY_FIN_SERVICE`, `NIFTY_MIDCAP_SELECT`, `BANKEX`, `SENSEX`
 
 **Derivative Symbols:** `DERIVATIVE_NIFTY`, `DERIVATIVE_BANKNIFTY`, `DERIVATIVE_FINNIFTY`, `DERIVATIVE_MIDCPNIFTY`, `DERIVATIVE_BANKEX`, `DERIVATIVE_SENSEX`
 
-**Mapping:** `INDEX_TO_DERIVATIVE` - Maps index names to derivative trading symbols (e.g., "NIFTY 50" → "NIFTY")
+**Mapping:** `INDEX_TO_DERIVATIVE` - Maps index names to derivative trading symbols (e.g., "NIFTY 50" -> "NIFTY")
 
 **Date Formats:** `DATE_TIME_SEC_T_FORMAT`, `DATE_TIME_MS_FORMAT`, `DATE_TIME_SEC_FORMAT`, `DATE_TIME_FORMAT`, `DATE_FORMAT`, `TIME_FORMAT`, `YEAR_FORMAT`
+
+**Migration example:**
+```java
+// Before:
+if (exchange.equals(FnoConstants.NFO)) { ... }
+String type = FnoConstants.CE;
+
+// After:
+import com.vish.fno.model.Exchange;
+import com.vish.fno.model.InstrumentType;
+if (Exchange.NFO.matches(exchange)) { ... }
+String type = InstrumentType.CE.getCode();
+```
 
 ---
 
@@ -180,7 +194,7 @@ All methods static and thread-safe.
 |--------|---------|-------------|
 | `mergeCandle(List<Candle>, int)` | `List<Candle>` | Merge N candles (date-grouped) |
 | `mergeIntradayCompleteCandle(List<Candle>, int)` | `List<Candle>` | Merge without date grouping, no partial |
-| `combine(List<Candle>)` | `Candle` | Combine multiple into one |
+| `combine(List<Candle>)` | `Candle` | Combine multiple into one (single-pass loop using `getFirst()`/`getLast()`) |
 
 ---
 
@@ -231,13 +245,15 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 | `getPrevDayCandleData(String)` | `List<Candle>` | Read previous day candles from JSON |
 | `getSmaData(String)` / `getEmaData(String)` / `getBBData(String)` | `List<Double>` | Read indicator data from file |
 
-**Static ActiveOrder Formatting Methods** (merged from removed `ActiveOrderFormatter`):
+**Static ActiveOrder Formatting Methods** (interface-based, no instanceof dispatch):
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `csvHeader(ActiveOrder)` | `String` | CSV header with extra data keys |
-| `toCSV(ActiveOrder)` | `String` | CSV row (type-specific) |
-| `orderLog(ActiveOrder)` | `String` | Formatted log string |
+| `toCSV(ActiveOrder)` | `String` | CSV row using `ActiveOrder` interface methods directly |
+| `orderLog(ActiveOrder)` | `String` | Formatted log string using `ActiveOrder` interface methods directly |
+
+All three methods use the `ActiveOrder` interface directly -- no concrete type imports (`ActiveIndexOrder`, `TickBasedActiveOrder`, `OptionBasedActiveOrder`) and no private per-type format methods. `OptionBasedActiveOrder` CSV/log now includes `call=true/false` consistently with other order types. Dead method `candleFileName` has been removed.
 
 ---
 
@@ -309,13 +325,13 @@ Automatically detects date changes and clears both intraday candle, tick, and pe
 
 ### CandleStickCache
 
-Package-private in-memory intraday cache by symbol. Thread-safe (uses `ConcurrentHashMap`).
+Package-private in-memory intraday cache by symbol. Thread-safe (uses `ConcurrentHashMap`). Returns defensive copies to prevent external mutation.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `get(String)` | `List<Candle>` | Get cached candles |
+| `get(String)` | `List<Candle>` | `Collections.unmodifiableList()` of cached candles (null if absent) |
 | `getLatestCandle(String)` | `Optional<Candle>` | Most recent candle (empty if none) |
-| `update(String, List<Candle>)` | `void` | Update cache |
+| `update(String, List<Candle>)` | `void` | Stores `List.copyOf(data)` (input is snapshot-copied) |
 | `clear(String)` | `void` | Remove data for symbol |
 | `clearAll()` | `void` | Clear entire cache (used on date change) |
 
