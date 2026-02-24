@@ -18,11 +18,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.vish.fno.util.FnoConstants.BANKEX_TOKEN;
+import static com.vish.fno.util.FnoConstants.NIFTY_50_TOKEN;
+import static com.vish.fno.util.FnoConstants.NIFTY_BANK_TOKEN;
+import static com.vish.fno.util.FnoConstants.SENSEX_TOKEN;
+
 @Slf4j
 @SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.AvoidCatchingGenericException"})
 public class KiteWebSocket {
-    private static final long NIFTY_50_TOKEN = 256265L;
-    private static final long NIFTY_BANK_TOKEN = 260105L;
     private static final int MAX_RECONNECTION_RETRIES = 10;
     private static final int MAX_RETRY_INTERVAL_SECONDS = 30;
 
@@ -43,10 +46,12 @@ public class KiteWebSocket {
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {
         this.connectToWebSocket = connectToWebSocket;
         this.instrumentCache = instrumentCache;
-        this.tokensToSubscribe = new ArrayList<>();
         this.subscribedTokens = new ArrayList<>();
+        this.tokensToSubscribe = new ArrayList<>();
         this.tokensToSubscribe.add(NIFTY_50_TOKEN);
         this.tokensToSubscribe.add(NIFTY_BANK_TOKEN);
+        this.tokensToSubscribe.add(SENSEX_TOKEN);
+        this.tokensToSubscribe.add(BANKEX_TOKEN);
         this.onOrderUpdateListener = order -> log.info("Order update complete : {}", JsonUtils.getFormattedObject(order));
     }
 

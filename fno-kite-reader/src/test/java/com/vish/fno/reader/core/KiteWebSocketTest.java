@@ -40,6 +40,8 @@ class KiteWebSocketTest {
 
     private static final long NIFTY_50_TOKEN = 256265L;
     private static final long NIFTY_BANK_TOKEN = 260105L;
+    private static final long SENSEX_TOKEN = 265L;
+    private static final long BANKEX_TOKEN = 274441L;
 
     @Mock
     private InstrumentCache instrumentCache;
@@ -126,16 +128,18 @@ class KiteWebSocketTest {
         }
 
         @Test
-        @DisplayName("Constructor adds NIFTY_50 and NIFTY_BANK to tokensToSubscribe")
+        @DisplayName("Constructor adds NIFTY_50, NIFTY_BANK, SENSEX and BANKEX to tokensToSubscribe")
         void constructorAddsDefaultTokensToSubscribe() throws Exception {
             // Act
             KiteWebSocket webSocket = new KiteWebSocket(true, instrumentCache);
 
             // Assert
             List<Long> tokensToSubscribe = getTokensToSubscribe(webSocket);
-            assertEquals(2, tokensToSubscribe.size());
+            assertEquals(4, tokensToSubscribe.size());
             assertTrue(tokensToSubscribe.contains(NIFTY_50_TOKEN));
             assertTrue(tokensToSubscribe.contains(NIFTY_BANK_TOKEN));
+            assertTrue(tokensToSubscribe.contains(SENSEX_TOKEN));
+            assertTrue(tokensToSubscribe.contains(BANKEX_TOKEN));
         }
 
         @Test
@@ -632,10 +636,12 @@ class KiteWebSocketTest {
             // and simulate what the onConnected callback would do.
 
             List<Long> tokensToSubscribe = getTokensToSubscribe(webSocket);
-            // Should have NIFTY_50, NIFTY_BANK, and HDFCBANK in queue
-            assertEquals(3, tokensToSubscribe.size());
+            // Should have NIFTY_50, NIFTY_BANK, SENSEX, BANKEX, and HDFCBANK in queue
+            assertEquals(5, tokensToSubscribe.size());
             assertTrue(tokensToSubscribe.contains(NIFTY_50_TOKEN));
             assertTrue(tokensToSubscribe.contains(NIFTY_BANK_TOKEN));
+            assertTrue(tokensToSubscribe.contains(SENSEX_TOKEN));
+            assertTrue(tokensToSubscribe.contains(BANKEX_TOKEN));
             assertTrue(tokensToSubscribe.contains(341249L));
 
             // Verify that isConnected is still false (not connected yet)

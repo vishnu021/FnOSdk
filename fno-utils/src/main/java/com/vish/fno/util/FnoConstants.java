@@ -23,13 +23,19 @@ public interface FnoConstants {
     /** Strategy execution ends at 15:30 */
     LocalTime DEFAULT_STRATEGY_END_TIME = MARKET_CLOSE_TIME;
 
-    // Index Names (as displayed in NSE)
+    // Index Names (as displayed in NSE/BSE)
     String NIFTY_BANK = "NIFTY BANK";
     String NIFTY_50 = "NIFTY 50";
     String NIFTY_FIN_SERVICE = "NIFTY FIN SERVICE";
     String NIFTY_MIDCAP_SELECT = "NIFTY MIDCAP SELECT";
     String BANKEX = "BANKEX";
     String SENSEX = "SENSEX";
+
+    // Index Instrument Tokens (stable exchange-assigned identifiers)
+    long NIFTY_50_TOKEN = 256265L;
+    long NIFTY_BANK_TOKEN = 260105L;
+    long SENSEX_TOKEN = 265L;
+    long BANKEX_TOKEN = 274441L;
 
     // Derivative Symbol Names (as used in F&O contracts)
     String DERIVATIVE_NIFTY = "NIFTY";
