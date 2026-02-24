@@ -1,5 +1,7 @@
 package com.vish.fno.model;
 
+import com.vish.fno.model.order.StopLossType;
+
 public interface Task {
     String getIndex();
     boolean isEnabled();
@@ -13,5 +15,14 @@ public interface Task {
      */
     default int getLots() {
         return 1;
+    }
+
+    /**
+     * Get the stop-loss strategy type for this task.
+     *
+     * @return stop-loss type (default: FIXED)
+     */
+    default StopLossType getStopLossStrategy() {
+        return StopLossType.FIXED;
     }
 }
