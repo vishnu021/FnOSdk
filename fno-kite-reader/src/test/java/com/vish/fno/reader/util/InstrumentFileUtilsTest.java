@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
+import sun.misc.Unsafe;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Date;
@@ -350,10 +351,10 @@ class InstrumentFileUtilsTest {
         Field field = InstrumentFileUtils.class.getDeclaredField("FILE_PATH");
         field.setAccessible(true);
 
-        // Use sun.misc.Unsafe to modify static final field in Java 17+
-        Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        // Use Unsafe to modify static final field in Java 17+
+        Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
         unsafeField.setAccessible(true);
-        sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+        Unsafe unsafe = (Unsafe) unsafeField.get(null);
 
         Object fieldBase = unsafe.staticFieldBase(field);
         long fieldOffset = unsafe.staticFieldOffset(field);

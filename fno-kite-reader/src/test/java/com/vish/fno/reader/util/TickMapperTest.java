@@ -2,6 +2,7 @@ package com.vish.fno.reader.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vish.fno.model.Ticker;
+import com.zerodhatech.models.Depth;
 import com.zerodhatech.models.Tick;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -157,7 +158,7 @@ class TickMapperTest {
         tick.setMode("full");
         tick.setInstrumentToken(67890L);
         tick.setLastTradedPrice(200.0);
-        Map<String, ArrayList<com.zerodhatech.models.Depth>> emptyDepth = new HashMap<>();
+        Map<String, ArrayList<Depth>> emptyDepth = new HashMap<>();
         tick.setMarketDepth(emptyDepth);
 
         // When

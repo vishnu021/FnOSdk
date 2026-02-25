@@ -69,13 +69,21 @@ fno-phase-analyzer (Wyckoff analysis, market regimes)
    // ALWAYS: import java.util.List;
    ```
 
-2. **Optional over null** for public methods that may fail
+2. **NO fully qualified names in code** - always import and use short name
+   ```java
+   // NEVER: java.util.stream.Collectors.groupingBy(...)
+   // NEVER: catch (com.zerodhatech...KiteException e)
+   // ALWAYS: import at top, use short name: Collectors.groupingBy(...)
+   // EXCEPTION: only use FQN when two imports would conflict (same class name, different package)
+   ```
+
+3. **Optional over null** for public methods that may fail
    ```java
    public static Optional<String> getTime(Date ts) { ... }
    // Use: .map()/.flatMap() chains, NEVER .orElse(null)
    ```
 
-3. **PMD enforced** - build fails on violations
+4. **PMD enforced** - build fails on violations
    - No `System.out.println()` or `printStackTrace()`
    - Use `@Slf4j` with `log.info()`, `log.debug()`
    - Preserve stack traces in exception handling
@@ -117,6 +125,7 @@ list.stream().filter(...).toList();
 | Pitfall | Fix |
 |---------|-----|
 | Wildcard imports | Use explicit imports only |
+| Fully qualified names in code | Import and use short name (FQN only for conflicts) |
 | `.orElse(null)` on Optional | Use `.map()/.flatMap()` chains |
 | `System.out.println()` | Use `@Slf4j` + `log.info()` |
 | Catching generic `Exception` | Catch specific exceptions |

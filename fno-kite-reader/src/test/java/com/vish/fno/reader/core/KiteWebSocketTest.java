@@ -31,6 +31,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -418,7 +419,7 @@ class KiteWebSocketTest {
             webSocket.appendWebSocketSymbolsList(List.of("HDFCBANK"), false);
 
             // Reset mock interactions
-            org.mockito.Mockito.clearInvocations(mockTicker);
+            clearInvocations(mockTicker);
 
             // Arrange for second call
             when(instrumentCache.getInstrument("HDFCBANK")).thenReturn(Optional.of(341249L));
@@ -443,7 +444,7 @@ class KiteWebSocketTest {
             when(instrumentCache.getInstrument("HDFCBANK")).thenReturn(Optional.of(341249L));
             webSocket.appendWebSocketSymbolsList(List.of("HDFCBANK"), false);
 
-            org.mockito.Mockito.clearInvocations(mockTicker);
+            clearInvocations(mockTicker);
 
             // Arrange for second call - same symbol
             when(instrumentCache.getInstrument("HDFCBANK")).thenReturn(Optional.of(341249L));
@@ -669,7 +670,7 @@ class KiteWebSocketTest {
             when(instrumentCache.getInstrument("HDFCBANK")).thenReturn(Optional.of(341249L));
             webSocket.appendWebSocketSymbolsList(List.of("HDFCBANK"), false);
 
-            org.mockito.Mockito.clearInvocations(mockTicker);
+            clearInvocations(mockTicker);
 
             // Simulate disconnection
             setIsConnected(webSocket, false);

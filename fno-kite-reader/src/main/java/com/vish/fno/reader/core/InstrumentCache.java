@@ -5,6 +5,7 @@ import com.vish.fno.model.InstrumentType;
 import com.vish.fno.reader.model.InstrumentSummary;
 import com.vish.fno.reader.util.InstrumentFileUtils;
 import com.vish.fno.util.TimeUtils;
+import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Instrument;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
@@ -126,7 +127,7 @@ class InstrumentCache {
                 List<Instrument> instruments = session.getKiteSdk().getInstruments();
                 log.info("Loaded instrument cache from Kite server");
                 return instruments;
-            } catch (JSONException | IOException | com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException e) {
+            } catch (JSONException | IOException | KiteException e) {
                 log.error("Failed to load instruments from Kite server", e);
                 return null;
             }
@@ -250,6 +251,29 @@ class InstrumentCache {
         log.error("Cannot find option: {} in the instrument cache. Found: {}",
                 optionSymbol, optionSymbolInstrument);
         return false;
+    }
+
+    /**
+     * Check if the given date is an expiry day for the specified index.
+     *
+     * <p>Determines this by checking whether any option contracts (CE or PE) for the index
+     * expire on the given date. Uses real instrument data from the Kite API, so it
+     * automatically adapts when exchanges change expiry schedules.
+     *
+     * @param indexName   the index name (e.g., "NIFTY 50", "SENSEX")
+     * @param currentDate the date to check
+     * @return true if any options for this index expire on the given date
+     */
+    public boolean isExpiryDayForIndex(String indexName, Date currentDate) {
+        if (indexName == null || currentDate == null) {
+            return false;
+        }
+        String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
+        return getInstruments().stream()
+                .filter(i -> derivativeName.equals(i.getName()))
+                .filter(i -> InstrumentType.CE.matches(i.getInstrument_type())
+                        || InstrumentType.PE.matches(i.getInstrument_type()))
+                .anyMatch(i -> i.getExpiry() != null && isSameDay(currentDate, i.getExpiry()));
     }
 
     /**

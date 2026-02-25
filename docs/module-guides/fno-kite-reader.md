@@ -138,7 +138,8 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 | `getSymbol(long)` | `String` | Symbol for token |
 | `getLotSizeFromFuture(String)` | `Optional<Integer>` | Lot size for index |
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
-| `isExpiryDayForOption(symbol, date)` | `boolean` | Check expiry |
+| `isExpiryDayForOption(symbol, date)` | `boolean` | Check if option expires on given date |
+| `isExpiryDayForIndex(indexName, date)` | `boolean` | Check if any options for index expire on given date |
 | `getInstrumentCacheSize()` | `int` | Cache size (diagnostics) |
 | `getFilteredInstruments()` | `List<InstrumentSummary>` | All filtered instruments (exchange, symbol, expiry) |
 
@@ -262,6 +263,7 @@ Option index data is built lazily via `getEarliestExpiryInstruments()` / `resolv
 | `getFilteredSymbols()` | `Map<String, String>` | tradingSymbol to name (sorted) |
 | `getInstrumentForSymbol(String)` | `List<Instrument>` | Instruments matching exact tradingSymbol |
 | `isExpiryDayForOption(String, Date)` | `boolean` | Check if option expires on given date |
+| `isExpiryDayForIndex(String, Date)` | `boolean` | Check if any CE/PE options for index expire on given date |
 | `getLotSizeFromFuture(String)` | `Optional<Integer>` | Lot size for index via FUT contract |
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
 | `getInstrumentMapSize()` | `int` | Cache size (diagnostics) |
@@ -282,6 +284,21 @@ Resolves the exchange (`"NFO"` or `"BFO"`) for a given trading symbol by looking
 | `symbol` | `String` | Trading symbol (e.g., `"BANKEX26FEB68000CE"`) |
 
 **Returns:** `String` -- `"NFO"` or `"BFO"` (never null)
+
+#### isExpiryDayForIndex
+
+```java
+public boolean isExpiryDayForIndex(String indexName, Date currentDate)
+```
+
+Checks if any CE/PE option contracts for the given index expire on the specified date. Uses `INDEX_TO_DERIVATIVE` mapping to resolve index names (e.g., `"NIFTY 50"` to `"NIFTY"`) before filtering. Adapts automatically to exchange schedule changes since it queries live instrument data.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `indexName` | `String` | Index name (e.g., `"NIFTY 50"`, `"SENSEX"`) |
+| `currentDate` | `Date` | Date to check for expiry |
+
+**Returns:** `boolean` -- `true` if any options expire on the given date; `false` if no match or either argument is null
 
 ### TickMapper
 

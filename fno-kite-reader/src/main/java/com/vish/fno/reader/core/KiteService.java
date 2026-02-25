@@ -128,6 +128,10 @@ public class KiteService {
         return instrumentCache.isExpiryDayForOption(optionSymbol, date);
     }
 
+    public boolean isExpiryDayForIndex(String indexName, Date date) {
+        return instrumentCache.isExpiryDayForIndex(indexName, date);
+    }
+
     public Order placeOptionOrder(OrderParams orderParams) {
         return orderExecutor.placeOptionOrder(orderParams);
     }

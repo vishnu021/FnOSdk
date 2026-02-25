@@ -11,11 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 
@@ -67,7 +69,7 @@ public class WyckoffPhaseService {
 
         // Get current hour
         LocalDateTime tickTime = LocalDateTime.ofEpochSecond(
-            currentTick.tickTimestamp().getTime() / 1000, 0, java.time.ZoneOffset.UTC
+            currentTick.tickTimestamp().getTime() / 1000, 0, ZoneOffset.UTC
         );
         int currentHour = tickTime.getHour();
 
@@ -289,7 +291,7 @@ public class WyckoffPhaseService {
 
         // Convert tick to candlestick data
         String timeStr = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(
-            LocalDateTime.ofEpochSecond(tick.tickTimestamp().getTime() / 1000, 0, java.time.ZoneOffset.UTC)
+            LocalDateTime.ofEpochSecond(tick.tickTimestamp().getTime() / 1000, 0, ZoneOffset.UTC)
         );
 
         Candle candle = new Candle(
@@ -507,9 +509,9 @@ public class WyckoffPhaseService {
         }
 
         Map<WyckoffPhase, Long> phaseCounts = phases.values().stream()
-            .collect(java.util.stream.Collectors.groupingBy(
+            .collect(Collectors.groupingBy(
                 phase -> phase,
-                java.util.stream.Collectors.counting()
+                Collectors.counting()
             ));
 
         return phaseCounts.toString();

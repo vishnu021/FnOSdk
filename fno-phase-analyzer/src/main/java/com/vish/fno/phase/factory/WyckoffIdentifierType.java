@@ -10,6 +10,7 @@ import com.vish.fno.phase.wyckoff.RenkoWyckoffPhaseIdentifier;
 import com.vish.fno.phase.wyckoff.StructureSwingWyckoffPhaseIdentifier;
 import com.vish.fno.phase.wyckoff.VolumeBasedWyckoffPhaseIdentifier;
 
+import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
@@ -183,7 +184,7 @@ public enum WyckoffIdentifierType {
             return null;
         }
 
-        String normalized = key.toLowerCase(java.util.Locale.ROOT).trim();
+        String normalized = key.toLowerCase(Locale.ROOT).trim();
         for (WyckoffIdentifierType type : values()) {
             if (type.key.equals(normalized)) {
                 return type;
