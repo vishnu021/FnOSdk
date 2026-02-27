@@ -163,7 +163,7 @@ PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
 
 **Lots to Sell:** 1→1, 2-3→2, 4-5→3, 6-7→4, 8+→2/3 total
 
-**Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high. Uses `isCallOrder()` helper: for `ActiveIndexOrder` checks `callOrder` flag, for `OptionBasedActiveOrder` always returns `true`.
+**Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high. Uses `ActiveOrder.isCallOrder()` directly (no pattern matching needed — each subclass implements `isCallOrder()`).
 
 ### DualTargetRevisingStoplossStrategy
 

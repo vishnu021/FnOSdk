@@ -66,6 +66,21 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
     }
 
     @Override
+    public void setOptionBuyPrice(double price) {
+        setBuyOptionPrice(price);
+    }
+
+    @Override
+    public double getOptionBuyPrice() {
+        return buyOptionPrice;
+    }
+
+    @Override
+    public double getOptionSellPrice() {
+        return sellOptionPrice;
+    }
+
+    @Override
     public void incrementSoldQuantity(int soldQuantity, double sellOptionPrice) {
         super.incrementSoldQuantity(soldQuantity, sellOptionPrice);
         this.sellOptionPrice = sellOptionPrice;

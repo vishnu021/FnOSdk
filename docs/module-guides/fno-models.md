@@ -160,6 +160,8 @@ Organized into semantic groups:
 | `getBuyQuantity()` | `int` | Buy quantity |
 | `getLotSize()` | `int` | Lot size for the instrument |
 | `getEntryTimeStamp()` | `int` | Entry minute index |
+| `setOptionBuyPrice(double)` | `void` | Sets option buy price (no-op for `OptionBasedActiveOrder` where buyPrice IS the option price) |
+| `getOptionBuyPrice()` | `double` | Option buy price (`buyOptionPrice` for index/tick orders, `buyPrice` for option-based orders) |
 
 **Risk management:**
 
@@ -173,6 +175,7 @@ Organized into semantic groups:
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `getSellPrice()` | `double` | Sell execution price |
+| `getOptionSellPrice()` | `double` | Option sell price (`sellOptionPrice` for index/tick orders, `sellPrice` for option-based orders) |
 | `getExitTimeStamp()` | `int` | Exit minute index |
 | `getSoldQuantity()` | `int` | Quantity sold so far |
 | `incrementSoldQuantity(int, double)` | `void` | Tracks partial exits |
@@ -183,7 +186,7 @@ Organized into semantic groups:
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `getProfit()` / `getRealisedProfit()` | `double` | Unrealised and realised P&L |
-| `isCallOrder()` | `boolean` | Default `true`; `false` for put orders |
+| `isCallOrder()` | `boolean` | Abstract; each subclass declares direction (`OptionBasedActiveOrder` always returns `true`) |
 
 **Runtime diagnostics:**
 

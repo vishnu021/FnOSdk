@@ -3,7 +3,6 @@ package com.vish.fno.strategy.orderflow;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
-import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.util.candle.HeikinAshi;
 import com.vish.fno.util.candle.store.CandleStore;
@@ -52,7 +51,7 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
 
     // TODO: getting revised on every tick
     private void reviseStopLoss(ActiveOrder order, double ltp) {
-        boolean isCallOrder = isCallOrder(order);
+        boolean isCallOrder = order.isCallOrder();
         String index = order.getIndex();
         List<Candle> candles = candleStore.updateAndGetMinuteData(index);
         List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
@@ -67,14 +66,6 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
             log.info("Revising stopLoss to: {}, ltp: {} for order: {}", newStopLoss, ltp, order);
             order.setStopLoss(newStopLoss);
         }
-    }
-
-    private boolean isCallOrder(ActiveOrder order) {
-        if (order instanceof ActiveIndexOrder indexOrder) {
-            return indexOrder.isCallOrder();
-        }
-        // OptionBasedActiveOrder: always treated as call
-        return true;
     }
 
     private int getLotsToSell(int totalLots) {

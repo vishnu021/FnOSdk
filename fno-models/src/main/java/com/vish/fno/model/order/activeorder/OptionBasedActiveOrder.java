@@ -41,4 +41,24 @@ public final class OptionBasedActiveOrder extends AbstractActiveOrder {
     public String getTradingSymbol() {
         return this.getIndex();
     }
+
+    @Override
+    public void setOptionBuyPrice(double price) {
+        // No-op: buyPrice IS the option price for option-based orders
+    }
+
+    @Override
+    public double getOptionBuyPrice() {
+        return getBuyPrice();
+    }
+
+    @Override
+    public double getOptionSellPrice() {
+        return getSellPrice();
+    }
+
+    @Override
+    public boolean isCallOrder() {
+        return true;
+    }
 }
