@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Thread-safe cache for order requests, active orders, and available cash.
@@ -28,7 +29,10 @@ public class OrderCache {
     private final List<ActiveOrder> activeOrders;
     @Getter
     private final List<ActiveOrder> completedOrders;
-    private final Object cashLock = new Object();
+    // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
+    // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
+    // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
+    private final ReentrantLock cashLock = new ReentrantLock();
     private double availableCash;
 
     // Symbol indices for O(1) lookup — updated on every mutation
@@ -145,22 +149,31 @@ public class OrderCache {
     }
 
     public double getAvailableCash() {
-        synchronized (cashLock) {
+        cashLock.lock();
+        try {
             return this.availableCash;
+        } finally {
+            cashLock.unlock();
         }
     }
 
     public void deductCash(double amount) {
-        synchronized (cashLock) {
+        cashLock.lock();
+        try {
             this.availableCash -= amount;
             log.debug("Deducted {} from available cash, new balance: {}", amount, this.availableCash);
+        } finally {
+            cashLock.unlock();
         }
     }
 
     public void addCash(double amount) {
-        synchronized (cashLock) {
+        cashLock.lock();
+        try {
             this.availableCash += amount;
             log.debug("Added {} to available cash, new balance: {}", amount, this.availableCash);
+        } finally {
+            cashLock.unlock();
         }
     }
 }

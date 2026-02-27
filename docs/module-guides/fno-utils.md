@@ -307,7 +307,9 @@ Consolidated DataCache implementation. Constructor: `DataCacheImpl(CandlestickDa
 
 Automatically detects date changes and clears both intraday candle, tick, and per-symbol fetch lock caches when the trading date rolls over. Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
 
-**Per-symbol fetch locking:** Uses `ConcurrentHashMap<String, Object> symbolFetchLocks` with `computeIfAbsent` for per-symbol lock objects. When multiple virtual threads request the same uncached symbol simultaneously, only the first thread fetches from the Kite API; others wait on the synchronized lock and then see the cached result via a double-check on `isDataAvailable()`. Locks are cleared on date change.
+**Date-boundary locking:** Uses a dedicated `ReentrantLock` (`dateChangeLock`) with double-checked locking to ensure exactly one thread clears caches on date rollover. Prevents the race where multiple virtual threads at market open (9:15) all see a stale date, enter the clear block, and one thread populates data that another immediately clears.
+
+**Per-symbol fetch locking:** Uses `ConcurrentHashMap<String, ReentrantLock> symbolFetchLocks` with `computeIfAbsent` for per-symbol `ReentrantLock` instances. When multiple virtual threads request the same uncached symbol simultaneously, only the first thread fetches from the Kite API; others wait on the lock and then see the cached result via a double-check on `isDataAvailable()`. Locks are cleared on date change. `ReentrantLock` replaces `synchronized` to avoid pinning virtual threads to carrier threads.
 
 ### CandlestickDataProvider Interface
 
@@ -337,7 +339,7 @@ Package-private in-memory intraday cache by symbol. Thread-safe (uses `Concurren
 
 ### HistoricDataCache
 
-Package-private cache for historical data (date -> symbol -> candles). NOT thread-safe.
+Package-private cache for historical data (date -> symbol -> candles). Thread-safe via `ReentrantLock` (VT-safe). Uses `LinkedHashMap` with `accessOrder=true` for LRU eviction at the date level (max 10 dates). Since `LinkedHashMap.get()` mutates the internal linked list for access-order tracking, all reads and writes are guarded by the lock.
 
 ### TradingHoursValidator (NEW)
 
@@ -406,13 +408,14 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
 | JsonUtils, CompressionUtils | ✅ | Static methods; VT-safe ObjectMapper (shared bounded recycler pool) |
 | AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer); static CircularBufferView prevents GC pinning |
-| DataCacheImpl (candle fetch) | ✅ | Per-symbol fetch locks (ConcurrentHashMap + synchronized) prevent redundant API calls from concurrent virtual threads |
+| DataCacheImpl (candle fetch) | ✅ | Per-symbol `ReentrantLock` (VT-safe) prevents redundant API calls; dedicated `dateChangeLock` with double-checked locking for date-boundary cache clearing |
 | TimeProvider | ✅ | Instance methods |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
 | FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers |
-| FileUtils (other instance), HistoricDataCache | ❌ | Instance-based |
+| HistoricDataCache | ✅ | `ReentrantLock` (VT-safe) guards all access to LRU `LinkedHashMap` |
+| FileUtils (other instance) | ❌ | Instance-based |
 
 ---
 

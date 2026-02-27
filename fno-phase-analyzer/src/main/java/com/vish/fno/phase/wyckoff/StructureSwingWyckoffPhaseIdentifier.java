@@ -150,7 +150,7 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     private void updateBoxBoundaries(List<Candle> data, int currentIndex) {
         int startIdx = Math.max(0, currentIndex - DONCHIAN_PERIOD);
         
-        boxTop = Double.MIN_VALUE;
+        boxTop = -Double.MAX_VALUE;
         boxBottom = Double.MAX_VALUE;
         
         for (int i = startIdx; i <= currentIndex; i++) {

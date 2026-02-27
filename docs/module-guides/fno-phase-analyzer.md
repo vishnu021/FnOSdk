@@ -306,6 +306,12 @@ IWyckoffPhaseIdentifier identifier = factory.getIdentifier(type);
 
 ---
 
+## Bug Fixes
+
+- **`Double.MIN_VALUE` initialization fix (Feb 2026):** `DerivativesFuturesOIWyckoffPhaseIdentifier` and `StructureSwingWyckoffPhaseIdentifier` previously initialized `highestHigh`/`boxTop`/`maxPrice` to `Double.MIN_VALUE` (smallest positive double, ~4.9e-324) instead of `-Double.MAX_VALUE`. This caused incorrect high detection when all prices were negative or when comparing against near-zero values. Fixed to `-Double.MAX_VALUE` for correct min/max tracking.
+
+---
+
 ## Thread Safety
 
 Identifier implementations are **NOT thread-safe**. Options:

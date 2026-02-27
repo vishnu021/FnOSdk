@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.vish.fno.util.FnoConstants.BANKEX_TOKEN;
@@ -34,7 +35,10 @@ public class KiteWebSocket {
     @Getter
     private final boolean connectToWebSocket;
     private volatile boolean isConnected;
-    private final Object tokenLock = new Object();
+    // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
+    // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
+    // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
+    private final ReentrantLock tokenLock = new ReentrantLock();
     private final List<Long> tokensToSubscribe;
     private final List<Long> subscribedTokens;
     @Setter
@@ -64,15 +68,19 @@ public class KiteWebSocket {
             tickerProvider.connect();
             log.info("WebSocket connect() called, waiting for onConnected callback");
 
-            synchronized (tokenLock) {
+            tokenLock.lock();
+            try {
                 tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeLTP);
+            } finally {
+                tokenLock.unlock();
             }
         }
     }
 
     private void addWebSocketListeners(OnTicks onTickerArrivalListener, OnOrderUpdate onOrderUpdateListener) {
         tickerProvider.setOnConnectedListener(() -> {
-            synchronized (tokenLock) {
+            tokenLock.lock();
+            try {
                 log.info("Subscribing to following {} tokens: {}", tokensToSubscribe.size(), tokensToSubscribe);
                 tickerProvider.subscribe(new ArrayList<>(tokensToSubscribe));
                 tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeFull);
@@ -81,6 +89,8 @@ public class KiteWebSocket {
                 tokensToSubscribe.clear();
                 isConnected = true;
                 log.info("Subscription complete. {} tokens now subscribed", subscribedTokens.size());
+            } finally {
+                tokenLock.unlock();
             }
         });
 
@@ -112,22 +122,31 @@ public class KiteWebSocket {
     }
 
     public List<Long> getSubscribedTokens() {
-        synchronized (tokenLock) {
+        tokenLock.lock();
+        try {
             return new ArrayList<>(subscribedTokens);
+        } finally {
+            tokenLock.unlock();
         }
     }
 
     public int getSubscribedTokensCount() {
-        synchronized (tokenLock) {
+        tokenLock.lock();
+        try {
             return subscribedTokens.size();
+        } finally {
+            tokenLock.unlock();
         }
     }
 
     public boolean isSymbolSubscribed(String symbol) {
         return instrumentCache.getInstrument(symbol)
                 .map(token -> {
-                    synchronized (tokenLock) {
+                    tokenLock.lock();
+                    try {
                         return subscribedTokens.contains(token);
+                    } finally {
+                        tokenLock.unlock();
                     }
                 })
                 .orElse(false);
@@ -156,7 +175,8 @@ public class KiteWebSocket {
                 .map(Optional::get)
                 .toList();
 
-        synchronized (tokenLock) {
+        tokenLock.lock();
+        try {
             List<Long> alreadySubscribed = allTokens
                     .stream()
                     .filter(subscribedTokens::contains)
@@ -195,6 +215,8 @@ public class KiteWebSocket {
                     log.info("Total tokens in queue: {}", tokensToSubscribe.size());
                 }
             }
+        } finally {
+            tokenLock.unlock();
         }
     }
 

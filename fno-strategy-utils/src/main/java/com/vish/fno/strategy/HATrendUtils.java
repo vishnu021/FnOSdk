@@ -49,7 +49,7 @@ public final class HATrendUtils {
                         }
                     }
                 } else if (currentTrend == Trend.UPTREND) {
-                    double maxima = candlesInPreviousTrend.stream().mapToDouble(Candle::high).max().orElse(Double.MIN_VALUE);
+                    double maxima = candlesInPreviousTrend.stream().mapToDouble(Candle::high).max().orElse(-Double.MAX_VALUE);
                     for (int j = trendChangeIndex; j < i; j++) {
                         if (candles.get(j).high() == maxima) {
                             maximaMinima.add(new Point2D(j, maxima, PointType.MAXIMA));

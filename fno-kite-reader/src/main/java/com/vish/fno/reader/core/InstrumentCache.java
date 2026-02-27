@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
@@ -39,7 +40,8 @@ class InstrumentCache {
 
     private final KiteSession session;
     private final Set<String> nifty100Symbols;
-    private final Object initLock;
+    // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
+    private final ReentrantLock initLock;
     private volatile CacheData cache;
 
     /** Holds both token and exchange for a trading symbol — replaces separate symbolMap + exchangeMap. */
@@ -55,7 +57,7 @@ class InstrumentCache {
     public InstrumentCache(List<String> nifty100Symbols, KiteSession session) {
         this.nifty100Symbols = new HashSet<>(nifty100Symbols);
         this.session = session;
-        this.initLock = new Object();
+        this.initLock = new ReentrantLock();
     }
 
     /**
@@ -70,7 +72,8 @@ class InstrumentCache {
             return Collections.unmodifiableList(data.filteredInstruments());
         }
 
-        synchronized (initLock) {
+        initLock.lock();
+        try {
             data = cache;
             if (data != null) {
                 return Collections.unmodifiableList(data.filteredInstruments());
@@ -78,6 +81,8 @@ class InstrumentCache {
 
             initializeInstruments();
             return Collections.unmodifiableList(cache.filteredInstruments());
+        } finally {
+            initLock.unlock();
         }
     }
 

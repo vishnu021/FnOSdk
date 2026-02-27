@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Bounded cache for historical candlestick data, keyed by date then symbol.
@@ -29,8 +30,12 @@ class HistoricDataCache {
     static final int MAX_DATES = 10;
 
     // date → (symbol → candle data)
-    // LinkedHashMap with accessOrder=true provides LRU eviction at the date level
+    // LinkedHashMap with accessOrder=true provides LRU eviction at the date level.
+    // LinkedHashMap.get() mutates internal linked list (access-order tracking), so
+    // all access must be synchronized. ReentrantLock (not synchronized) to avoid
+    // pinning virtual threads to carrier threads during backtest lookbacks.
     private final Map<String, Map<String, List<Candle>>> dataCache;
+    private final ReentrantLock cacheLock = new ReentrantLock();
 
     @SuppressWarnings("PMD.UseConcurrentHashMap")
     HistoricDataCache() {
@@ -49,18 +54,24 @@ class HistoricDataCache {
     }
 
     public List<Candle> getData(String date, String symbol) {
-        synchronized (dataCache) {
+        cacheLock.lock();
+        try {
             return Optional.of(dataCache)
                     .map(d -> d.get(date))
                     .map(d -> d.get(symbol))
                     .orElseGet(List::of);
+        } finally {
+            cacheLock.unlock();
         }
     }
 
     public void update(String date, String symbol, List<Candle> candleStickData) {
-        synchronized (dataCache) {
+        cacheLock.lock();
+        try {
             dataCache.computeIfAbsent(date, k -> new ConcurrentHashMap<>())
                     .put(symbol, candleStickData);
+        } finally {
+            cacheLock.unlock();
         }
     }
 }

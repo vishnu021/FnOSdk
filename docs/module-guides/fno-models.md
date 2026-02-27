@@ -375,7 +375,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
-| OrderCache (cash ops) | ✅ | Synchronized methods |
+| OrderCache (cash ops) | ✅ | `ReentrantLock` (VT-safe, replaces synchronized) |
 | OrderCache (collections) | ✅ | CopyOnWriteArrayList + ConcurrentHashMap symbol indices + ConcurrentHashMap.newKeySet() for activeOrderKeys |
 | Wyckoff Records | ✅ | Immutable |
 | Model POJOs | ❌ | Use synchronization if shared |

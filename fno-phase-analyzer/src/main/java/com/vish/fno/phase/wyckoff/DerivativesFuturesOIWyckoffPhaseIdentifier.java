@@ -236,7 +236,7 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
         }
         
         // Look for price breakout with OI spike, then reversal
-        double highestHigh = Double.MIN_VALUE;
+        double highestHigh = -Double.MAX_VALUE;
         double lowestLow = Double.MAX_VALUE;
         
         // Find range
@@ -315,7 +315,7 @@ public class DerivativesFuturesOIWyckoffPhaseIdentifier implements IWyckoffPhase
             return false;
         }
         
-        double maxPrice = Double.MIN_VALUE;
+        double maxPrice = -Double.MAX_VALUE;
         double minPrice = Double.MAX_VALUE;
         
         for (int i = oiHistory.size() - 5; i < oiHistory.size(); i++) {

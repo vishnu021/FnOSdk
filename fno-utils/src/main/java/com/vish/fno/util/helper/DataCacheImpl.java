@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Consolidated DataCache implementation that works with both production and backtest environments.
@@ -38,9 +39,17 @@ public class DataCacheImpl extends AbstractDataCache {
     private final HolidayCalendar holidayCalendar;
     private final TimeSource timeSource;
     private volatile String lastIntradayCacheDate;
+    // Guards the date-boundary check-then-clear in updateIntradayCache(). Without this lock,
+    // multiple virtual threads arriving simultaneously at market open (9:15) can all see
+    // lastIntradayCacheDate as stale, all enter the if-block, and race to clear caches —
+    // one thread could populate data that another immediately clears.
+    private final ReentrantLock dateChangeLock = new ReentrantLock();
     // ConcurrentHashMap required for computeIfAbsent atomicity — Map interface lacks this guarantee
+    // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
+    // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
+    // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
     @SuppressWarnings("PMD.LooseCoupling")
-    private final ConcurrentHashMap<String, Object> symbolFetchLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReentrantLock> symbolFetchLocks = new ConcurrentHashMap<>();
 
     public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
                          HolidayCalendar holidayCalendar,
@@ -108,23 +117,36 @@ public class DataCacheImpl extends AbstractDataCache {
     private void updateIntradayCache(String symbol) {
         String currentDate = timeSource.getTodaysDateString();
 
+        // Date-boundary transition: clear all caches when the trading day changes.
+        // Uses dateChangeLock to ensure exactly one thread performs the clear;
+        // without this, multiple virtual threads at market open could race — one populates
+        // data while another clears it. Double-check inside the lock for efficiency.
         if (!currentDate.equals(lastIntradayCacheDate)) {
-            log.info("Date changed from {} to {} — clearing intraday cache", lastIntradayCacheDate, currentDate);
-            minuteDataCache.clearAll();
-            clearTickCache();
-            symbolFetchLocks.clear();
-            lastIntradayCacheDate = currentDate;
+            dateChangeLock.lock();
+            try {
+                if (!currentDate.equals(lastIntradayCacheDate)) {
+                    log.info("Date changed from {} to {} — clearing intraday cache", lastIntradayCacheDate, currentDate);
+                    minuteDataCache.clearAll();
+                    clearTickCache();
+                    symbolFetchLocks.clear();
+                    lastIntradayCacheDate = currentDate;
+                }
+            } finally {
+                dateChangeLock.unlock();
+            }
         }
 
         if (isDataAvailable(symbol)) {
             return;
         }
 
-        // Per-symbol lock prevents 18+ virtual threads from all calling the Kite API
+        // Per-symbol ReentrantLock prevents 18+ virtual threads from all calling the Kite API
         // for the same uncached symbol. Only the first thread fetches; others wait and
         // then see the cached result via the double-check on isDataAvailable().
-        Object lock = symbolFetchLocks.computeIfAbsent(symbol, k -> new Object());
-        synchronized (lock) {
+        // ReentrantLock (not synchronized) so virtual threads can unmount during I/O waits.
+        ReentrantLock lock = symbolFetchLocks.computeIfAbsent(symbol, k -> new ReentrantLock());
+        lock.lock();
+        try {
             if (isDataAvailable(symbol)) {
                 return;
             }
@@ -133,6 +155,8 @@ public class DataCacheImpl extends AbstractDataCache {
                 minuteDataCache.clear(symbol);
                 minuteDataCache.update(symbol, d.data());
             });
+        } finally {
+            lock.unlock();
         }
     }
 

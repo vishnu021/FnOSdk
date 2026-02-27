@@ -191,6 +191,12 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 
 ---
 
+## Bug Fixes
+
+- **`Double.MIN_VALUE` in `getMaximaMinima()` (Feb 2026):** The `maxima` fallback in `HATrendUtils.getMaximaMinima()` used `Double.MIN_VALUE` (smallest positive double) instead of `-Double.MAX_VALUE`. Fixed to correctly identify maxima when candle highs could theoretically be near zero or negative.
+
+---
+
 ## Thread Safety
 
 | Component | Thread-Safe | Notes |

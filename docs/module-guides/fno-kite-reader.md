@@ -405,8 +405,8 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 | KiteSession | ✅ | `volatile initialised` flag; API calls serialized via `ApiRateLimiter` (fair `ReentrantLock`) |
 | KiteOrderExecutor | ✅ | All operations go through KiteSession's lock |
 | HistoricalDataProvider | ✅ | All operations go through KiteSession's lock |
-| InstrumentCache | ✅ | Double-checked locking, single volatile `CacheData` record (immutable, atomic assignment), `Set<String>` for nifty100Symbols |
-| KiteWebSocket | ✅ | `synchronized(tokenLock)` for all token mutations, `volatile isConnected` set in connected/disconnected listeners |
+| InstrumentCache | ✅ | Double-checked locking with `ReentrantLock` (VT-safe), single volatile `CacheData` record (immutable, atomic assignment), `Set<String>` for nifty100Symbols |
+| KiteWebSocket | ✅ | `ReentrantLock` (VT-safe) for all token mutations, `volatile isConnected` set in connected/disconnected listeners |
 | OrderUtils | ✅ | Static methods |
 | InstrumentFileUtils | ✅ | Thread-safe IO, `DateTimeFormatter` (immutable) |
 
