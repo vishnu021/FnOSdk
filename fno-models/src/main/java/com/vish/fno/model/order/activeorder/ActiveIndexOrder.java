@@ -1,17 +1,16 @@
 package com.vish.fno.model.order.activeorder;
 
-import com.vish.fno.model.Task;
 import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
 import lombok.Getter;
 import lombok.Setter;
+
+import com.vish.fno.model.order.OrderMetadata;
 
 import java.util.Objects;
 
 // CPD-OFF - Intentional structural similarity with TickBasedActiveOrder (both handle option symbols)
 @Getter
 public final class ActiveIndexOrder extends AbstractActiveOrder {
-    private final Task task;
-    private final String index;
     private final String optionSymbol;
     private final int lotSize;
     private final boolean callOrder;
@@ -21,21 +20,17 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
 
     public ActiveIndexOrder(IndexOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
                             int quantity, int lotSize) {
-        super(openOrder.getTag(),
-                openOrder.getDate(),
-                timestampIndex,
-                openOrder.getBuyThreshold(),
-                buyPrice,
-                quantity,
-                openOrder.getTarget(),
-                openOrder.getStopLoss(),
-                openOrder.getExtraData());
-        this.index = openOrder.getIndex();
+        super(openOrder, buyPrice, timestampIndex, quantity, timestamp);
         this.optionSymbol = openOrder.getOptionSymbol();
         this.callOrder = openOrder.isCallOrder();
-        this.task = openOrder.getTask();
         this.lotSize = lotSize;
-        this.extraData.put("entryDateTime", timestamp);
+        copyExtras(openOrder.getOrderMetadata());
+    }
+
+    private void copyExtras(OrderMetadata orderMetadata) {
+        if (orderMetadata != null && orderMetadata.getSubSignal() != null) {
+            this.extraData.put("subSignal", orderMetadata.getSubSignal());
+        }
     }
 
     @Override
@@ -90,13 +85,13 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
             return false;
         }
         ActiveIndexOrder that = (ActiveIndexOrder) o;
-        return Objects.equals(tag, that.tag)
-                && Objects.equals(index, that.index)
+        return Objects.equals(getTag(), that.getTag())
+                && Objects.equals(getIndex(), that.getIndex())
                 && Objects.equals(callOrder, that.callOrder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tag, index, callOrder);
+        return Objects.hash(getTag(), getIndex(), callOrder);
     }
 }

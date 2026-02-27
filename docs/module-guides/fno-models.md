@@ -99,10 +99,26 @@ import com.vish.fno.model.PositionType;
 | `getIndex()` | `String` | Trading index/symbol |
 | `getBuyThreshold()` | `double` | Price threshold for order |
 | `getTarget()` | `double` | Target price |
+| `getStopLoss()` | `double` | Stop loss price |
 | `getExpirationTimestamp()` | `int` | Order expiration time index |
 | `getTag()` | `String` | Unique order tag |
 | `getTask()` | `Task` | Associated task |
+| `getDate()` | `Date` | Order date |
+| `getOrderMetadata()` | `OrderMetadata` | Strategy-specific metadata (maxHoldDuration, subSignal) |
 | `verifyBuyThreshold(Ticker)` | `Optional<OrderRequest>` | Returns order if threshold crossed |
+
+### OrderMetadata
+
+Typed value object replacing the previous `Map<String, String> extraData` on `OrderRequest`. Fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `maxHoldDuration` | `int` | Max minutes to hold before time-stop (0 = no limit) |
+| `subSignal` | `String` | Strategy sub-signal identifier (copied to `ActiveOrder.extraData` on creation) |
+
+```java
+OrderMetadata.builder().maxHoldDuration(30).subSignal("breakout").build();
+```
 
 ### Implementations
 
@@ -125,37 +141,66 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
 
 ### ActiveOrder Interface
 
+Organized into semantic groups:
+
+**Identity:**
+
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getIndex()` | `String` | Trading index |
-| `getDate()` | `Date` | Order date |
-| `getTarget()` / `getStopLoss()` | `double` | Price levels |
-| `getBuyPrice()` / `getSellPrice()` | `double` | Execution prices |
-| `getBuyThreshold()` | `double` | Original buy threshold from order request |
-| `setStopLoss(double)` | `void` | Updates stop loss (trailing logic) |
-| `setSellPrice(double)` | `void` | Sets sell execution price |
-| `getBuyQuantity()` / `getSoldQuantity()` | `int` | Quantities |
-| `getLotSize()` | `int` | Lot size for the instrument |
-| `incrementSoldQuantity(int, double)` | `void` | Tracks partial exits |
-| `isActive()` / `setActive(boolean)` | `boolean`/`void` | Active status |
-| `closeOrder(double, int, String)` | `void` | Closes the order |
-| `getProfit()` / `getRealisedProfit()` | `double` | Unrealised and realised P&L |
-| `getEntryTimeStamp()` | `int` | Entry minute index (for hold duration checks) |
-| `getExitTimeStamp()` / `setExitTimeStamp(int)` | `int`/`void` | Exit minute index |
-| `getTag()` | `String` | Unique order tag |
-| `getTask()` | `Task` | Associated task |
+| `getOrderRequest()` | `OrderRequest` | Source order request (single source of truth for immutable metadata) |
+| `getTag()` | `String` | Delegated to `OrderRequest.getTag()` |
+| `getIndex()` | `String` | Delegated to `OrderRequest.getIndex()` |
 | `getTradingSymbol()` | `String` | Trading symbol |
-| `getExtraData()` | `Map<String, String>` | Read-only extra data (unmodifiable) |
-| `appendExtraData(String, String)` | `void` | Add key-value to extra data |
+
+**Entry state:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getBuyPrice()` | `double` | Buy execution price |
+| `getBuyQuantity()` | `int` | Buy quantity |
+| `getLotSize()` | `int` | Lot size for the instrument |
+| `getEntryTimeStamp()` | `int` | Entry minute index |
+
+**Risk management:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getTarget()` / `getStopLoss()` | `double` | Price levels (initialized from OrderRequest) |
+| `setStopLoss(double)` | `void` | Updates stop loss (trailing logic) |
+
+**Exit / sell state:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getSellPrice()` | `double` | Sell execution price |
+| `getExitTimeStamp()` | `int` | Exit minute index |
+| `getSoldQuantity()` | `int` | Quantity sold so far |
+| `incrementSoldQuantity(int, double)` | `void` | Tracks partial exits |
+| `closeOrder(double, int, String)` | `void` | Closes the order (sets sellPrice, exitTimeStamp, isActive=false) |
+
+**Computed:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getProfit()` / `getRealisedProfit()` | `double` | Unrealised and realised P&L |
 | `isCallOrder()` | `boolean` | Default `true`; `false` for put orders |
 
-**Note:** `getExitTimeStamp()` and `getBuyThreshold()` are now on the interface (previously only available on concrete classes via Lombok). For CSV export and logging, use `FileUtils.csvHeader()`, `FileUtils.toCSV()`, and `FileUtils.orderLog()` from fno-utils.
+**Runtime diagnostics:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getExtraData()` | `Map<String, String>` | Read-only extra data (unmodifiable) |
+| `appendExtraData(String, String)` | `void` | Add key-value to extra data |
+
+**Note:** Immutable order metadata (`date`, `buyThreshold`, `tag`, `index`, `task`) is now accessed via `getOrderRequest()` — the `ActiveOrder` no longer duplicates these fields. Setters for `sellPrice`, `exitTimeStamp`, and `active` have been removed from the interface; `closeOrder()` is the single entry point for exit state changes.
 
 ### AbstractActiveOrder
 
-Base class with protected fields: `tag`, `date`, `entryTimeStamp`, `exitTimeStamp`, `buyThreshold`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `target`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`
+Base class storing a reference to the source `OrderRequest` plus mutable execution state: `entryTimeStamp`, `exitTimeStamp`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `target`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`, `isActive`, `realisedProfit`.
 
-`getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries.
+`getTag()` and `getIndex()` delegate to `orderRequest` — single source of truth for immutable order identity.
+
+`getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries. On construction, `entryDateTime` is automatically added; subclasses copy `subSignal` from `OrderMetadata` if present.
 
 Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`). The `toString()` output conditionally includes `kiteOrderId` from the `extraData` map when present, aiding order tracking in logs.
 

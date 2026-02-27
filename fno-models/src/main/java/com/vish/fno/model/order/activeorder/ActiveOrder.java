@@ -1,45 +1,48 @@
 package com.vish.fno.model.order.activeorder;
 
-import com.vish.fno.model.Task;
+import com.vish.fno.model.order.orderrequest.OrderRequest;
 
-import java.util.Date;
 import java.util.Map;
 
 public interface ActiveOrder {
+
+    // --- Identity ---
+    OrderRequest getOrderRequest();
+    String getTag();
     String getIndex();
-    Date getDate();
-    double getTarget();
-    double getStopLoss();
+    String getTradingSymbol();
+
+    // --- Entry state ---
     double getBuyPrice();
-    double getSellPrice();
-    void setStopLoss(double stopLoss);
-    Task getTask();
-    void setSellPrice(double sellPrice);
-    int getExitTimeStamp();
-    void setExitTimeStamp(int exitTimeStamp);
-    double getBuyThreshold();
     int getBuyQuantity();
     int getLotSize();
+    int getEntryTimeStamp();
+
+    // --- Risk management ---
+    double getTarget();
+    double getStopLoss();
+    void setStopLoss(double stopLoss);
+
+    // --- Exit / sell state ---
+    double getSellPrice();
+    int getExitTimeStamp();
     int getSoldQuantity();
     void incrementSoldQuantity(int soldQuantity, double sellOptionPrice);
-    String getTag();
-    boolean isActive();
-    void setActive(boolean active);
     void closeOrder(double closePrice, int timeIndex, String timestamp);
-    Map<String, String> getExtraData();
-    void appendExtraData(String key, String value);
-    String getTradingSymbol();
+
+    // --- Computed ---
     double getProfit();
     double getRealisedProfit();
-    int getEntryTimeStamp();
 
     /**
      * Returns whether this is a call order (true) or put order (false).
      * Default implementation returns true (call order).
-     *
-     * @return true for call orders, false for put orders
      */
     default boolean isCallOrder() {
         return true;
     }
+
+    // --- Runtime diagnostics ---
+    Map<String, String> getExtraData();
+    void appendExtraData(String key, String value);
 }

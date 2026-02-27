@@ -1,32 +1,27 @@
 package com.vish.fno.model.order.activeorder;
 
-import com.vish.fno.model.Task;
 import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
 import lombok.Getter;
 
+import com.vish.fno.model.order.OrderMetadata;
+
 @Getter
 public final class OptionBasedActiveOrder extends AbstractActiveOrder {
-    private final Task task;
-    private final String index;
     private final int lotSize;
 
     public OptionBasedActiveOrder(OptionBasedOrderRequest openOrder, double buyPrice, int timestampIndex, String timestamp,
                                   int quantity, int lotSize) {
-        super(openOrder.getTag(),
-                openOrder.getDate(),
-                timestampIndex,
-                openOrder.getBuyThreshold(),
-                buyPrice,
-                quantity,
-                openOrder.getTarget(),
-                openOrder.getStopLoss(),
-                openOrder.getExtraData());
-        this.index = openOrder.getIndex();
-        this.task = openOrder.getTask();
+        super(openOrder, buyPrice, timestampIndex, quantity, timestamp);
         this.lotSize = lotSize;
         // Initialize realised profit directly from buy price (no separate option price)
         this.realisedProfit = -1 * (this.buyQuantity * this.buyPrice);
-        this.extraData.put("entryDateTime", timestamp);
+        copyExtras(openOrder.getOrderMetadata());
+    }
+
+    private void copyExtras(OrderMetadata orderMetadata) {
+        if (orderMetadata != null && orderMetadata.getSubSignal() != null) {
+            this.extraData.put("subSignal", orderMetadata.getSubSignal());
+        }
     }
 
     @Override

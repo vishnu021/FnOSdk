@@ -185,7 +185,7 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 
 **Exit Priority:**
 1. Time-based (index > 368, ~3:23 PM)
-2. Max hold duration (triple barrier time stop) — checks `extraData["maxHoldDuration"]` against elapsed minutes since `order.getEntryTimeStamp()`
+2. Max hold duration (triple barrier time stop) — reads `OrderMetadata.maxHoldDuration` via `order.getOrderRequest().getOrderMetadata()` against elapsed minutes since `order.getEntryTimeStamp()`
 3. Stop-loss
 4. Target
 

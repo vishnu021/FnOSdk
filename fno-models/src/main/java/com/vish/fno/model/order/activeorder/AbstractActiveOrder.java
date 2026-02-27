@@ -1,11 +1,10 @@
 package com.vish.fno.model.order.activeorder;
 
+import com.vish.fno.model.order.orderrequest.OrderRequest;
 import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,49 +14,49 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 @Slf4j
 @Getter
 public abstract class AbstractActiveOrder implements ActiveOrder {
-    @Getter
-    protected final String tag;
-    protected final Date date;
+    protected final OrderRequest orderRequest;
     protected final int entryTimeStamp;
-    @Setter
     protected int exitTimeStamp;
-    protected final double buyThreshold;
     protected double buyPrice;
     protected int buyQuantity;
     protected int soldQuantity;
-    @Setter
     protected double sellPrice;
     protected double target;
     protected double stopLoss;
     protected final Map<String, String> extraData;
     protected int stopLossRevisionCount;
     protected final Map<Integer, Double> stopLossRevision = new HashMap<>();
-    @Setter
     protected boolean isActive;
     protected double realisedProfit;
 
-    protected AbstractActiveOrder(String tag,
-                               Date date,
-                               int entryTimeStamp,
-                               double buyThreshold,
+    protected AbstractActiveOrder(OrderRequest orderRequest,
                                double buyPrice,
+                               int entryTimeStamp,
                                int buyQuantity,
-                               double target,
-                               double stopLoss,
-                               Map<String, String> extraData) {
-        this.tag = tag;
-        this.date = date;
+                               String entryTimestamp) {
+        this.orderRequest = orderRequest;
         this.entryTimeStamp = entryTimeStamp;
-        this.buyThreshold = buyThreshold;
         this.buyPrice = buyPrice;
         this.buyQuantity = buyQuantity;
         this.soldQuantity = 0;
-        this.target = target;
-        this.stopLoss = stopLoss;
-        this.extraData = extraData == null ? new HashMap<>() : extraData;
+        this.target = orderRequest.getTarget();
+        this.stopLoss = orderRequest.getStopLoss();
+        this.extraData = new HashMap<>();
         this.stopLossRevisionCount = 0;
         this.isActive = true;
         this.realisedProfit = 0;
+        this.extraData.put("entryDateTime", entryTimestamp);
+    }
+
+    // Delegated to OrderRequest — single source of truth for immutable order metadata
+    @Override
+    public String getTag() {
+        return orderRequest.getTag();
+    }
+
+    @Override
+    public String getIndex() {
+        return orderRequest.getIndex();
     }
 
     protected void updateStopLoss(double stopLoss) {
@@ -77,9 +76,9 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
 
     @Override
     public void closeOrder(double closePrice, int timeIndex, String timestamp) {
-        setActive(false);
-        setExitTimeStamp(timeIndex);
-        setSellPrice(closePrice);
+        this.isActive = false;
+        this.exitTimeStamp = timeIndex;
+        this.sellPrice = closePrice;
         this.extraData.put("exitDateTime", timestamp);
     }
 
@@ -108,7 +107,7 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
         sb.append(INDENTED_TAB)
                 .append(getClass().getSimpleName()).append("{")
                 .append("index=").append(getIndex())
-                .append(", tag=").append(tag);
+                .append(", tag=").append(getTag());
         appendToStringFields(sb);
         sb.append(", buyPrice=").append(buyPrice)
                 .append(", target=").append(roundTo5Paise(target))
