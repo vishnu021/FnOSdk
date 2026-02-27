@@ -12,9 +12,12 @@ Utility functions for candlestick manipulation, time operations, file handling, 
 
 | Package | Description |
 |---------|-------------|
-| `com.vish.fno.util` | Core utilities (CandleUtils, TimeUtils, PriceUtils, FileUtils, FnoConstants) |
-| `com.vish.fno.util.chart` | HeikinAshi transformations |
-| `com.vish.fno.util.helper` | Caching (CandleStore, TickStore, TimeSource, CandlestickDataProvider, TradingHoursValidator) |
+| `com.vish.fno.util` | Cross-cutting (FnoConstants, JsonUtils, PriceUtils, Trend) |
+| `com.vish.fno.util.time` | Time utilities (TimeUtils, TimeSource, TimeProvider, TradingHoursValidator) |
+| `com.vish.fno.util.candle` | Candle utilities (CandleUtils, CandlePatternUtils, TimeFrameUtils, HeikinAshi) |
+| `com.vish.fno.util.candle.store` | Candle caching (CandleStore, CandleStoreImpl, CandlestickDataProvider, HolidayCalendar) |
+| `com.vish.fno.util.tick` | Tick storage (TickStore, TickStoreImpl, TickCircularBuffer, TickSnapshot) |
+| `com.vish.fno.util.io` | File I/O (FileUtils, CompressionUtils) |
 | `com.vish.fno.util.position` | Position sizing (PositionSizingService, PositionSize, LotSizeProvider) |
 
 ---

@@ -1,6 +1,6 @@
 package com.vish.fno.strategy.priceaction;
 
-import com.vish.fno.util.TimeUtils;
+import com.vish.fno.util.time.TimeUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

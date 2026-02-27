@@ -1,4 +1,4 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.util.tick;
 
 import com.vish.fno.model.Ticker;
 import org.junit.jupiter.api.Test;

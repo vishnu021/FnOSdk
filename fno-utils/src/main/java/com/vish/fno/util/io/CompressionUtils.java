@@ -1,7 +1,8 @@
-package com.vish.fno.util;
+package com.vish.fno.util.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vish.fno.model.Ticker;
+import com.vish.fno.util.JsonUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

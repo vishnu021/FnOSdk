@@ -1,4 +1,4 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.util.time;
 
 import java.time.LocalDateTime;
 import java.util.Date;

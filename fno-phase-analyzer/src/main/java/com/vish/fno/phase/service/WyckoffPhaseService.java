@@ -6,6 +6,7 @@ import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
 import com.vish.fno.phase.factory.WyckoffPhaseIdentifierFactory;
 import com.vish.fno.phase.factory.WyckoffIdentifierType;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -476,14 +477,10 @@ public class WyckoffPhaseService {
     /**
      * Inner class to hold phase and confidence together
      */
+    @RequiredArgsConstructor
     public static class PhaseWithConfidence {
         private final WyckoffPhase phase;
         private final double confidence;
-
-        public PhaseWithConfidence(WyckoffPhase phase, double confidence) {
-            this.phase = phase;
-            this.confidence = confidence;
-        }
 
         public WyckoffPhase getPhase() {
             return phase;

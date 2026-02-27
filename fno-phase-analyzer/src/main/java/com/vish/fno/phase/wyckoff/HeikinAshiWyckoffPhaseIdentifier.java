@@ -6,9 +6,9 @@ import com.vish.fno.model.wyckoff.WyckoffPhase;
 import com.vish.fno.strategy.HATrendUtils;
 import com.vish.fno.strategy.Point2D;
 import com.vish.fno.strategy.PointType;
-import com.vish.fno.util.CandleUtils;
 import com.vish.fno.util.Trend;
-import com.vish.fno.util.chart.HeikinAshi;
+import com.vish.fno.util.candle.CandleUtils;
+import com.vish.fno.util.candle.HeikinAshi;
 
 import java.util.ArrayList;
 import java.util.List;

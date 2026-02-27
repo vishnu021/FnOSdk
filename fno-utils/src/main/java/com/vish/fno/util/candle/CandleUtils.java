@@ -1,6 +1,7 @@
-package com.vish.fno.util;
+package com.vish.fno.util.candle;
 
 import com.vish.fno.model.Candle;
+import com.vish.fno.util.time.TimeUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

@@ -3,6 +3,7 @@ package com.vish.fno.phase.wyckoff;
 import com.vish.fno.model.Candle;
 import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
@@ -285,6 +286,7 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
     }
     
     // Inner class for volume metrics
+    @RequiredArgsConstructor
     private static class VolumeMetrics {
         final double avgVolume;
         final double volumeRatio;
@@ -293,17 +295,5 @@ public class VolumeBasedWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifie
         final boolean hasVolumeSpike;
         final boolean hasLowVolume;
         final double buyingPressure;
-        
-        VolumeMetrics(double avgVolume, double volumeRatio, double priceChange,
-                     double volumeTrend, boolean hasVolumeSpike, boolean hasLowVolume,
-                     double buyingPressure) {
-            this.avgVolume = avgVolume;
-            this.volumeRatio = volumeRatio;
-            this.priceChange = priceChange;
-            this.volumeTrend = volumeTrend;
-            this.hasVolumeSpike = hasVolumeSpike;
-            this.hasLowVolume = hasLowVolume;
-            this.buyingPressure = buyingPressure;
-        }
     }
 }

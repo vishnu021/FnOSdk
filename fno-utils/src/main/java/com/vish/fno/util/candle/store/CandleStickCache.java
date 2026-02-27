@@ -1,4 +1,4 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.util.candle.store;
 
 import com.vish.fno.model.Candle;
 

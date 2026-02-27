@@ -1,4 +1,4 @@
-package com.vish.fno.util;
+package com.vish.fno.util.candle;
 
 import com.vish.fno.model.Candle;
 import lombok.AccessLevel;

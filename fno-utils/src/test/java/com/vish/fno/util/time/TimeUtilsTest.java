@@ -1,4 +1,4 @@
-package com.vish.fno.util;
+package com.vish.fno.util.time;
 
 import org.junit.jupiter.api.Test;
 

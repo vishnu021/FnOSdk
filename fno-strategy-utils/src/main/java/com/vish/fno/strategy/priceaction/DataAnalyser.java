@@ -3,7 +3,7 @@ package com.vish.fno.strategy.priceaction;
 import com.vish.fno.model.Candle;
 import com.vish.fno.strategy.Point2D;
 import com.vish.fno.strategy.PointType;
-import com.vish.fno.util.CandleUtils;
+import com.vish.fno.util.candle.CandleUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

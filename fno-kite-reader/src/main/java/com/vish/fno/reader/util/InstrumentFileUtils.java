@@ -2,7 +2,7 @@ package com.vish.fno.reader.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vish.fno.util.JsonUtils;
-import com.vish.fno.util.TimeUtils;
+import com.vish.fno.util.time.TimeUtils;
 import com.zerodhatech.models.Instrument;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

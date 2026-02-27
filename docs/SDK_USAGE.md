@@ -164,7 +164,7 @@ IndexOrderRequest order = IndexOrderRequest.builder("STRATEGY_1", "NIFTY", task)
 **Read**: [fno-utils.md - TimeFrameUtils](module-guides/fno-utils.md#timeframeutils)
 
 ```java
-import com.vish.fno.util.TimeFrameUtils;
+import com.vish.fno.util.candle.TimeFrameUtils;
 import com.vish.fno.model.Candle;
 
 List<Candle> fifteenMin = TimeFrameUtils.mergeCandle(oneMinCandles, 15);

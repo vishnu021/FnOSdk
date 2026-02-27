@@ -1,4 +1,4 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.util.time;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

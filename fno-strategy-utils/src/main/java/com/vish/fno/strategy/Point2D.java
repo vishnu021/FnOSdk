@@ -1,5 +1,5 @@
 package com.vish.fno.strategy;
-import com.vish.fno.util.TimeUtils;
+import com.vish.fno.util.time.TimeUtils;
 import lombok.Data;
 import org.jetbrains.annotations.NotNull;
 

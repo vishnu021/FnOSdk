@@ -2,7 +2,7 @@ package com.vish.fno.technical.indicators;
 
 import com.vish.fno.model.Candle;
 import com.vish.fno.technical.indicators.ma.SmoothedMovingAverage;
-import com.vish.fno.util.FileUtils;
+import com.vish.fno.util.io.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,7 +11,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.File;
 import java.util.List;
 
-import static com.vish.fno.util.FileUtils.getEmaData;
+import static com.vish.fno.util.io.FileUtils.getEmaData;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Slf4j

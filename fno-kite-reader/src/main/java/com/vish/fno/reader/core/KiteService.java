@@ -23,8 +23,8 @@ import static com.vish.fno.util.FnoConstants.MINUTE;
 import static com.vish.fno.util.FnoConstants.NIFTY_50;
 import static com.vish.fno.util.FnoConstants.NIFTY_BANK;
 import static com.vish.fno.util.FnoConstants.SENSEX;
-import static com.vish.fno.util.TimeUtils.getClosingTime;
-import static com.vish.fno.util.TimeUtils.getOpeningTime;
+import static com.vish.fno.util.time.TimeUtils.getClosingTime;
+import static com.vish.fno.util.time.TimeUtils.getOpeningTime;
 
 @Slf4j
 @SuppressWarnings("PMD.TooManyStaticImports")

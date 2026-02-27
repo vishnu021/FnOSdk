@@ -1,4 +1,4 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.util.candle.store;
 
 import com.vish.fno.model.Candle;
 
@@ -8,13 +8,13 @@ import java.util.List;
 /**
  * Interface for candlestick data retrieval — intraday minute data and historical lookback.
  *
- * <p>Fully independent from {@link TickStore}. No consumer in the codebase needs both
+ * <p>Fully independent from {@link com.vish.fno.util.tick.TickStore TickStore}. No consumer in the codebase needs both
  * tick and candle operations, so the two interfaces are separate (not inherited).
  *
  * <p>Consumers: {@code IndexStrategyHandlerImpl}, {@code OptionStrategyHandlerImpl},
  * {@code PartialRevisingStopLoss}, and all index-based strategies that need historical lookback.
  *
- * @see TickStore tick-only interface for order executors and tick handlers
+ * @see com.vish.fno.util.tick.TickStore tick-only interface for order executors and tick handlers
  * @see CandleStoreImpl implementation with per-symbol locking and date-boundary detection
  */
 public interface CandleStore {

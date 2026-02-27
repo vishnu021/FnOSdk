@@ -4,7 +4,7 @@ import com.vish.fno.model.Exchange;
 import com.vish.fno.model.InstrumentType;
 import com.vish.fno.reader.model.InstrumentSummary;
 import com.vish.fno.reader.util.InstrumentFileUtils;
-import com.vish.fno.util.TimeUtils;
+import com.vish.fno.util.time.TimeUtils;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Instrument;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
-import static com.vish.fno.util.TimeUtils.getLocalDateFromDate;
+import static com.vish.fno.util.time.TimeUtils.getLocalDateFromDate;
 
 /**
  * Cache for Kite instruments, focusing on Nifty 100 stocks and indices.

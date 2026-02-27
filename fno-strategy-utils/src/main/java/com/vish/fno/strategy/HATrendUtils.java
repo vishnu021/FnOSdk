@@ -1,9 +1,9 @@
 package com.vish.fno.strategy;
 
 import com.vish.fno.model.Candle;
-import com.vish.fno.util.CandleUtils;
 import com.vish.fno.util.Trend;
-import com.vish.fno.util.chart.HeikinAshi;
+import com.vish.fno.util.candle.CandleUtils;
+import com.vish.fno.util.candle.HeikinAshi;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

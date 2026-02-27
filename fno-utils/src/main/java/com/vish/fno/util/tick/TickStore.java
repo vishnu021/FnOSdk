@@ -1,4 +1,4 @@
-package com.vish.fno.util.helper;
+package com.vish.fno.util.tick;
 
 import com.vish.fno.model.Ticker;
 
@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Read/write interface for real-time tick data.
  *
- * <p>Separated from {@link CandleStore} following the Interface Segregation Principle.
+ * <p>Separated from {@link com.vish.fno.util.candle.store.CandleStore CandleStore} following the Interface Segregation Principle.
  * No consumer in the codebase needs both tick and candle operations, so the two interfaces
  * are fully independent — neither extends the other.
  *
@@ -21,7 +21,7 @@ import java.util.List;
  *   <li>Implementations must be safe for single-writer / multiple-reader access</li>
  * </ul>
  *
- * @see CandleStore candle-only interface for strategy handlers
+ * @see com.vish.fno.util.candle.store.CandleStore candle-only interface for strategy handlers
  * @see TickStoreImpl default implementation using TickCircularBuffer
  */
 public interface TickStore {
