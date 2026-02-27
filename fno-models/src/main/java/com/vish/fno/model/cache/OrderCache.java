@@ -71,7 +71,7 @@ public class OrderCache {
         for (OrderRequest order : symbolOrders) {
             if (isNotInActiveOrders(order)) {
                 Optional<OrderRequest> openOrderOptional = order.verifyBuyThreshold(tick);
-                if (!orderRequests.isEmpty()) {
+                if (openOrderOptional.isPresent()) {
                     return openOrderOptional;
                 }
             }
