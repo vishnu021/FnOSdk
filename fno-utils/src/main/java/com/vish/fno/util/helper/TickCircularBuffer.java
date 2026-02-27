@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Lock-free, zero-allocation circular buffer for tick data.
  *
- * <p>Replaces {@code ConcurrentLinkedDeque<Ticker>} in {@link AbstractDataCache}:
+ * <p>Replaces {@code ConcurrentLinkedDeque<Ticker>} in {@link TickStoreImpl}:
  * <ul>
  *   <li>Pre-allocated {@code Ticker[]} array — no per-tick Node allocation</li>
  *   <li>{@link #asList()} returns a lightweight view — no element copying</li>

@@ -6,7 +6,7 @@ import com.vish.fno.model.order.OrderSellReason;
 import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.util.chart.HeikinAshi;
-import com.vish.fno.util.helper.DataCache;
+import com.vish.fno.util.helper.CandleStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,7 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     private static final int TIMEFRAME = 1;
-    private final DataCache dataCache;
+    private final CandleStore candleStore;
 
     @Override
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp) {
@@ -54,7 +54,7 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     private void reviseStopLoss(ActiveOrder order, double ltp) {
         boolean isCallOrder = isCallOrder(order);
         String index = order.getIndex();
-        List<Candle> candles = dataCache.updateAndGetMinuteData(index);
+        List<Candle> candles = candleStore.updateAndGetMinuteData(index);
         List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
         Candle lastCandle = heikinAshiCandles.get(heikinAshiCandles.size() - 1);
 

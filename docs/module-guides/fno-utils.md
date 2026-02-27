@@ -14,7 +14,7 @@ Utility functions for candlestick manipulation, time operations, file handling, 
 |---------|-------------|
 | `com.vish.fno.util` | Core utilities (CandleUtils, TimeUtils, PriceUtils, FileUtils, FnoConstants) |
 | `com.vish.fno.util.chart` | HeikinAshi transformations |
-| `com.vish.fno.util.helper` | Caching (DataCache, TimeSource, CandlestickDataProvider, TradingHoursValidator) |
+| `com.vish.fno.util.helper` | Caching (CandleStore, TickStore, TimeSource, CandlestickDataProvider, TradingHoursValidator) |
 | `com.vish.fno.util.position` | Position sizing (PositionSizingService, PositionSize, LotSizeProvider) |
 
 ---
@@ -273,20 +273,31 @@ Abstraction for time injection (production, backtest, unit test).
 
 **Implementation:** `TimeProvider` - real system time, thread-safe.
 
-### DataCache Interface
+### CandleStore Interface
+
+Candlestick data retrieval — intraday minute data and historical lookback. Fully independent from `TickStore` (Interface Segregation Principle). Consumers: `IndexStrategyHandlerImpl`, `OptionStrategyHandlerImpl`, `PartialRevisingStopLoss`, and index-based strategies.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `updateAndGetMinuteData(symbol)` | `List<Candle>` | Today's minute data |
 | `updateAndGetHistoryMinuteData(date, symbol)` | `List<Candle>` | Historical minute data |
 | `getNCandles(symbol, date, n)` | `List<Candle>` | Last N candles (multi-day) |
+| `getNCandles(symbol, date, n, todaysCandles)` | `List<Candle>` | Last N candles (delegates to above) |
+
+### TickStore Interface
+
+Read/write interface for real-time tick data. Separated from `CandleStore` — no consumer needs both. Consumers: `SellOrderExecutor`, `TickStrategyExecutor`, `AbstractTickHandler`, `PCRCalculationService`. Thread safety: single writer (WebSocket thread), multiple concurrent readers (strategy threads).
+
+| Method | Returns | Description |
+|--------|---------|-------------|
 | `appendTick(symbol, ticker)` | `void` | Append tick to cache |
 | `getLatestTick(symbol)` | `Ticker` | Most recent tick |
-| `getTicks(symbol)` | `List<Ticker>` | All cached ticks |
+| `getTicks(symbol)` | `List<Ticker>` | Recent tick history (up to 500, oldest first) |
+| `appendAndSnapshot(symbol, ticker)` | `TickSnapshot` | Default method: append + snapshot for Disruptor pipeline |
 
-### AbstractDataCache
+### TickStoreImpl
 
-Package-private base class for DataCache with automatic tick memory management. Thread-safe for tick operations (ConcurrentHashMap + TickCircularBuffer). Max 500 ticks per symbol; ring buffer overwrites oldest when full (zero allocation per tick). Provides `clearTickCache()` to reset all tick data (used on date change).
+Standalone tick storage using pre-allocated circular buffers. Replaces the previous `AbstractDataCache` (which was an abstract superclass of `DataCacheImpl`). Has its own date-boundary lifecycle — tick caches clear when the trading day changes, independent of candle operations. Constructor: `TickStoreImpl(TimeSource)`. Max 500 ticks per symbol; ring buffer overwrites oldest when full (zero allocation per tick).
 
 ### TickCircularBuffer
 
@@ -301,11 +312,11 @@ Package-private, lock-free circular buffer replacing `ConcurrentLinkedDeque<Tick
 | `size()` | `int` | Current tick count |
 | `clear()` | `void` | Nulls all slots for GC |
 
-### DataCacheImpl
+### CandleStoreImpl
 
-Consolidated DataCache implementation. Constructor: `DataCacheImpl(CandlestickDataProvider, HolidayCalendar, TimeSource)`
+Candlestick data cache implementation. Constructor: `CandleStoreImpl(CandlestickDataProvider, HolidayCalendar, TimeSource)`. Implements `CandleStore` only — tick storage is handled separately by `TickStoreImpl` (Interface Segregation Principle).
 
-Automatically detects date changes and clears both intraday candle, tick, and per-symbol fetch lock caches when the trading date rolls over. Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
+Automatically detects date changes and clears intraday candle and per-symbol fetch lock caches when the trading date rolls over. Uses proper Optional chaining internally: `CandleStickCache.getLatestCandle()` returns `Optional<Candle>`, which is chained with `flatMap`/`map` for data freshness checks.
 
 **Date-boundary locking:** Uses a dedicated `ReentrantLock` (`dateChangeLock`) with double-checked locking to ensure exactly one thread clears caches on date rollover. Prevents the race where multiple virtual threads at market open (9:15) all see a stale date, enter the clear block, and one thread populates data that another immediately clears.
 
@@ -407,8 +418,8 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 |-----------|-------------|-------|
 | CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
 | JsonUtils, CompressionUtils | ✅ | Static methods; VT-safe ObjectMapper (shared bounded recycler pool) |
-| AbstractDataCache (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer); static CircularBufferView prevents GC pinning |
-| DataCacheImpl (candle fetch) | ✅ | Per-symbol `ReentrantLock` (VT-safe) prevents redundant API calls; dedicated `dateChangeLock` with double-checked locking for date-boundary cache clearing |
+| TickStoreImpl (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer); static CircularBufferView prevents GC pinning; independent date-boundary clearing |
+| CandleStoreImpl (candle fetch) | ✅ | Per-symbol `ReentrantLock` (VT-safe) prevents redundant API calls; dedicated `dateChangeLock` with double-checked locking for date-boundary cache clearing |
 | TimeProvider | ✅ | Instance methods |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |

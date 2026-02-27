@@ -16,44 +16,47 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Consolidated DataCache implementation that works with both production and backtest environments.
+ * Candlestick data cache implementation for both production and backtest environments.
  *
- * This class extends AbstractDataCache (tick caching) and adds candlestick data caching.
- * It uses interfaces (CandlestickDataProvider and HolidayCalendar) to abstract the data source,
- * making it usable in both OrderManager (production) and BacktestRunner (backtesting).
+ * <p>Implements {@link CandleStore} only — tick storage is handled separately by
+ * {@link TickStoreImpl}. This follows the Interface Segregation Principle: no consumer
+ * needs both tick and candle operations, so the implementations are independent.
  *
- * Usage in OrderManager:
- * - Inject CandlestickService (implements CandlestickDataProvider)
- * - Inject CalendarService (implements HolidayCalendar)
+ * <p>Uses interfaces ({@link CandlestickDataProvider} and {@link HolidayCalendar}) to abstract
+ * the data source:
+ * <ul>
+ *   <li>Production: {@code CandlestickService} fetches live candles from Kite API</li>
+ *   <li>Backtest: {@code BacktestCandlestickService} fetches from OrderManager API</li>
+ * </ul>
  *
- * Usage in BacktestRunner:
- * - Inject BacktestCandlestickService (implements CandlestickDataProvider)
- * - Inject CalendarService (implements HolidayCalendar)
+ * <p>Thread safety: per-symbol {@link ReentrantLock} prevents multiple virtual threads
+ * from racing on the same API call. ReentrantLock (not synchronized) avoids pinning
+ * virtual threads to carrier threads.
  */
 @Slf4j
-public class DataCacheImpl extends AbstractDataCache {
-    private final CandlestickDataProvider candlestickDataProvider;
+public class CandleStoreImpl implements CandleStore {
 
+    private final CandlestickDataProvider candlestickDataProvider;
     private final CandleStickCache minuteDataCache; // today's cache
     private final HistoricDataCache historicDataCache; // historical cache
     private final HolidayCalendar holidayCalendar;
     private final TimeSource timeSource;
     private volatile String lastIntradayCacheDate;
+
     // Guards the date-boundary check-then-clear in updateIntradayCache(). Without this lock,
     // multiple virtual threads arriving simultaneously at market open (9:15) can all see
     // lastIntradayCacheDate as stale, all enter the if-block, and race to clear caches —
     // one thread could populate data that another immediately clears.
     private final ReentrantLock dateChangeLock = new ReentrantLock();
+
     // ConcurrentHashMap required for computeIfAbsent atomicity — Map interface lacks this guarantee
     // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
-    // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
-    // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
     @SuppressWarnings("PMD.LooseCoupling")
     private final ConcurrentHashMap<String, ReentrantLock> symbolFetchLocks = new ConcurrentHashMap<>();
 
-    public DataCacheImpl(CandlestickDataProvider candlestickDataProvider,
-                         HolidayCalendar holidayCalendar,
-                         TimeSource timeSource) {
+    public CandleStoreImpl(CandlestickDataProvider candlestickDataProvider,
+                           HolidayCalendar holidayCalendar,
+                           TimeSource timeSource) {
         this.candlestickDataProvider = candlestickDataProvider;
         this.holidayCalendar = holidayCalendar;
         this.timeSource = timeSource;
@@ -117,7 +120,7 @@ public class DataCacheImpl extends AbstractDataCache {
     private void updateIntradayCache(String symbol) {
         String currentDate = timeSource.getTodaysDateString();
 
-        // Date-boundary transition: clear all caches when the trading day changes.
+        // Date-boundary transition: clear candle caches when the trading day changes.
         // Uses dateChangeLock to ensure exactly one thread performs the clear;
         // without this, multiple virtual threads at market open could race — one populates
         // data while another clears it. Double-check inside the lock for efficiency.
@@ -125,9 +128,8 @@ public class DataCacheImpl extends AbstractDataCache {
             dateChangeLock.lock();
             try {
                 if (!currentDate.equals(lastIntradayCacheDate)) {
-                    log.info("Date changed from {} to {} — clearing intraday cache", lastIntradayCacheDate, currentDate);
+                    log.info("Date changed from {} to {} — clearing candle caches", lastIntradayCacheDate, currentDate);
                     minuteDataCache.clearAll();
-                    clearTickCache();
                     symbolFetchLocks.clear();
                     lastIntradayCacheDate = currentDate;
                 }
