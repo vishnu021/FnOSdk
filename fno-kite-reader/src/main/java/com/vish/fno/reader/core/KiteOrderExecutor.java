@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.vish.fno.reader.util.OrderUtils.createMarketOrderWithParameters;
-import static com.vish.fno.util.JsonUtils.getFormattedObject;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -38,46 +37,20 @@ class KiteOrderExecutor {
     }
 
     Order placeOptionOrder(OrderParams orderParams) {
-        return session.executeWithLock(() -> {
-            Order order = null;
-            try {
-                log.info("placing order with params : {}", orderParams);
-                order = session.getKiteSdk().placeOrder(orderParams, Constants.VARIETY_REGULAR);
-                log.info("order id: {}", order.orderId);
-            } catch (KiteException ke) {
-                log.error("KiteException occurred while placing order, code: {}, message: {}, order: {}",
-                        ke.code, ke.message, getFormattedObject(orderParams), ke);
-            } catch (JSONException | IOException e) {
-                log.error("Error occurred while placing order", e);
-            }
+        log.info("placing order with params : {}", orderParams);
+        return session.executeWithLockSafe(() -> {
+            Order order = session.getKiteSdk().placeOrder(orderParams, Constants.VARIETY_REGULAR);
+            log.info("order id: {}", order.orderId);
             return order;
-        }, "placeOptionOrder");
+        }, "placeOptionOrder", null);
     }
 
     List<Order> getOrders() {
-        return session.executeWithLock(() -> {
-            try {
-                return session.getKiteSdk().getOrders();
-            } catch (KiteException e) {
-                log.error("Failed to get orders, error code: {}, error message: {}", e.code, e.message, e);
-            } catch (IOException e) {
-                log.error("Failed to get orders, error: {}", e.getMessage(), e);
-            }
-            return List.of();
-        }, "getOrders");
+        return session.executeWithLockSafe(() -> session.getKiteSdk().getOrders(), "getOrders", List.of());
     }
 
     Map<String, List<Position>> getPositions() {
-        return session.executeWithLock(() -> {
-            try {
-                return session.getKiteSdk().getPositions();
-            } catch (KiteException e) {
-                log.error("Failed to get positions, error code: {}, error message: {}", e.code, e.message, e);
-            } catch (IOException e) {
-                log.error("Failed to get positions, error: {}", e.getMessage(), e);
-            }
-            return Map.of();
-        }, "getPositions");
+        return session.executeWithLockSafe(() -> session.getKiteSdk().getPositions(), "getPositions", Map.of());
     }
 
     public void logExistingOrdersAndPositions(String symbol, String tag) {

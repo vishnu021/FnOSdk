@@ -7,6 +7,7 @@ import com.zerodhatech.models.Margin;
 import com.zerodhatech.models.User;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONException;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -61,6 +62,20 @@ class KiteSession {
     <T> T executeWithLockChecked(ApiRateLimiter.CheckedSupplier<T> action, String operationName)
             throws IOException, KiteException {
         return apiRateLimiter.executeWithLockChecked(action, operationName);
+    }
+
+    <T> T executeWithLockSafe(ApiRateLimiter.CheckedSupplier<T> action, String operationName, T fallback) {
+        return apiRateLimiter.executeWithLock(() -> {
+            try {
+                return action.get();
+            } catch (KiteException e) {
+                log.error("{} failed, code: {}, message: {}", operationName, e.code, e.message, e);
+                return fallback;
+            } catch (IOException | JSONException e) {
+                log.error("{} failed: {}", operationName, e.getMessage(), e);
+                return fallback;
+            }
+        }, operationName);
     }
 
     private KiteConnect createKiteSdk(String apiKey, String userId) {
