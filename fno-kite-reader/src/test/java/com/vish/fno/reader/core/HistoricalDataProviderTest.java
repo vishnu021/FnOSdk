@@ -176,7 +176,7 @@ class HistoricalDataProviderTest {
                 .thenReturn(expectedData);
 
         // Act
-        Optional<HistoricalData> result = provider.getEntireDayHistoricalData(fromDate, toDate, SYMBOL, INTERVAL);
+        Optional<HistoricalData> result = provider.getHistoricalData(fromDate, toDate, SYMBOL, INTERVAL);
 
         // Assert
         assertTrue(result.isPresent());

@@ -54,9 +54,10 @@ public class WyckoffHourlyAnalysisService {
         return analyzeHourlyPhases(symbol, startDate, endDate, "simulation-results/analysis");
     }
     
+    @SuppressWarnings("PMD.UseConcurrentHashMap")
     public Map<LocalDateTime, WyckoffPhase> analyzeHourlyPhases(String symbol, LocalDate startDate, LocalDate endDate, String outputPath) throws IOException {
         logger.info("Starting hourly Wyckoff phase analysis for symbol: {} from {} to {}", symbol, startDate, endDate);
-        
+
         Map<LocalDateTime, WyckoffPhase> hourlyPhases = new TreeMap<>();
         List<Candle> allData = loadDataForDateRange(startDate, endDate);
         

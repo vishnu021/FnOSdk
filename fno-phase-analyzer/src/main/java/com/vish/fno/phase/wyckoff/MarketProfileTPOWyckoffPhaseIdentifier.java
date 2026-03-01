@@ -37,6 +37,7 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
     
     // Market Profile state
     private final NavigableMap<Double, Integer> tpoCount = new TreeMap<>();
+    @SuppressWarnings("PMD.UseConcurrentHashMap")
     private final Map<Double, Long> volumeAtPrice = new TreeMap<>();
     private double pointOfControl; // POC - highest TPO count
     private double valueAreaHigh; // VAH
@@ -155,6 +156,7 @@ public class MarketProfileTPOWyckoffPhaseIdentifier implements IWyckoffPhaseIden
         valueAreaLow = lowerPrice;
     }
     
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     private WyckoffPhase analyzeMarketProfile(List<Candle> data, int currentIndex) {
         Candle current = data.get(currentIndex);
         

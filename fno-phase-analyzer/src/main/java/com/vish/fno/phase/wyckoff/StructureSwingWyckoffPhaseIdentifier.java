@@ -7,6 +7,7 @@ import com.vish.fno.phase.util.ATRCalculator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Structure + Swing Logic based Wyckoff phase identifier.
@@ -32,6 +33,8 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     private static final int MIN_SWINGS_FOR_TREND = 2; // Need 2-3 swings to confirm
     private static final double FAILED_BREAKOUT_THRESHOLD = 0.002; // 0.2% for false break
     
+    private final ReentrantLock swingStateLock = new ReentrantLock();
+
     // Swing structure tracking
     private List<SwingPoint> swingHighs = new ArrayList<>();
     private List<SwingPoint> swingLows = new ArrayList<>();
@@ -43,15 +46,19 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
         if (data == null || data.isEmpty() || currentIndex < 0 || currentIndex >= data.size()) {
             return WyckoffPhase.UNKNOWN;
         }
-        
-        // Identify swing points using fractals
-        identifySwingPoints(data, currentIndex);
-        
-        // Update box boundaries (Donchian channel)
-        updateBoxBoundaries(data, currentIndex);
-        
-        // Analyze swing structure
-        return analyzeSwingStructure(data, currentIndex);
+        swingStateLock.lock();
+        try {
+            // Identify swing points using fractals
+            identifySwingPoints(data, currentIndex);
+
+            // Update box boundaries (Donchian channel)
+            updateBoxBoundaries(data, currentIndex);
+
+            // Analyze swing structure
+            return analyzeSwingStructure(data, currentIndex);
+        } finally {
+            swingStateLock.unlock();
+        }
     }
     
     private void identifySwingPoints(List<Candle> data, int currentIndex) {
@@ -256,6 +263,7 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
         return WyckoffPhase.CONSOLIDATION;
     }
     
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     private boolean checkFailedBreakout(List<Candle> data, int currentIndex, boolean checkUpside) {
         if (currentIndex < 5) {
             return false;
@@ -403,25 +411,30 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     
     @Override
     public double getPhaseConfidence(List<Candle> data, int currentIndex) {
-        double confidence = 0.5;
-        
-        // More swings = higher confidence
-        if (swingHighs.size() >= 5 && swingLows.size() >= 5) {
-            confidence += 0.2;
+        swingStateLock.lock();
+        try {
+            double confidence = 0.5;
+
+            // More swings = higher confidence
+            if (swingHighs.size() >= 5 && swingLows.size() >= 5) {
+                confidence += 0.2;
+            }
+
+            // Clear structure = higher confidence
+            if (countConsecutiveHHHL() >= 2 || countConsecutiveLLLH() >= 2) {
+                confidence += 0.2;
+            }
+
+            // Failed breakout patterns = high confidence
+            if (checkFailedBreakout(data, currentIndex, true) ||
+                checkFailedBreakout(data, currentIndex, false)) {
+                confidence += 0.1;
+            }
+
+            return Math.min(1.0, confidence);
+        } finally {
+            swingStateLock.unlock();
         }
-        
-        // Clear structure = higher confidence
-        if (countConsecutiveHHHL() >= 2 || countConsecutiveLLLH() >= 2) {
-            confidence += 0.2;
-        }
-        
-        // Failed breakout patterns = high confidence
-        if (checkFailedBreakout(data, currentIndex, true) || 
-            checkFailedBreakout(data, currentIndex, false)) {
-            confidence += 0.1;
-        }
-        
-        return Math.min(1.0, confidence);
     }
     
     @Override
@@ -431,10 +444,15 @@ public class StructureSwingWyckoffPhaseIdentifier implements IWyckoffPhaseIdenti
     
     @Override
     public void reset() {
-        swingHighs.clear();
-        swingLows.clear();
-        boxTop = 0;
-        boxBottom = 0;
+        swingStateLock.lock();
+        try {
+            swingHighs.clear();
+            swingLows.clear();
+            boxTop = 0;
+            boxBottom = 0;
+        } finally {
+            swingStateLock.unlock();
+        }
     }
 
     // Inner class for swing points

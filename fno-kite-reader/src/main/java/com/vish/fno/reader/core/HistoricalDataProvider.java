@@ -20,7 +20,7 @@ class HistoricalDataProvider {
     private final KiteSession session;
     private final InstrumentCache instrumentCache;
 
-    Optional<HistoricalData> getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
+    Optional<HistoricalData> getHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
         return getHistoricalData(fromDate, toDate, symbol, interval, false);
     }
 

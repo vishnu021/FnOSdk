@@ -57,9 +57,9 @@ public final class FileUtils implements FnoConstants {
     private final ObjectMapper mapper;
     private final Map<String, Queue<String>> tickBuffer = new ConcurrentHashMap<>();
     private volatile long lastFlushTimeMs = System.currentTimeMillis();
-    String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
-    String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
-    int bufferLength;
+    final String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
+    final String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
+    final int bufferLength;
 
     public FileUtils() {
         // VT-safe ObjectMappers: use shared bounded pool instead of ThreadLocal BufferRecycler

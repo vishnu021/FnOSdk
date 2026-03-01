@@ -48,8 +48,8 @@ public class WyckoffPhaseService {
     private final Map<String, Integer> currentHourTracker = new ConcurrentHashMap<>();
 
     private final WyckoffPhaseIdentifierFactory identifierFactory;
-    private IWyckoffPhaseIdentifier phaseIdentifier;
-    private WyckoffIdentifierType identifierType;
+    private volatile IWyckoffPhaseIdentifier phaseIdentifier;
+    private volatile WyckoffIdentifierType identifierType;
 
     public WyckoffPhaseService(WyckoffPhaseIdentifierFactory identifierFactory) {
         this.identifierFactory = identifierFactory;

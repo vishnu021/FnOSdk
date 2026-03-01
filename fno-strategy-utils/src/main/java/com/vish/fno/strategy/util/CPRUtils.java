@@ -5,8 +5,8 @@ import com.vish.fno.util.PriceUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /*
  * Pivot width forecast
@@ -18,7 +18,7 @@ import java.util.Map;
 public final class CPRUtils {
 
     public static Map<String, Float> getFloorPivots(Candle previousDayCandle) {
-        Map<String, Float> floorPivots = new HashMap<>();
+        Map<String, Float> floorPivots = new ConcurrentHashMap<>();
 
         float c = (float) previousDayCandle.close();
         float h = (float) previousDayCandle.high();

@@ -30,7 +30,7 @@ public class KiteWebSocket {
     private static final int MAX_RECONNECTION_RETRIES = 10;
     private static final int MAX_RETRY_INTERVAL_SECONDS = 30;
 
-    private KiteTicker tickerProvider;
+    private volatile KiteTicker tickerProvider;
     private final InstrumentCache instrumentCache;
     @Getter
     private final boolean connectToWebSocket;
@@ -42,9 +42,9 @@ public class KiteWebSocket {
     private final List<Long> tokensToSubscribe;
     private final List<Long> subscribedTokens;
     @Setter
-    private OnTicks onTickerArrivalListener;
+    private volatile OnTicks onTickerArrivalListener;
     @Setter
-    private OnOrderUpdate onOrderUpdateListener;
+    private volatile OnOrderUpdate onOrderUpdateListener;
 
     @SuppressWarnings("PMD.LooseCoupling")
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {

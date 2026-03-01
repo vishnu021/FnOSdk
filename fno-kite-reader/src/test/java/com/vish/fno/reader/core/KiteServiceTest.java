@@ -30,8 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -118,7 +116,7 @@ class KiteServiceTest {
         Date to = new Date();
         String interval = "minute";
         HistoricalData expectedData = new HistoricalData();
-        when(dataProvider.getEntireDayHistoricalData(from, to, SYMBOL, interval))
+        when(dataProvider.getHistoricalData(from, to, SYMBOL, interval))
                 .thenReturn(Optional.of(expectedData));
 
         // Act
@@ -127,7 +125,7 @@ class KiteServiceTest {
         // Assert
         assertTrue(result.isPresent());
         assertEquals(expectedData, result.get());
-        verify(dataProvider).getEntireDayHistoricalData(from, to, SYMBOL, interval);
+        verify(dataProvider).getHistoricalData(from, to, SYMBOL, interval);
     }
 
     @Test

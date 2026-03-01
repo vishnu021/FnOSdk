@@ -8,6 +8,8 @@
     </description>
 
     <!-- General Best Practices -->
+    <!-- NEW: Null-safe comparisons — use "literal".equals(variable) not variable.equals("literal") -->
+    <rule ref="category/java/bestpractices.xml/LiteralsFirstInComparisons"/>
     <rule ref="category/java/bestpractices.xml/AvoidReassigningParameters"/>
     <rule ref="category/java/bestpractices.xml/ConstantsInInterface"/>
     <rule ref="category/java/bestpractices.xml/DefaultLabelNotLastInSwitchStmt"/>
@@ -178,6 +180,10 @@
     <rule ref="category/java/performance.xml/TooFewBranchesForASwitchStatement"/>
 
     <!-- Multithreading and Concurrency -->
+    <!-- NEW: Enforce ConcurrentHashMap over HashMap in concurrent code -->
+    <rule ref="category/java/multithreading.xml/UseConcurrentHashMap"/>
+    <!-- NEW: Prevent thread-unsafe static formatters (SimpleDateFormat, etc.) -->
+    <rule ref="category/java/multithreading.xml/UnsynchronizedStaticFormatter"/>
     <rule ref="category/java/multithreading.xml/AvoidThreadGroup"/>
     <rule ref="category/java/multithreading.xml/DontCallThreadRun"/>
     <rule ref="category/java/multithreading.xml/DoubleCheckedLocking"/>

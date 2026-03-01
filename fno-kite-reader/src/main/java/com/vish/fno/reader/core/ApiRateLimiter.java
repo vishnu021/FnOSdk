@@ -13,7 +13,7 @@ class ApiRateLimiter {
 
     private static final long LOCK_WAIT_LOG_THRESHOLD_MS = 100;
 
-    static long lockTimeoutSeconds = 12;
+    static volatile long lockTimeoutSeconds = 12;
 
     private final ReentrantLock apiLock = new ReentrantLock(true);
 

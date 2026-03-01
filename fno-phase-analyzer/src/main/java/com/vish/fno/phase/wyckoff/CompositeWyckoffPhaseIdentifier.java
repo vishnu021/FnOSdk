@@ -5,10 +5,10 @@ import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.model.wyckoff.WyckoffPhase;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Composite Wyckoff phase identifier that combines multiple identification strategies.
@@ -17,7 +17,7 @@ import java.util.Map;
 public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier {
     
     private final IWyckoffPhaseIdentifier[] identifiers;
-    private final Map<WyckoffPhase, Double> phaseConfidenceCache = new HashMap<>();
+    private final Map<WyckoffPhase, Double> phaseConfidenceCache = new ConcurrentHashMap<>();
     
     public CompositeWyckoffPhaseIdentifier(IWyckoffPhaseIdentifier... identifiers) {
         if (identifiers == null || identifiers.length == 0) {
@@ -36,8 +36,8 @@ public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
         phaseConfidenceCache.clear();
         
         // Collect phases and their confidence scores from all identifiers
-        Map<WyckoffPhase, Double> phaseScores = new HashMap<>();
-        Map<WyckoffPhase, Integer> phaseVotes = new HashMap<>();
+        Map<WyckoffPhase, Double> phaseScores = new ConcurrentHashMap<>();
+        Map<WyckoffPhase, Integer> phaseVotes = new ConcurrentHashMap<>();
         
         for (IWyckoffPhaseIdentifier identifier : identifiers) {
             WyckoffPhase phase = identifier.identifyPhase(data, currentIndex);
@@ -49,7 +49,7 @@ public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
         }
         
         // Calculate weighted average confidence for each phase
-        Map<WyckoffPhase, Double> weightedScores = new HashMap<>();
+        Map<WyckoffPhase, Double> weightedScores = new ConcurrentHashMap<>();
         for (Map.Entry<WyckoffPhase, Double> entry : phaseScores.entrySet()) {
             WyckoffPhase phase = entry.getKey();
             double totalConfidence = entry.getValue();
@@ -126,6 +126,7 @@ public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     /**
      * Get detailed analysis from all identifiers
      */
+    @SuppressWarnings("PMD.UseConcurrentHashMap")
     public Map<String, WyckoffPhase> getDetailedAnalysis(List<Candle> data, int currentIndex) {
         Map<String, WyckoffPhase> analysis = new LinkedHashMap<>();
         for (IWyckoffPhaseIdentifier identifier : identifiers) {
@@ -138,6 +139,7 @@ public class CompositeWyckoffPhaseIdentifier implements IWyckoffPhaseIdentifier 
     /**
      * Get confidence scores from all identifiers
      */
+    @SuppressWarnings("PMD.UseConcurrentHashMap")
     public Map<String, Double> getConfidenceScores(List<Candle> data, int currentIndex) {
         Map<String, Double> scores = new LinkedHashMap<>();
         for (IWyckoffPhaseIdentifier identifier : identifiers) {

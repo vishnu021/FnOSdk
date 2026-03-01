@@ -53,7 +53,7 @@ class KiteOrderExecutorTest {
     }
 
     // -----------------------------------------------------------------------
-    // Helper: make session.executeWithLock actually invoke the Supplier
+    // Helpers: make session.execute* actually invoke the Supplier/CheckedSupplier
     // -----------------------------------------------------------------------
     @SuppressWarnings("unchecked")
     private void mockExecuteWithLock() {
@@ -61,6 +61,20 @@ class KiteOrderExecutorTest {
                 .thenAnswer(invocation -> {
                     Supplier<?> supplier = invocation.getArgument(0);
                     return supplier.get();
+                });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mockExecuteWithLockSafe() {
+        when(session.executeWithLockSafe(any(), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    ApiRateLimiter.CheckedSupplier<Object> supplier = invocation.getArgument(0);
+                    Object fallback = invocation.getArgument(2);
+                    try {
+                        return supplier.get();
+                    } catch (KiteException | IOException e) {
+                        return fallback;
+                    }
                 });
     }
 
@@ -256,7 +270,7 @@ class KiteOrderExecutorTest {
     @Test
     void testPlaceOptionOrder_success() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         OrderParams orderParams = new OrderParams();
@@ -280,7 +294,7 @@ class KiteOrderExecutorTest {
     @Test
     void testPlaceOptionOrder_kiteException() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         OrderParams orderParams = new OrderParams();
@@ -300,7 +314,7 @@ class KiteOrderExecutorTest {
     @Test
     void testPlaceOptionOrder_ioException() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         OrderParams orderParams = new OrderParams();
@@ -323,7 +337,7 @@ class KiteOrderExecutorTest {
     @Test
     void testGetOrders_success() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         Order order1 = new Order();
@@ -347,7 +361,7 @@ class KiteOrderExecutorTest {
     @Test
     void testGetOrders_kiteException() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         KiteException kiteException = new KiteException("Unauthorized", 401);
@@ -364,7 +378,7 @@ class KiteOrderExecutorTest {
     @Test
     void testGetOrders_ioException() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         when(mockKiteSdk.getOrders()).thenThrow(new IOException("Read timed out"));
@@ -384,7 +398,7 @@ class KiteOrderExecutorTest {
     @Test
     void testGetPositions_success() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         Position position = new Position();
@@ -411,7 +425,7 @@ class KiteOrderExecutorTest {
     @Test
     void testGetPositions_kiteException() throws Throwable {
         // Arrange
-        mockExecuteWithLock();
+        mockExecuteWithLockSafe();
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
 
         KiteException kiteException = new KiteException("Session expired", 403);

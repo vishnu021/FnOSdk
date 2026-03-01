@@ -8,9 +8,9 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * TickMapper - Converts Kite Tick objects to internal Ticker format.
@@ -90,7 +90,7 @@ public final class TickMapper {
             return null;
         }
 
-        Map<String, List<Ticker.Depth>> result = new HashMap<>(2);
+        Map<String, List<Ticker.Depth>> result = new ConcurrentHashMap<>(2);
         for (Map.Entry<String, ArrayList<Depth>> entry : raw.entrySet()) {
             ArrayList<Depth> sourceList = entry.getValue();
             if (sourceList == null || sourceList.isEmpty()) {

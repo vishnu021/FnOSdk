@@ -29,6 +29,7 @@ public class TimeFrameUtils {
      * @see Candle
      * @see TimeUtils
      */
+    @SuppressWarnings("PMD.UseConcurrentHashMap")
     public static List<Candle> mergeCandle(List<Candle> allCandles, int n) {
         List<Candle> mergedCandles = new ArrayList<>();
 

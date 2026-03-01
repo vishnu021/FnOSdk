@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.vish.fno.model.util.ModelUtils.INDENTED_TAB;
 import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
@@ -25,7 +26,7 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     protected double stopLoss;
     protected final Map<String, String> extraData;
     protected int stopLossRevisionCount;
-    protected final Map<Integer, Double> stopLossRevision = new HashMap<>();
+    protected final Map<Integer, Double> stopLossRevision = new ConcurrentHashMap<>();
     protected boolean isActive;
     protected double realisedProfit;
 

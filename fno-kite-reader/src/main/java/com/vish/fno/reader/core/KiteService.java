@@ -65,7 +65,7 @@ public class KiteService {
     }
 
     public Optional<HistoricalData> getEntireDayHistoricalData(Date fromDate, Date toDate, String symbol, String interval) {
-        return dataProvider.getEntireDayHistoricalData(fromDate, toDate, symbol, interval);
+        return dataProvider.getHistoricalData(fromDate, toDate, symbol, interval);
     }
 
     /**

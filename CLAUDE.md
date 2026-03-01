@@ -9,9 +9,9 @@ FnOSdk development guide for Claude Code. Multi-module Maven SDK for F&O trading
 ## Tech Stack
 
 - **Java 21** (pattern matching switch, records, `.toList()`)
-- **Spring Boot 3.4.1** (parent POM)
+- **Spring Boot 3.5.11** (parent POM)
 - **Lombok** (boilerplate reduction)
-- **PMD 7.4.0** (static analysis, fails build on violations)
+- **PMD 7.21.0** (static analysis, fails build on violations)
 - **Kite Connect 3.3.2** (fno-kite-reader only)
 - **Apache Commons Math3** (fno-technicals only)
 
