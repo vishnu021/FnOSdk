@@ -430,4 +430,24 @@ class TimeUtilsTest {
         executor.shutdown();
         executor.awaitTermination(5, TimeUnit.SECONDS);
     }
+
+    @Test
+    void isSameDay_sameDayDifferentTime_returnsTrue() {
+        Calendar cal = Calendar.getInstance();
+        cal.set(2026, Calendar.MARCH, 1, 9, 15, 0);
+        Date date1 = cal.getTime();
+        cal.set(2026, Calendar.MARCH, 1, 15, 30, 0);
+        Date date2 = cal.getTime();
+        assertTrue(TimeUtils.isSameDay(date1, date2));
+    }
+
+    @Test
+    void isSameDay_differentDay_returnsFalse() {
+        Calendar cal = Calendar.getInstance();
+        cal.set(2026, Calendar.MARCH, 1, 9, 15, 0);
+        Date date1 = cal.getTime();
+        cal.set(2026, Calendar.MARCH, 2, 9, 15, 0);
+        Date date2 = cal.getTime();
+        assertFalse(TimeUtils.isSameDay(date1, date2));
+    }
 }

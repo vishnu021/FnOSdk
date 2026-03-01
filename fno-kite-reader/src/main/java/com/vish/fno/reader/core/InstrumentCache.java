@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -28,7 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
-import static com.vish.fno.util.time.TimeUtils.getLocalDateFromDate;
+import static com.vish.fno.util.time.TimeUtils.isSameDay;
 
 /**
  * Cache for Kite instruments, focusing on Nifty 100 stocks and indices.
@@ -61,29 +60,27 @@ class InstrumentCache {
     }
 
     /**
-     * Gets filtered instruments with thread-safe lazy initialization.
-     * Uses double-checked locking to minimize synchronization overhead.
-     *
-     * @return unmodifiable list of instruments
+     * Ensures the instrument cache is populated. Thread-safe: only one thread
+     * will call initializeInstruments(); all others wait at initLock.
+     * Uses double-checked locking — volatile cache provides the happens-before guarantee.
      */
-    public List<Instrument> getInstruments() {
-        CacheData data = cache;
-        if (data != null) {
-            return Collections.unmodifiableList(data.filteredInstruments());
+    private void ensureInitialized() {
+        if (cache != null) {
+            return;
         }
-
         initLock.lock();
         try {
-            data = cache;
-            if (data != null) {
-                return Collections.unmodifiableList(data.filteredInstruments());
+            if (cache == null) {
+                initializeInstruments();
             }
-
-            initializeInstruments();
-            return Collections.unmodifiableList(cache.filteredInstruments());
         } finally {
             initLock.unlock();
         }
+    }
+
+    public List<Instrument> getInstruments() {
+        ensureInitialized();
+        return Collections.unmodifiableList(cache.filteredInstruments());
     }
 
     /**
@@ -123,7 +120,7 @@ class InstrumentCache {
 
     /**
      * Initializes instrument cache by fetching from Kite API and filtering.
-     * Should only be called from synchronized block in getInstruments().
+     * Must only be called while holding {@code initLock} inside {@link #ensureInitialized()}.
      */
     private void initializeInstruments() {
         // Fetch all instruments (network I/O) via KiteSession
@@ -138,6 +135,9 @@ class InstrumentCache {
             }
         }, "getAllInstruments");
 
+        if (allInstruments == null) {
+            throw new IllegalStateException("Instrument cache initialization failed — check prior error logs");
+        }
         InstrumentFileUtils.saveInstrumentCache(allInstruments);
 
         List<Instrument> filtered = filterInstruments(allInstruments);
@@ -176,11 +176,10 @@ class InstrumentCache {
     }
 
     public Optional<Long> getInstrument(String symbol) {
-        getInstruments();  // Ensure initialized
         if (symbol == null) {
             return Optional.empty();
         }
-
+        ensureInitialized();
         SymbolInfo info = cache.symbolInfoMap().get(symbol.toUpperCase(Locale.ENGLISH));
         return info != null ? Optional.of(info.token()) : Optional.empty();
     }
@@ -193,10 +192,10 @@ class InstrumentCache {
      * @return the exchange string (e.g., "NFO" or "BFO")
      */
     public String getExchangeForSymbol(String symbol) {
-        getInstruments();  // Ensure initialized
         if (symbol == null) {
             return Exchange.NFO.getCode();
         }
+        ensureInitialized();
         SymbolInfo info = cache.symbolInfoMap().get(symbol.toUpperCase(Locale.ENGLISH));
         if (info == null) {
             log.warn("Exchange not found for symbol: {}, defaulting to NFO", symbol);
@@ -206,7 +205,7 @@ class InstrumentCache {
     }
 
     public String getSymbol(long instrument) {
-        getInstruments();  // Ensure initialized
+        ensureInitialized();
         return cache.tokenToSymbolMap().get(instrument);
     }
 
@@ -219,6 +218,7 @@ class InstrumentCache {
     /**
      * Get the size of the instrument map (token to symbol mapping).
      * Useful for diagnostics to verify instrument cache is populated.
+     * Does not trigger initialization — returns 0 if called before cache is loaded.
      *
      * @return size of instrument map, 0 if not initialized
      */
@@ -411,9 +411,4 @@ class InstrumentCache {
         log.info("Filtered instrument expiry dates: {}", expiryDates);
     }
 
-    private boolean isSameDay(Date date1, Date date2) {
-        final LocalDate localDate1 = getLocalDateFromDate(date1);
-        final LocalDate localDate2 = getLocalDateFromDate(date2);
-        return localDate1.equals(localDate2);
-    }
 }

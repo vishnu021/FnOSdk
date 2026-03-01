@@ -438,4 +438,8 @@ public final class TimeUtils {
     public static LocalDate getLocalDateFromDate(Date date) {
         return date.toInstant().atZone(IST_ZONE).toLocalDate();
     }
+
+    public static boolean isSameDay(Date date1, Date date2) {
+        return getLocalDateFromDate(date1).equals(getLocalDateFromDate(date2));
+    }
 }
