@@ -20,7 +20,7 @@ public final class OrderManagerUtils {
         if(timestampIndex > INTRADAY_EXIT_POSITION_TIME_INDEX) {
             final int quantityToSell = order.getBuyQuantity() - order.getSoldQuantity();
             log.info("Exit time reached, selling available {} quantity for symbol: {}, for order : {}",
-                    quantityToSell, order.getIndex(), order);
+                    quantityToSell, order.getOrderRequest().getIndex(), order);
             return new OrderSellDetailModel(true, quantityToSell, OrderSellReason.EXPIRY_TIME_REACHED, order);
         }
 
@@ -32,7 +32,7 @@ public final class OrderManagerUtils {
             if(elapsed > maxHoldDuration) {
                 final int quantityToSell = order.getBuyQuantity() - order.getSoldQuantity();
                 log.info("Max hold duration ({} min) reached after {} min, selling {} quantity for: {}",
-                        maxHoldDuration, elapsed, quantityToSell, order.getTag());
+                        maxHoldDuration, elapsed, quantityToSell, order.getOrderRequest().getTag());
                 return new OrderSellDetailModel(true, quantityToSell,
                         OrderSellReason.MAX_HOLD_DURATION_REACHED, order);
             }

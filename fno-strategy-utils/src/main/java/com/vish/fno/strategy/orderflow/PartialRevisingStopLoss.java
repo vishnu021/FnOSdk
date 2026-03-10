@@ -52,7 +52,7 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     // TODO: getting revised on every tick
     private void reviseStopLoss(ActiveOrder order, double ltp) {
         boolean isCallOrder = order.isCallOrder();
-        String index = order.getIndex();
+        String index = order.getOrderRequest().getIndex();
         List<Candle> candles = candleStore.updateAndGetMinuteData(index);
         List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
         Candle lastCandle = heikinAshiCandles.get(heikinAshiCandles.size() - 1);

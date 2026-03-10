@@ -96,8 +96,9 @@ class OrderCacheTest {
     @Test
     void testAppendActiveOrder() {
         // Arrange
-        when(mockActiveOrder.getTag()).thenReturn("TAG1");
-        when(mockActiveOrder.getIndex()).thenReturn("NIFTY");
+        when(mockActiveOrder.getOrderRequest()).thenReturn(mockOrderRequest);
+        when(mockOrderRequest.getTag()).thenReturn("TAG1");
+        when(mockOrderRequest.getIndex()).thenReturn("NIFTY");
 
         // Act
         orderCache.appendActiveOrder(mockActiveOrder);
@@ -110,8 +111,9 @@ class OrderCacheTest {
     @Test
     void testRemoveActiveOrder() {
         // Arrange
-        when(mockActiveOrder.getTag()).thenReturn("TAG1");
-        when(mockActiveOrder.getIndex()).thenReturn("NIFTY");
+        when(mockActiveOrder.getOrderRequest()).thenReturn(mockOrderRequest);
+        when(mockOrderRequest.getTag()).thenReturn("TAG1");
+        when(mockOrderRequest.getIndex()).thenReturn("NIFTY");
         orderCache.appendActiveOrder(mockActiveOrder);
 
         // Act

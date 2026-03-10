@@ -1,5 +1,6 @@
 package com.vish.fno.model.order.activeorder;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
 import lombok.Getter;
 
@@ -24,6 +25,7 @@ public final class OptionBasedActiveOrder extends AbstractActiveOrder {
         }
     }
 
+    @JsonIgnore
     @Override
     public double getProfit() {
         return (getSellPrice() - getBuyPrice()) * this.getBuyQuantity();
@@ -39,7 +41,7 @@ public final class OptionBasedActiveOrder extends AbstractActiveOrder {
 
     @Override
     public String getTradingSymbol() {
-        return this.getIndex();
+        return orderRequest.getIndex();
     }
 
     @Override

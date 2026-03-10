@@ -18,5 +18,9 @@ public interface OrderRequest {
     Date getDate();
     OrderMetadata getOrderMetadata();
     Optional<OrderRequest> verifyBuyThreshold(Ticker tick);
+
+    default boolean isCallOrder() {
+        return true;
+    }
 }
 

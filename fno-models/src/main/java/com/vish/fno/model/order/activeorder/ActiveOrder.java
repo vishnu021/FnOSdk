@@ -8,8 +8,6 @@ public interface ActiveOrder {
 
     // --- Identity ---
     OrderRequest getOrderRequest();
-    String getTag();
-    String getIndex();
     String getTradingSymbol();
 
     // --- Entry state ---
@@ -20,21 +18,20 @@ public interface ActiveOrder {
 
     /**
      * Sets the option buy price for this order.
-     * For index/tick orders, delegates to the subtype's buyOptionPrice field.
+     * For index/tick orders, sets the optionBuyPrice field.
      * For option-based orders, this is a no-op (buyPrice IS the option price).
      */
     void setOptionBuyPrice(double price);
 
     /**
      * Returns the option buy price for this order.
-     * For index/tick orders, returns the separate buyOptionPrice field.
+     * For index/tick orders, returns the optionBuyPrice field.
      * For option-based orders, returns buyPrice (the option price itself).
      */
     double getOptionBuyPrice();
 
 
     // --- Risk management ---
-    double getTarget();
     double getStopLoss();
     void setStopLoss(double stopLoss);
 

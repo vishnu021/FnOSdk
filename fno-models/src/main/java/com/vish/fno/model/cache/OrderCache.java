@@ -91,10 +91,10 @@ public class OrderCache {
 
     public void removeActiveOrder(ActiveOrder order) {
         activeOrders.remove(order);
-        removeFromIndex(activeOrdersBySymbol, order.getIndex(), order);
-        activeOrderKeys.remove(activeOrderKey(order.getTag(), order.getIndex()));
+        removeFromIndex(activeOrdersBySymbol, order.getOrderRequest().getIndex(), order);
+        activeOrderKeys.remove(activeOrderKey(order.getOrderRequest().getTag(), order.getOrderRequest().getIndex()));
         completedOrders.add(order);
-        log.debug("Order completed and moved to completedOrders: {}", order.getTag());
+        log.debug("Order completed and moved to completedOrders: {}", order.getOrderRequest().getTag());
     }
 
     public List<ActiveOrder> getActiveOrderForSymbol(String symbol) {
@@ -129,8 +129,8 @@ public class OrderCache {
 
     public void appendActiveOrder(ActiveOrder activeOrder) {
         this.activeOrders.add(activeOrder);
-        addToIndex(activeOrdersBySymbol, activeOrder.getIndex(), activeOrder);
-        activeOrderKeys.add(activeOrderKey(activeOrder.getTag(), activeOrder.getIndex()));
+        addToIndex(activeOrdersBySymbol, activeOrder.getOrderRequest().getIndex(), activeOrder);
+        activeOrderKeys.add(activeOrderKey(activeOrder.getOrderRequest().getTag(), activeOrder.getOrderRequest().getIndex()));
     }
 
     private <T> void addToIndex(Map<String, List<T>> index, String key, T value) {

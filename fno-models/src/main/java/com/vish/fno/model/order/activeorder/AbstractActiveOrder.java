@@ -22,12 +22,10 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     protected int buyQuantity;
     protected int soldQuantity;
     protected double sellPrice;
-    protected double target;
     protected double stopLoss;
     protected final Map<String, String> extraData;
     protected int stopLossRevisionCount;
     protected final Map<Integer, Double> stopLossRevision = new ConcurrentHashMap<>();
-    protected boolean isActive;
     protected double realisedProfit;
 
     protected AbstractActiveOrder(OrderRequest orderRequest,
@@ -40,24 +38,11 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
         this.buyPrice = buyPrice;
         this.buyQuantity = buyQuantity;
         this.soldQuantity = 0;
-        this.target = orderRequest.getTarget();
         this.stopLoss = orderRequest.getStopLoss();
         this.extraData = new HashMap<>();
         this.stopLossRevisionCount = 0;
-        this.isActive = true;
         this.realisedProfit = 0;
         this.extraData.put("entryDateTime", entryTimestamp);
-    }
-
-    // Delegated to OrderRequest — single source of truth for immutable order metadata
-    @Override
-    public String getTag() {
-        return orderRequest.getTag();
-    }
-
-    @Override
-    public String getIndex() {
-        return orderRequest.getIndex();
     }
 
     protected void updateStopLoss(double stopLoss) {
@@ -77,10 +62,10 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
 
     @Override
     public void closeOrder(double closePrice, int timeIndex, String timestamp) {
-        this.isActive = false;
         this.exitTimeStamp = timeIndex;
         this.sellPrice = closePrice;
         this.extraData.put("exitDateTime", timestamp);
+        this.extraData.put("profit", String.valueOf(roundTo5Paise(getProfit())));
     }
 
     @Override
@@ -107,11 +92,11 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
         final StringBuilder sb = new StringBuilder(128);
         sb.append(INDENTED_TAB)
                 .append(getClass().getSimpleName()).append("{")
-                .append("index=").append(getIndex())
-                .append(", tag=").append(getTag());
+                .append("index=").append(orderRequest.getIndex())
+                .append(", tag=").append(orderRequest.getTag());
         appendToStringFields(sb);
         sb.append(", buyPrice=").append(buyPrice)
-                .append(", target=").append(roundTo5Paise(target))
+                .append(", target=").append(roundTo5Paise(orderRequest.getTarget()))
                 .append(", stopLoss=").append(roundTo5Paise(stopLoss))
                 .append(", buyQ=").append(buyQuantity)
                 .append(", soldQ=").append(soldQuantity);

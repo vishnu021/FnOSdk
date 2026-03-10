@@ -186,8 +186,8 @@ public final class FileUtils implements FnoConstants {
             createDirectoryIfNotExist(ORDER_LOG_FOLDER);
             String fileName = String.format("%s/%s-%s-%s-%d.json",
                     ORDER_LOG_FOLDER,
-                    order.getTag(),
-                    order.getIndex(),
+                    order.getOrderRequest().getTag(),
+                    order.getOrderRequest().getIndex(),
                     TimeUtils.getStringDate(order.getOrderRequest().getDate()),
                     (System.currentTimeMillis() % 100_000));
             try (FileWriter fileWriter = new FileWriter(fileName, true);
@@ -295,23 +295,23 @@ public final class FileUtils implements FnoConstants {
      */
     public static String toCSV(ActiveOrder order) {
         final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
-        sb.append(order.getIndex())
+        sb.append(order.getOrderRequest().getIndex())
                 .append(',').append(' ').append(getStringDate(order.getOrderRequest().getDate()))
                 .append(' ').append(order.getEntryTimeStamp())
                 .append(',').append(' ').append(getStringDate(order.getOrderRequest().getDate()))
                 .append(' ').append(order.getExitTimeStamp())
                 .append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getBuyThreshold()))
                 .append(',').append(' ').append(roundTo5Paise(order.getBuyPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getTarget()))
+                .append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getTarget()))
                 .append(',').append(' ').append(roundTo5Paise(order.getSellPrice()))
                 .append(',').append(' ').append(roundTo5Paise(order.getStopLoss()))
                 .append(',').append(' ').append(roundTo5Paise(order.getProfit()))
                 .append(',').append(' ').append(roundTo5Paise(order.getBuyQuantity()));
 
         if (order.isCallOrder()) {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getTarget() - order.getOrderRequest().getBuyThreshold()));
+            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getTarget() - order.getOrderRequest().getBuyThreshold()));
         } else {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getBuyThreshold() - order.getTarget()));
+            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getBuyThreshold() - order.getOrderRequest().getTarget()));
         }
         sb.append(',').append(' ').append(order.isCallOrder());
         if (order.getExtraData() != null) {
@@ -332,12 +332,12 @@ public final class FileUtils implements FnoConstants {
     public static String orderLog(ActiveOrder order) {
         final StringBuilder sb = new StringBuilder(ESTIMATED_BUFFER_SIZE);
         sb.append("OrderLog{")
-                .append("index='").append(order.getIndex()).append("'")
-                .append(",\ttag=").append(order.getTag())
+                .append("index='").append(order.getOrderRequest().getIndex()).append("'")
+                .append(",\ttag=").append(order.getOrderRequest().getTag())
                 .append(",\tentry=").append(getStringDateTime(order.getOrderRequest().getDate()))
                 .append(",\texit=").append(order.getExitTimeStamp())
                 .append(",\tbuy=").append(roundTo5Paise(order.getBuyPrice()))
-                .append(",\ttarget=").append(roundTo5Paise(order.getTarget()))
+                .append(",\ttarget=").append(roundTo5Paise(order.getOrderRequest().getTarget()))
                 .append(",\tsell=").append(roundTo5Paise(order.getSellPrice()))
                 .append(",\tcall=").append(order.isCallOrder());
 

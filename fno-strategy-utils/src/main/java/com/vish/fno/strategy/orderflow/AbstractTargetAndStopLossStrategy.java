@@ -21,7 +21,7 @@ public abstract class AbstractTargetAndStopLossStrategy implements TargetAndStop
      * @return true if target is achieved, false otherwise
      */
     protected boolean checkTargetAchieved(ActiveOrder order, double ltp) {
-        final double target = order.getTarget();
+        final double target = order.getOrderRequest().getTarget();
         final boolean isCallOrder = order.isCallOrder();
 
         if (isCallOrder) {
