@@ -106,6 +106,7 @@ import com.vish.fno.model.PositionType;
 | `getDate()` | `Date` | Order date |
 | `getOrderMetadata()` | `OrderMetadata` | Strategy-specific metadata (maxHoldDuration, subSignal) |
 | `verifyBuyThreshold(Ticker)` | `Optional<OrderRequest>` | Returns order if threshold crossed |
+| `isCallOrder()` | `boolean` | Default returns `true`; override for put orders |
 
 ### OrderMetadata
 
@@ -148,8 +149,6 @@ Organized into semantic groups:
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `getOrderRequest()` | `OrderRequest` | Source order request (single source of truth for immutable metadata) |
-| `getTag()` | `String` | Delegated to `OrderRequest.getTag()` |
-| `getIndex()` | `String` | Delegated to `OrderRequest.getIndex()` |
 | `getTradingSymbol()` | `String` | Trading symbol |
 
 **Entry state:**
@@ -167,8 +166,8 @@ Organized into semantic groups:
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getTarget()` / `getStopLoss()` | `double` | Price levels (initialized from OrderRequest) |
-| `setStopLoss(double)` | `void` | Updates stop loss (trailing logic) |
+| `getStopLoss()` | `double` | Current stop-loss price (initialized from OrderRequest, updated by trailing logic) |
+| `setStopLoss(double)` | `void` | Updates stop loss (trailing only in beneficial direction) |
 
 **Exit / sell state:**
 
@@ -179,14 +178,15 @@ Organized into semantic groups:
 | `getExitTimeStamp()` | `int` | Exit minute index |
 | `getSoldQuantity()` | `int` | Quantity sold so far |
 | `incrementSoldQuantity(int, double)` | `void` | Tracks partial exits |
-| `closeOrder(double, int, String)` | `void` | Closes the order (sets sellPrice, exitTimeStamp, isActive=false) |
+| `closeOrder(double, int, String)` | `void` | Closes the order (sets sellPrice, exitTimeStamp, adds exitDateTime + profit to extraData) |
 
 **Computed:**
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getProfit()` / `getRealisedProfit()` | `double` | Unrealised and realised P&L |
-| `isCallOrder()` | `boolean` | Abstract; each subclass declares direction (`OptionBasedActiveOrder` always returns `true`) |
+| `getProfit()` | `double` | Unrealised P&L |
+| `getRealisedProfit()` | `double` | Realised P&L (tracks partial exits) |
+| `isCallOrder()` | `boolean` | Call (true) or put (false); abstract -- each subclass declares direction (`OptionBasedActiveOrder` always returns `true`) |
 
 **Runtime diagnostics:**
 
@@ -195,13 +195,13 @@ Organized into semantic groups:
 | `getExtraData()` | `Map<String, String>` | Read-only extra data (unmodifiable) |
 | `appendExtraData(String, String)` | `void` | Add key-value to extra data |
 
-**Note:** Immutable order metadata (`date`, `buyThreshold`, `tag`, `index`, `task`) is now accessed via `getOrderRequest()` — the `ActiveOrder` no longer duplicates these fields. Setters for `sellPrice`, `exitTimeStamp`, and `active` have been removed from the interface; `closeOrder()` is the single entry point for exit state changes.
+**Note:** Immutable order metadata (`date`, `buyThreshold`, `tag`, `index`, `target`, `task`) is accessed via `getOrderRequest()` -- the `ActiveOrder` interface no longer exposes `getTag()`, `getIndex()`, or `getTarget()`. Callers must use `order.getOrderRequest().getTag()`, `.getIndex()`, `.getTarget()`. Setters for `sellPrice`, `exitTimeStamp`, and `active` have been removed from the interface; `closeOrder()` is the single entry point for exit state changes. `isCallOrder()` is now abstract (was default returning `true`).
 
 ### AbstractActiveOrder
 
-Base class storing a reference to the source `OrderRequest` plus mutable execution state: `entryTimeStamp`, `exitTimeStamp`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `target`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`, `isActive`, `realisedProfit`.
+Base class storing a reference to the source `OrderRequest` plus mutable execution state: `entryTimeStamp`, `exitTimeStamp`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`, `realisedProfit`.
 
-`getTag()` and `getIndex()` delegate to `orderRequest` — single source of truth for immutable order identity.
+Immutable order identity (`tag`, `index`, `target`, `date`, `task`) is accessed exclusively via `getOrderRequest()`.
 
 `getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries. On construction, `entryDateTime` is automatically added; subclasses copy `subSignal` from `OrderMetadata` if present.
 
@@ -243,9 +243,13 @@ Constructor `new OrderSellDetailModel(false)` creates "don't sell" instance.
 ### ExitDetail
 
 ```java
-public record ExitDetail(Integer quantity, Double sellPrice, Double sellOptionPrice)
+public record ExitDetail(Integer quantity, Double sellPrice, Double sellOptionPrice, OrderSellReason exitReason)
 ```
-Factory methods: `ExitDetail.forRegularOrder(qty, price)`, `ExitDetail.forIndexOrder(qty, indexPrice, optionPrice)`
+Factory methods:
+- `ExitDetail.forRegularOrder(qty, price, exitReason)` -- creates with `sellOptionPrice=null`
+- `ExitDetail.forIndexOrder(qty, sellPrice, sellOptionPrice, exitReason)` -- creates with all fields
+
+Uses `@JsonInclude(NON_NULL)` to omit null `sellOptionPrice` from JSON.
 
 ### OrderSellReason Enum
 
@@ -283,17 +287,17 @@ Thread-safe cache for order requests, active orders, and completed orders with c
 ```java
 OrderCache cache = new OrderCache(100000.0);
 cache.addOrderRequest(request);
-cache.deductCash(orderCost);  // Synchronized
-cache.addCash(sellValue);     // Synchronized
-double cash = cache.getAvailableCash();  // Volatile read
+cache.deductCash(orderCost);  // ReentrantLock (VT-safe)
+cache.addCash(sellValue);     // ReentrantLock (VT-safe)
+double cash = cache.getAvailableCash();  // ReentrantLock (VT-safe)
 List<ActiveOrder> completed = cache.getCompletedOrders();  // Orders moved from active on removal
 ```
 
 | Method | Thread-Safe | Description |
 |--------|-------------|-------------|
-| `getAvailableCash()` | ✅ Volatile | Read cash balance |
-| `deductCash(double)` | ✅ Synchronized | Atomic deduction |
-| `addCash(double)` | ✅ Synchronized | Atomic addition |
+| `getAvailableCash()` | ✅ ReentrantLock | Read cash balance |
+| `deductCash(double)` | ✅ ReentrantLock | Atomic deduction |
+| `addCash(double)` | ✅ ReentrantLock | Atomic addition |
 | `checkEntryInOpenOrders(Ticker, String)` | ✅ | O(1) symbol index lookup, check trigger conditions |
 | `isNotInActiveOrders(OrderRequest)` | ✅ | O(1) check via `activeOrderKeys` composite key set (tag + index) |
 | `addOrderRequest(OrderRequest)` | ✅ | Add (removes duplicates, updates symbol index) |
@@ -433,7 +437,10 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 ## Edge Cases
 
 - **OrderRequest tag**: Null becomes empty string
+- **ActiveOrder identity**: `getTag()`, `getIndex()`, `getTarget()` removed from interface; use `getOrderRequest().getTag()`, `.getIndex()`, `.getTarget()`
 - **ActiveOrder stop loss**: Trailing only in beneficial direction
+- **ActiveOrder isCallOrder()**: Abstract method; was default returning `true` -- all subclasses must implement
+- **ExitDetail**: `exitReason` field added (was 3-field record, now 4-field with `OrderSellReason`)
 - **OrderCache**: `addOrderRequest()` removes duplicates first, rebuilds symbol index entry
 - **OrderCache**: `removeActiveOrder()` removes from active list + symbol index, then moves to completed
 - **OrderCache**: Symbol indices (`orderRequestsBySymbol`, `activeOrdersBySymbol`) and `activeOrderKeys` set are updated on every mutation

@@ -314,20 +314,19 @@ IWyckoffPhaseIdentifier identifier = factory.getIdentifier(type);
 
 ## Thread Safety
 
-Identifier implementations are **NOT thread-safe**. Options:
+| Component | Thread-Safe | Notes |
+|-----------|-------------|-------|
+| WyckoffPhaseService | ✅ | `volatile` phaseIdentifier/identifierType; handles concurrent access internally |
+| StructureSwingWyckoffPhaseIdentifier | ✅ | `ReentrantLock` (swingStateLock) protects `identifyPhase()`/`getPhaseConfidence()`/`reset()` -- mutable swing state shared across these three methods |
+| CompositeWyckoffPhaseIdentifier | ✅ | `ConcurrentHashMap` for phaseConfidenceCache, phaseScores, phaseVotes |
+| MarketProfileTPOWyckoffPhaseIdentifier | Partial | Mutable TPO/volume state -- not externally synchronized |
+| Other identifiers | No | Mutable state without synchronization -- use ThreadLocal or external locking |
 
 ```java
-// Option 1: Synchronize
-synchronized (identifier) {
-    WyckoffPhase phase = identifier.identifyPhase(data, index);
-}
-
-// Option 2: ThreadLocal
+// For non-thread-safe identifiers:
 ThreadLocal<IWyckoffPhaseIdentifier> threadLocal =
     ThreadLocal.withInitial(ClassicalWyckoffPhaseIdentifier::new);
 ```
-
-**Note:** WyckoffPhaseService is thread-safe and handles concurrent access internally.
 
 ---
 

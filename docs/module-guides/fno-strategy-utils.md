@@ -135,13 +135,16 @@ public interface TargetAndStopLossStrategy {
 
 ### AbstractTargetAndStopLossStrategy
 
-Base class with call/put logic:
-- **Call:** Target when `ltp > target`, SL when `ltp < stopLoss`
-- **Put:** Target when `ltp < target`, SL when `ltp > stopLoss`
+Base class implementing `TargetAndStopLossStrategy`. Provides shared call/put logic via protected methods:
+- `checkTargetAchieved(order, ltp)` -- Call: `ltp > target`, Put: `ltp < target` (reads `order.getOrderRequest().getTarget()`)
+- `checkStopLossHit(order, ltp)` -- Call: `ltp < stopLoss`, Put: `ltp > stopLoss`
+- `isStopLossHit(order, ltp)` -- Implemented: sells remaining quantity on SL hit
+
+Subclasses override `isTargetAchieved()` and optionally `isStopLossHit()`.
 
 ### FixedTargetAndStopLossStrategy
 
-Exits full position on target/SL hit. No revision.
+Extends `AbstractTargetAndStopLossStrategy`. Exits full position on target/SL hit. No revision.
 
 ```java
 TargetAndStopLossStrategy strategy = new FixedTargetAndStopLossStrategy();
@@ -154,7 +157,7 @@ if (result.sellOrder()) { /* sell */ }
 Partial booking with trailing stop-loss using Heikin-Ashi lows/highs.
 
 ```java
-PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
+PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(candleStore);
 ```
 
 **Partial Booking Logic:**
@@ -167,12 +170,12 @@ PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(dataCache);
 
 ### DualTargetRevisingStoplossStrategy
 
-Planned dual-target strategy where first target acts as stop-loss in reverse direction. **Not yet implemented** - throws `UnsupportedOperationException` if used.
+Extends `AbstractTargetAndStopLossStrategy`. Planned dual-target strategy where first target acts as stop-loss in reverse direction. **Not yet implemented** -- `isTargetAchieved()` throws `UnsupportedOperationException`. Inherits `isStopLossHit()` from base class (functional for call/put logic).
 
 ```java
-// NOT YET IMPLEMENTED - will throw UnsupportedOperationException
+// NOT YET IMPLEMENTED - isTargetAchieved() throws UnsupportedOperationException
+// isStopLossHit() works via inherited AbstractTargetAndStopLossStrategy
 DualTargetRevisingStoplossStrategy strategy = new DualTargetRevisingStoplossStrategy();
-strategy.isTargetAchieved(order, ltp); // throws UnsupportedOperationException
 ```
 
 ### OrderManagerUtils
@@ -202,9 +205,9 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 | Component | Thread-Safe | Notes |
 |-----------|-------------|-------|
 | HATrendUtils, CPRUtils, DataAnalyser | ✅ | Static, stateless |
-| OrderManagerUtils, FixedTargetAndStopLossStrategy | ✅ | Stateless |
-| Point2D, Line | ❌ | Mutable |
-| PartialRevisingStopLoss | ❌ | Modifies order state |
+| OrderManagerUtils, FixedTargetAndStopLossStrategy, DualTargetRevisingStoplossStrategy | ✅ | Stateless |
+| Point2D, Line | No | Mutable |
+| PartialRevisingStopLoss | No | Modifies order state via CandleStore |
 
 ---
 

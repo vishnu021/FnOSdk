@@ -104,7 +104,7 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 
 **Note:** Both methods return `Optional<HistoricalData>`. Returns `Optional.empty()` when KiteService is not initialized, instrument token is not found, or API call fails.
 
-**Continuous mode (`continuous=true`):** When an expired futures symbol (e.g., `NIFTY25AUGFUT`) is not found in the instrument cache, the service automatically resolves it to the current active contract (e.g., `NIFTY25SEPFUT`) by extracting the base name and searching across year/month combinations. Uses pre-compiled regex patterns (`FUTURES_SYMBOL_PATTERN`, `BASE_NAME_PATTERN`) for efficient symbol parsing. All internal resolution methods use `Optional` with `.flatMap()` chains -- no null returns.
+**Continuous mode (`continuous=true`):** When an expired futures symbol (e.g., `NIFTY25AUGFUT`) is not found in the instrument cache, `HistoricalDataProvider` delegates to `InstrumentCache.resolveNearestFutureToken()` which matches the base name against known FUT instruments (longest match wins) and returns the earliest-expiry contract token.
 
 ### Option Symbol Resolution
 
@@ -236,7 +236,7 @@ Thread-safe instrument cache persistence. Uses VT-safe `ObjectMapper` via `JsonU
 
 ### InstrumentCache
 
-Internal (package-private) thread-safe cache with double-checked locking. Takes `KiteSession` (not `KiteService`) for API access. Returns defensive copies and unmodifiable collections. Constructor accepts `List<String>` but stores as `Set<String>` internally for O(1) `contains()` checks in `isInTheTrackingList()`.
+Internal (package-private) thread-safe cache with double-checked locking via `ensureInitialized()`. Takes `KiteSession` (not `KiteService`) for API access. Returns defensive copies and unmodifiable collections. Constructor accepts `List<String>` but stores as `Set<String>` internally for O(1) `contains()` checks in `isInTheTrackingList()`. Lazy initialization is thread-safe: only one thread calls `initializeInstruments()`; others wait on `initLock` (ReentrantLock).
 
 **Internal state (single volatile `CacheData` record):**
 
@@ -248,7 +248,7 @@ All cached data is held in an immutable `CacheData` record, assigned atomically 
 
 The `nifty100Symbols` field is now `Set<String>` (stored as `HashSet`) for O(1) `contains()` in `isInTheTrackingList()`.
 
-Option index data is built lazily via `getEarliestExpiryInstruments()` / `resolveNearestFutureToken()` from `filteredInstruments`.
+Option data is computed on-the-fly via `getEarliestExpiryInstruments()` / `resolveNearestFutureToken()` from `filteredInstruments` (O(n) scans, not on hot paths).
 
 **Public methods:**
 
@@ -268,7 +268,7 @@ Option index data is built lazily via `getEarliestExpiryInstruments()` / `resolv
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
 | `getInstrumentMapSize()` | `int` | Cache size (diagnostics) |
 | `getAllInstruments()` | `List<InstrumentSummary>` | All instruments as InstrumentSummary records |
-| `getEarliestExpiryInstruments(name, type)` | `Optional<List<Instrument>>` | Instruments for nearest expiry (from pre-indexed optionIndex) |
+| `getEarliestExpiryInstruments(name, type)` | `Optional<List<Instrument>>` | Instruments for nearest expiry (O(n) scan, not on hot path) |
 | `resolveNearestFutureToken(String)` | `Optional<Long>` | Resolve expired FUT symbol to nearest active contract token (longest base-name match, earliest expiry) |
 
 #### getExchangeForSymbol
@@ -334,7 +334,7 @@ These are package-private classes, not directly accessible outside `com.vish.fno
 
 ### KiteSession
 
-Manages authentication, KiteConnect SDK instance, and rate-limited API execution.
+Manages authentication, KiteConnect SDK instance, and rate-limited API execution. Centralizes Kite API exception handling via `executeWithLockSafe()` -- callers provide a `CheckedSupplier` and a fallback value; KiteException, IOException, and JSONException are caught, logged with error context, and the fallback is returned.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -344,28 +344,29 @@ Manages authentication, KiteConnect SDK instance, and rate-limited API execution
 | `executeWithLock(Supplier<T>, String)` | `T` | Execute under rate limiter lock |
 | `executeWithLockVoid(Runnable, String)` | `void` | Void variant of executeWithLock |
 | `executeWithLockChecked(CheckedSupplier<T>, String)` | `T` | Checked variant (throws IOException, KiteException) |
+| `executeWithLockSafe(CheckedSupplier<T>, String, T)` | `T` | Safe variant: catches KiteException/IOException/JSONException, logs error, returns fallback value |
 | `getKiteSdk()` | `KiteConnect` | Raw SDK access (package-private) |
 
 ### KiteOrderExecutor
 
-Handles order placement, position/order queries. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`.
+Handles order placement, position/order queries. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`. Exception handling centralized in `KiteSession.executeWithLockSafe()` -- `placeOptionOrder()`, `getOrders()`, and `getPositions()` use safe execution with fallback values (null, `List.of()`, `Map.of()`).
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `buyOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place buy order |
 | `sellOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place sell order |
-| `placeOptionOrder(OrderParams)` | `Order` | Place order with explicit params |
-| `getOrders()` | `List<Order>` | All orders for day |
-| `getPositions()` | `Map<String, List<Position>>` | Net and day positions |
+| `placeOptionOrder(OrderParams)` | `Order` | Place order with explicit params (returns null on failure) |
+| `getOrders()` | `List<Order>` | All orders for day (returns `List.of()` on failure) |
+| `getPositions()` | `Map<String, List<Position>>` | Net and day positions (returns `Map.of()` on failure) |
 | `logExistingOrdersAndPositions(symbol, tag)` | `void` | Debug logging for existing orders |
 
 ### HistoricalDataProvider
 
-Retrieves historical data with continuous contract resolution. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`. Absorbed the former `HistoricalDataService`.
+Retrieves historical data with continuous contract resolution. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`. Uses `executeWithLockChecked` for API calls -- propagates exceptions to caller for retry decisions.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getEntireDayHistoricalData(from, to, symbol, interval)` | `Optional<HistoricalData>` | Intraday candles |
+| `getHistoricalData(from, to, symbol, interval)` | `Optional<HistoricalData>` | Intraday candles (delegates to 5-arg variant with `continuous=false`) |
 | `getHistoricalData(from, to, symbol, interval, continuous)` | `Optional<HistoricalData>` | Historical candles with optional continuous contract resolution |
 
 **Continuous contract resolution:** When `continuous=true` and a symbol is not found (e.g., expired `NIFTY24AUGFUT`), delegates to `InstrumentCache.resolveNearestFutureToken()` which matches the base name against known FUT instruments and returns the earliest-expiry contract token.
@@ -406,17 +407,18 @@ if (result.isEmpty() || !result.get().isOrderPlaced()) {
 | KiteOrderExecutor | ✅ | All operations go through KiteSession's lock |
 | HistoricalDataProvider | ✅ | All operations go through KiteSession's lock |
 | InstrumentCache | ✅ | Double-checked locking with `ReentrantLock` (VT-safe), single volatile `CacheData` record (immutable, atomic assignment), `Set<String>` for nifty100Symbols |
-| KiteWebSocket | ✅ | `ReentrantLock` (VT-safe) for all token mutations, `volatile isConnected` set in connected/disconnected listeners |
+| KiteWebSocket | ✅ | `ReentrantLock` (VT-safe) for all token mutations; `volatile` on `tickerProvider`, `isConnected`, `onTickerArrivalListener`, `onOrderUpdateListener` |
 | OrderUtils | ✅ | Static methods |
 | InstrumentFileUtils | ✅ | Thread-safe IO, `DateTimeFormatter` (immutable) |
 
 ### ApiRateLimiter (Internal)
 
 Package-private class that serializes all Kite API calls through a fair `ReentrantLock` to prevent concurrent API access. Owned by `KiteSession`. Features:
-- 12-second lock acquisition timeout (configurable via `lockTimeoutSeconds`)
+- 12-second lock acquisition timeout (`lockTimeoutSeconds` -- `static volatile` for test hook, cross-thread visibility)
 - Wait time logging when lock contention exceeds `LOCK_WAIT_LOG_THRESHOLD_MS` (100ms)
 - `executeWithLockChecked` variant propagates `IOException`/`KiteException`
 - `executeWithLockVoid` variant for void operations
+- `CheckedSupplier<T>` functional interface for operations that throw `IOException`/`KiteException`
 
 ---
 

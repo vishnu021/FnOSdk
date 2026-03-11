@@ -91,6 +91,7 @@ All methods static and thread-safe. Default timezone: Asia/Kolkata (IST). Tradin
 | `formatDateTime(long)` | `String` | Format epoch to "yyyy-MM-dd HH:mm:ss" |
 | `fromEpochMilli(long)` | `LocalDateTime` | Convert epoch to IST LocalDateTime |
 | `getLocalDateFromDate(Date)` | `LocalDate` | Convert Date to IST LocalDate |
+| `isSameDay(Date, Date)` | `boolean` | Check if two dates are the same calendar day (IST) |
 
 ---
 
@@ -225,7 +226,7 @@ Static, thread-safe. GZIP compression for tick data.
 
 ### FileUtils
 
-Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + `ConcurrentLinkedQueue` for thread-safe buffered writes. Uses `File.separator` for cross-platform paths.
+Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + `ConcurrentLinkedQueue` for thread-safe buffered writes. Uses `File.separator` for cross-platform paths. Instance fields `filePath`, `tickPath`, `bufferLength` are `final` (JMM visibility guarantee after construction).
 
 **Instance Methods:**
 
@@ -256,7 +257,7 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 | `toCSV(ActiveOrder)` | `String` | CSV row using `ActiveOrder` interface methods directly |
 | `orderLog(ActiveOrder)` | `String` | Formatted log string using `ActiveOrder` interface methods directly |
 
-All three methods use the `ActiveOrder` interface directly -- no concrete type imports (`ActiveIndexOrder`, `TickBasedActiveOrder`, `OptionBasedActiveOrder`) and no private per-type format methods. `OptionBasedActiveOrder` CSV/log now includes `call=true/false` consistently with other order types. Dead method `candleFileName` has been removed.
+All three methods use the `ActiveOrder` interface directly -- no concrete type imports. Immutable fields (`tag`, `index`, `target`, `date`) are accessed via `order.getOrderRequest()` (e.g., `order.getOrderRequest().getTag()`). `OptionBasedActiveOrder` CSV/log includes `call=true/false` consistently with other order types.
 
 ---
 
