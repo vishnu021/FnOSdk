@@ -16,6 +16,7 @@ import static com.vish.fno.util.PriceUtils.getTopNLines;
 @RequiredArgsConstructor
 class HistoricalDataProvider {
     private static final int ERROR_STACK_TRACE_LINES = 3;
+    private static final long RETRY_DELAY_MS = 200;
 
     private final KiteSession session;
     private final InstrumentCache instrumentCache;
@@ -35,8 +36,26 @@ class HistoricalDataProvider {
             return Optional.empty();
         }
 
+        String token = instrument.get();
+        Optional<HistoricalData> result = fetchHistoricalData(from, to, token, interval, continuous, symbol);
+        if (result.isPresent()) {
+            return result;
+        }
+
+        // Single retry with backoff for transient failures (e.g., OkHttp response body closed)
         try {
-            String token = instrument.get();
+            Thread.sleep(RETRY_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        }
+        log.info("Retrying historical data request for {} (from: {}, to: {})", symbol, from, to);
+        return fetchHistoricalData(from, to, token, interval, continuous, symbol);
+    }
+
+    private Optional<HistoricalData> fetchHistoricalData(Date from, Date to, String token,
+                                                          String interval, boolean continuous, String symbol) {
+        try {
             log.debug("Collecting data for {} from: {}, to: {}, interval: {}, continuous: {}", token, from, to, interval, continuous);
             HistoricalData data = session.executeWithLockChecked(
                     () -> session.getKiteSdk().getHistoricalData(from, to, token, interval, continuous, true),

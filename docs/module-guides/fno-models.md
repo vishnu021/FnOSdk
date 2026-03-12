@@ -243,13 +243,15 @@ Constructor `new OrderSellDetailModel(false)` creates "don't sell" instance.
 ### ExitDetail
 
 ```java
-public record ExitDetail(Integer quantity, Double sellPrice, Double sellOptionPrice, OrderSellReason exitReason)
+public record ExitDetail(Integer quantity, Double sellPrice, Double sellOptionPrice)
 ```
 Factory methods:
-- `ExitDetail.forRegularOrder(qty, price, exitReason)` -- creates with `sellOptionPrice=null`
-- `ExitDetail.forIndexOrder(qty, sellPrice, sellOptionPrice, exitReason)` -- creates with all fields
+- `ExitDetail.forRegularOrder(qty, price)` -- creates with `sellOptionPrice=null`
+- `ExitDetail.forIndexOrder(qty, sellPrice, sellOptionPrice)` -- creates with all fields
 
 Uses `@JsonInclude(NON_NULL)` to omit null `sellOptionPrice` from JSON.
+
+Exit reason is tracked at the `ActiveOrder` level via `extraData["orderExitReason"]`, not in `ExitDetail`.
 
 ### OrderSellReason Enum
 
@@ -440,7 +442,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 - **ActiveOrder identity**: `getTag()`, `getIndex()`, `getTarget()` removed from interface; use `getOrderRequest().getTag()`, `.getIndex()`, `.getTarget()`
 - **ActiveOrder stop loss**: Trailing only in beneficial direction
 - **ActiveOrder isCallOrder()**: Abstract method; was default returning `true` -- all subclasses must implement
-- **ExitDetail**: `exitReason` field added (was 3-field record, now 4-field with `OrderSellReason`)
+- **ExitDetail**: `exitReason` removed (was 4-field record, now 3-field). Exit reason tracked at `ActiveOrder` level via `extraData["orderExitReason"]`
 - **OrderCache**: `addOrderRequest()` removes duplicates first, rebuilds symbol index entry
 - **OrderCache**: `removeActiveOrder()` removes from active list + symbol index, then moves to completed
 - **OrderCache**: Symbol indices (`orderRequestsBySymbol`, `activeOrdersBySymbol`) and `activeOrderKeys` set are updated on every mutation
