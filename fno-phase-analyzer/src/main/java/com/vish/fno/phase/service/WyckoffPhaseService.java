@@ -8,9 +8,6 @@ import com.vish.fno.phase.factory.WyckoffPhaseIdentifierFactory;
 import com.vish.fno.phase.factory.WyckoffIdentifierType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;

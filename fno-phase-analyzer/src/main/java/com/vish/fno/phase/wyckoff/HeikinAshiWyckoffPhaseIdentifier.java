@@ -10,7 +10,6 @@ import com.vish.fno.util.Trend;
 import com.vish.fno.util.candle.CandleUtils;
 import com.vish.fno.util.candle.HeikinAshi;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**

@@ -1,7 +1,5 @@
 package com.vish.fno.model;
 
-import java.util.Locale;
-
 /**
  * Indian stock exchanges and derivative segments.
  */

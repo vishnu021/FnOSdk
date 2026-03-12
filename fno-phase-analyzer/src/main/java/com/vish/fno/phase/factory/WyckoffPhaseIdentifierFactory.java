@@ -4,9 +4,6 @@ import com.vish.fno.model.wyckoff.IWyckoffPhaseIdentifier;
 import com.vish.fno.phase.wyckoff.CompositeWyckoffPhaseIdentifier;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;

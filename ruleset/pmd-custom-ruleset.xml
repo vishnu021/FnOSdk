@@ -55,6 +55,7 @@
     <rule ref="category/java/codestyle.xml/PrematureDeclaration"/>
 
     <!-- Import and Naming Conventions -->
+    <rule ref="category/java/codestyle.xml/UnnecessaryImport"/>
     <rule ref="category/java/codestyle.xml/TooManyStaticImports"/>
     <rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName"/>
 
