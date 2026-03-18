@@ -67,3 +67,8 @@ spring.log
 *~.nib
 /docs/work-progress
 /docs/obsolete
+/fno-kite-reader/instrument_cache
+
+# Git worktrees
+.worktrees/
+*.md

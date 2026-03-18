@@ -230,18 +230,24 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 
 **Tick I/O Performance Caches (Mar 2026, JFR-profiled):**
 - `WHITESPACE_PATTERN` — pre-compiled `Pattern.compile("\\s")` replacing per-call `String.replaceAll()` (~10M compilations/day eliminated)
+- `DATE_FORMATTER` / `DATE_ZONE` — static `DateTimeFormatter` + `ZoneId` replacing per-call `new SimpleDateFormat()` allocation (thread-safe, zero allocation per call)
 - `createdDirectories` (`ConcurrentHashMap.newKeySet()`) — session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated)
 - `symbolFilePathCache` (`ConcurrentHashMap`) — caches sanitized tick file paths per symbol per date
 - `cachedDateFolder` (`volatile`) — date-change detection; clears `symbolFilePathCache` on new trading day
 - Private `getOrCreateTickFilePath(symbol)` combines all three caches; called by `flushTickBuffer()`
 - Private `createDirectoryOnce(path)` delegates to `createDirectoryIfNotExist()` only on first encounter per path
 
+**JFR Hotspot Fixes (Mar 2026):**
+- `createDirectoryIfNotExist()` — added `Files.exists()` guard before `Files.createDirectories()` to avoid `FileAlreadyExistsException` (~2,325 exceptions/day eliminated)
+- `getIndicatorData()` — replaced `Double.parseDouble()` stream with `mapMulti` + try-catch to gracefully skip malformed lines instead of crashing with `NumberFormatException` (~4,222 exceptions/day eliminated)
+- `getFormattedDate()` — replaced `new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)` with static `DATE_FORMATTER` (eliminates per-call allocation, thread-safe)
+
 **Instance Methods:**
 
 | Method | Description |
 |--------|-------------|
 | `saveCandlestickData(List<Candle>, symbol, date)` | Save to `data/{symbol}_{date}.json` |
-| `createDirectoryIfNotExist(path)` | Create directory |
+| `createDirectoryIfNotExist(path)` | Create directory (guards with `Files.exists()` to avoid `FileAlreadyExistsException`) |
 | `saveTickData(symbol, tick)` | Save tick (overwrite) |
 | `appendTickToFile(symbol, tick)` | Serialize tick and buffer; auto-flushes at 100 ticks or 5s timeout |
 | `appendSerializedTickToFile(symbol, jsonString)` | Buffer pre-serialized JSON tick; supports caller-thread serialization pattern to avoid VT memory pressure |
@@ -449,6 +455,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 - `TimeUtils.parseCandlestickTimestamp()` returns current time on failure
 - `CandleUtils.findLocalMinimum/Maximum()` returns -1 if not found
 - `FileUtils` static methods for file reading throw `RuntimeException` on IO failure
+- `FileUtils.getIndicatorData()` gracefully skips non-numeric lines (logs warning) instead of throwing `NumberFormatException`
 
 ---
 

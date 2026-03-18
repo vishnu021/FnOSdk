@@ -22,17 +22,18 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,6 +58,8 @@ public final class FileUtils implements FnoConstants {
 
     /** Pre-compiled pattern for replacing whitespace in file paths (avoids Pattern.compile per call). */
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s");
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final ZoneId DATE_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final ObjectMapper indentedMapper;
     private final ObjectMapper mapper;
@@ -95,7 +98,10 @@ public final class FileUtils implements FnoConstants {
 
     public void createDirectoryIfNotExist(String path) {
         try {
-            Files.createDirectories(Paths.get(path));
+            Path p = Paths.get(path);
+            if (!Files.exists(p)) {
+                Files.createDirectories(p);
+            }
         } catch (IOException e) {
             log.error("Failed to create directory to path : {}", path, e);
         }
@@ -227,7 +233,7 @@ public final class FileUtils implements FnoConstants {
     }
 
     private String getFormattedDate(Date date) {
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).format(date);
+        return date.toInstant().atZone(DATE_ZONE).toLocalDate().format(DATE_FORMATTER);
     }
 
     public void logCompletedOrder(ActiveOrder order) {
@@ -283,12 +289,20 @@ public final class FileUtils implements FnoConstants {
         return getIndicatorData(fileName);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException") // NumberFormatException from malformed indicator files
     private static List<Double> getIndicatorData(String filePath) {
         try {
             String smaValues = readFile(filePath);
             return Arrays.stream(smaValues.split("\n"))
-                    .filter(s -> !s.isBlank())
-                    .map(Double::parseDouble)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .mapMulti((String s, Consumer<Double> consumer) -> {
+                        try {
+                            consumer.accept(Double.parseDouble(s));
+                        } catch (NumberFormatException e) {
+                            log.warn("Skipping non-numeric indicator value: '{}'", s);
+                        }
+                    })
                     .collect(Collectors.toList());
         } catch (IOException e) {
             throw new RuntimeException(e);
