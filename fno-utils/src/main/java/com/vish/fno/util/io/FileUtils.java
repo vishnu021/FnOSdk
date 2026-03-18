@@ -30,8 +30,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,9 +55,20 @@ public final class FileUtils implements FnoConstants {
      */
     private static final long FLUSH_INTERVAL_MS = 5000;
 
+    /** Pre-compiled pattern for replacing whitespace in file paths (avoids Pattern.compile per call). */
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s");
+
     private final ObjectMapper indentedMapper;
     private final ObjectMapper mapper;
     private final Map<String, Queue<String>> tickBuffer = new ConcurrentHashMap<>();
+
+    /** Cache of directories already created this session. Avoids repeated Files.createDirectories() calls
+     *  that throw FileAlreadyExistsException internally on Windows (~5M exceptions/day in JFR). */
+    private final Set<String> createdDirectories = ConcurrentHashMap.newKeySet();
+
+    /** Cache of sanitized file paths per symbol (avoids re-computing date + regex replace per flush). */
+    private final Map<String, String> symbolFilePathCache = new ConcurrentHashMap<>();
+    private volatile String cachedDateFolder = "";
     private volatile long lastFlushTimeMs = System.currentTimeMillis();
     final String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
     final String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
@@ -158,9 +171,7 @@ public final class FileUtils implements FnoConstants {
             return;
         }
 
-        String folderPath = tickPath + getFormattedDate(new Date());
-        createDirectoryIfNotExist(folderPath);
-        String path = (folderPath + File.separator + symbol + ".txt").replaceAll("\\s", "_");
+        String path = getOrCreateTickFilePath(symbol);
 
         try (FileWriter fw = new FileWriter(path, true);
              BufferedWriter bw = new BufferedWriter(fw);
@@ -170,6 +181,44 @@ public final class FileUtils implements FnoConstants {
             }
         } catch (IOException e) {
             log.warn("Failed to flush {} ticks for {}", ticks.size(), symbol, e);
+        }
+    }
+
+    /**
+     * Returns the sanitized file path for a symbol's tick file, creating the directory once.
+     *
+     * <p>Caches both the directory creation and the full file path per symbol per date.
+     * On date change, the cache is cleared to create new date-based directories.
+     * This avoids two hot-path performance issues identified via JFR profiling (Mar 17, 2026):
+     * <ul>
+     *   <li>{@code Files.createDirectories()} throwing ~5M {@code FileAlreadyExistsException}/day on Windows</li>
+     *   <li>{@code String.replaceAll()} compiling a new {@code Pattern} on every call (~10M/day)</li>
+     * </ul>
+     */
+    private String getOrCreateTickFilePath(String symbol) {
+        String dateFolder = getFormattedDate(new Date());
+
+        // Clear caches on date change (new trading day)
+        if (!dateFolder.equals(cachedDateFolder)) {
+            symbolFilePathCache.clear();
+            cachedDateFolder = dateFolder;
+        }
+
+        return symbolFilePathCache.computeIfAbsent(symbol, s -> {
+            String folderPath = tickPath + dateFolder;
+            createDirectoryOnce(folderPath);
+            return WHITESPACE_PATTERN.matcher(folderPath + File.separator + s + ".txt").replaceAll("_");
+        });
+    }
+
+    /**
+     * Creates a directory only if it hasn't been created in this session.
+     * Avoids repeated {@code Files.createDirectories()} calls that internally throw
+     * {@code FileAlreadyExistsException} for each existing path component on Windows.
+     */
+    private void createDirectoryOnce(String path) {
+        if (createdDirectories.add(path)) {
+            createDirectoryIfNotExist(path);
         }
     }
 

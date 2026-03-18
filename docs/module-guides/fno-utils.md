@@ -228,6 +228,14 @@ Static, thread-safe. GZIP compression for tick data.
 
 Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + `ConcurrentLinkedQueue` for thread-safe buffered writes. Uses `File.separator` for cross-platform paths. Instance fields `filePath`, `tickPath`, `bufferLength` are `final` (JMM visibility guarantee after construction).
 
+**Tick I/O Performance Caches (Mar 2026, JFR-profiled):**
+- `WHITESPACE_PATTERN` — pre-compiled `Pattern.compile("\\s")` replacing per-call `String.replaceAll()` (~10M compilations/day eliminated)
+- `createdDirectories` (`ConcurrentHashMap.newKeySet()`) — session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated)
+- `symbolFilePathCache` (`ConcurrentHashMap`) — caches sanitized tick file paths per symbol per date
+- `cachedDateFolder` (`volatile`) — date-change detection; clears `symbolFilePathCache` on new trading day
+- Private `getOrCreateTickFilePath(symbol)` combines all three caches; called by `flushTickBuffer()`
+- Private `createDirectoryOnce(path)` delegates to `createDirectoryIfNotExist()` only on first encounter per path
+
 **Instance Methods:**
 
 | Method | Description |
@@ -428,7 +436,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
-| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers |
+| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers; `symbolFilePathCache` + `createdDirectories` use ConcurrentHashMap; `cachedDateFolder` is volatile for date-change visibility |
 | HistoricDataCache | ✅ | `ReentrantLock` (VT-safe) guards all access to LRU `LinkedHashMap` |
 | FileUtils (other instance) | ❌ | Instance-based |
 
