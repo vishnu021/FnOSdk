@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
@@ -101,7 +100,7 @@ public final class OptionPriceUtils {
 
     private static Optional<List<Instrument>> getEarliestExpiryInstrument(List<Instrument> instruments, String symbolsName, String instrumentType) {
         final Map<Date, List<Instrument>> indexSymbolsInstruments = instruments.stream()
-                .filter(i -> i.getName().toUpperCase(Locale.ENGLISH).equalsIgnoreCase(symbolsName))
+                .filter(i -> i.getName().equalsIgnoreCase(symbolsName))
                 .filter(instrument -> Exchange.NFO.matches(instrument.exchange) || Exchange.BFO.matches(instrument.exchange))
                 .filter(i -> i.getInstrument_type().equals(instrumentType))
                 .collect(Collectors.groupingBy(Instrument::getExpiry));

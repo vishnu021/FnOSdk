@@ -164,9 +164,11 @@ PartialRevisingStopLoss strategy = new PartialRevisingStopLoss(candleStore);
 - 1-2 lots: Sell all on target
 - 3+ lots: Sell 2/3, trail remaining
 
-**Lots to Sell:** 1→1, 2-3→2, 4-5→3, 6-7→4, 8+→2/3 total
+**Lots to Sell:** 1->1, 2-3->2, 4-5->3, 6-7->4, 8+->2/3 total
 
-**Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high. Uses `ActiveOrder.isCallOrder()` directly (no pattern matching needed — each subclass implements `isCallOrder()`).
+**Stop Loss Revision:** Call orders trail to HA low, Put orders trail to HA high. Uses `ActiveOrder.isCallOrder()` directly (no pattern matching needed -- each subclass implements `isCallOrder()`).
+
+**SL Revision Throttling:** Tracks HA candle count per order via `lastRevisionCandleCount` (`ConcurrentHashMap<String, Integer>`). Key is `tradingSymbol + "-" + entryTimeStamp`. Only revises stop-loss when a new HA candle has formed (candle count changed), preventing redundant per-tick revision within the same candle. Null/empty guards on candle lists return early without revision.
 
 ### DualTargetRevisingStoplossStrategy
 
@@ -207,7 +209,7 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 | HATrendUtils, CPRUtils, DataAnalyser | ✅ | Static, stateless |
 | OrderManagerUtils, FixedTargetAndStopLossStrategy, DualTargetRevisingStoplossStrategy | ✅ | Stateless |
 | Point2D, Line | No | Mutable |
-| PartialRevisingStopLoss | No | Modifies order state via CandleStore |
+| PartialRevisingStopLoss | Partial | `lastRevisionCandleCount` uses ConcurrentHashMap; modifies order state via CandleStore |
 
 ---
 

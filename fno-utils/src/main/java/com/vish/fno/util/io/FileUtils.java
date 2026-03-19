@@ -71,6 +71,10 @@ public final class FileUtils implements FnoConstants {
 
     /** Cache of sanitized file paths per symbol (avoids re-computing date + regex replace per flush). */
     private final Map<String, String> symbolFilePathCache = new ConcurrentHashMap<>();
+
+    /** Reusable writers keyed by file path. Avoids creating new FileWriter/BufferedWriter/PrintWriter
+     *  per flush (~40 writer triplets/sec with 200 symbols). Cleared on date change and shutdown. */
+    private final Map<String, PrintWriter> writerCache = new ConcurrentHashMap<>();
     private volatile String cachedDateFolder = "";
     private volatile long lastFlushTimeMs = System.currentTimeMillis();
     final String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
@@ -162,6 +166,7 @@ public final class FileUtils implements FnoConstants {
         }
     }
 
+    @SuppressWarnings("PMD.CloseResource") // Writer is managed by writerCache; closed via closeAllWriters()
     public void flushTickBuffer(String symbol) {
         Queue<String> queue = tickBuffer.get(symbol);
         if (queue == null || queue.isEmpty()) {
@@ -178,15 +183,41 @@ public final class FileUtils implements FnoConstants {
         }
 
         String path = getOrCreateTickFilePath(symbol);
+        PrintWriter out = getOrCreateWriter(path);
 
-        try (FileWriter fw = new FileWriter(path, true);
-             BufferedWriter bw = new BufferedWriter(fw);
-             PrintWriter out = new PrintWriter(bw)) {
-            for (String tick : ticks) {
-                out.println(tick);
+        if (out == null) {
+            log.warn("Failed to flush {} ticks for {} - no writer available", ticks.size(), symbol);
+            return;
+        }
+
+        for (String tick : ticks) {
+            out.println(tick);
+        }
+        out.flush();
+
+        if (out.checkError()) {
+            log.warn("Writer error for {}, evicting cached writer", symbol);
+            out.close();
+            writerCache.remove(path);
+        }
+    }
+
+    private PrintWriter getOrCreateWriter(String path) {
+        PrintWriter existing = writerCache.get(path);
+        if (existing != null) {
+            return existing;
+        }
+        try {
+            PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(path, true)));
+            PrintWriter previous = writerCache.putIfAbsent(path, writer);
+            if (previous != null) {
+                writer.close();
+                return previous;
             }
+            return writer;
         } catch (IOException e) {
-            log.warn("Failed to flush {} ticks for {}", ticks.size(), symbol, e);
+            log.warn("Failed to open writer for {}", path, e);
+            return null;
         }
     }
 
@@ -207,6 +238,7 @@ public final class FileUtils implements FnoConstants {
         // Clear caches on date change (new trading day)
         if (!dateFolder.equals(cachedDateFolder)) {
             symbolFilePathCache.clear();
+            closeAllWriters();
             cachedDateFolder = dateFolder;
         }
 
@@ -230,6 +262,15 @@ public final class FileUtils implements FnoConstants {
 
     public void flushAllTickBuffers() {
         tickBuffer.keySet().forEach(this::flushTickBuffer);
+    }
+
+    /**
+     * Closes all cached writers. Must be called at application shutdown to ensure
+     * all buffered data is flushed and file handles are released.
+     */
+    public void closeAllWriters() {
+        writerCache.forEach((path, writer) -> writer.close());
+        writerCache.clear();
     }
 
     private String getFormattedDate(Date date) {

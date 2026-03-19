@@ -10,12 +10,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @RequiredArgsConstructor
 public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     private static final int TIMEFRAME = 1;
     private final CandleStore candleStore;
+
+    /** Tracks last HA candle count per order to prevent redundant per-tick SL revision. */
+    private final Map<String, Integer> lastRevisionCandleCount = new ConcurrentHashMap<>();
 
     @Override
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp) {
@@ -49,14 +54,34 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
         return new OrderSellDetailModel(false);
     }
 
-    // TODO: getting revised on every tick
+    /**
+     * Revises the stop-loss based on the latest Heikin-Ashi candle.
+     * Only revises when a new HA candle has formed (candle count changed),
+     * preventing redundant revision on every tick within the same candle.
+     */
     private void reviseStopLoss(ActiveOrder order, double ltp) {
         boolean isCallOrder = order.isCallOrder();
         String index = order.getOrderRequest().getIndex();
         List<Candle> candles = candleStore.updateAndGetMinuteData(index);
-        List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
-        Candle lastCandle = heikinAshiCandles.get(heikinAshiCandles.size() - 1);
+        if (candles == null || candles.isEmpty()) {
+            return;
+        }
 
+        List<Candle> heikinAshiCandles = HeikinAshi.getIntradayCompleteCandle(candles, TIMEFRAME);
+        if (heikinAshiCandles.isEmpty()) {
+            return;
+        }
+
+        // Only revise when a new HA candle has formed (skip redundant per-tick checks)
+        int currentCandleCount = heikinAshiCandles.size();
+        String orderKey = order.getTradingSymbol() + "-" + order.getEntryTimeStamp();
+        Integer lastCount = lastRevisionCandleCount.get(orderKey);
+        if (lastCount != null && lastCount == currentCandleCount) {
+            return; // same candle as last revision — no change possible
+        }
+        lastRevisionCandleCount.put(orderKey, currentCandleCount);
+
+        Candle lastCandle = heikinAshiCandles.get(currentCandleCount - 1);
         double newStopLoss = isCallOrder ? lastCandle.low() : lastCandle.high();
         boolean shouldUpdate = isCallOrder
                 ? newStopLoss > order.getStopLoss()

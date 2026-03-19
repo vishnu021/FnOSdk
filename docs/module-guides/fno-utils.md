@@ -229,12 +229,14 @@ Static, thread-safe. GZIP compression for tick data.
 Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + `ConcurrentLinkedQueue` for thread-safe buffered writes. Uses `File.separator` for cross-platform paths. Instance fields `filePath`, `tickPath`, `bufferLength` are `final` (JMM visibility guarantee after construction).
 
 **Tick I/O Performance Caches (Mar 2026, JFR-profiled):**
-- `WHITESPACE_PATTERN` — pre-compiled `Pattern.compile("\\s")` replacing per-call `String.replaceAll()` (~10M compilations/day eliminated)
-- `DATE_FORMATTER` / `DATE_ZONE` — static `DateTimeFormatter` + `ZoneId` replacing per-call `new SimpleDateFormat()` allocation (thread-safe, zero allocation per call)
-- `createdDirectories` (`ConcurrentHashMap.newKeySet()`) — session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated)
-- `symbolFilePathCache` (`ConcurrentHashMap`) — caches sanitized tick file paths per symbol per date
-- `cachedDateFolder` (`volatile`) — date-change detection; clears `symbolFilePathCache` on new trading day
-- Private `getOrCreateTickFilePath(symbol)` combines all three caches; called by `flushTickBuffer()`
+- `WHITESPACE_PATTERN` -- pre-compiled `Pattern.compile("\\s")` replacing per-call `String.replaceAll()` (~10M compilations/day eliminated)
+- `DATE_FORMATTER` / `DATE_ZONE` -- static `DateTimeFormatter` + `ZoneId` replacing per-call `new SimpleDateFormat()` allocation (thread-safe, zero allocation per call)
+- `createdDirectories` (`ConcurrentHashMap.newKeySet()`) -- session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated)
+- `symbolFilePathCache` (`ConcurrentHashMap`) -- caches sanitized tick file paths per symbol per date
+- `cachedDateFolder` (`volatile`) -- date-change detection; clears `symbolFilePathCache` and `writerCache` on new trading day
+- `writerCache` (`ConcurrentHashMap<String, PrintWriter>`) -- reuses `PrintWriter` instances across tick flushes instead of creating new `FileWriter`/`BufferedWriter`/`PrintWriter` triplets per flush (~40 writer triplets/sec eliminated with 200 symbols). Thread-safe creation via `putIfAbsent`; broken writers detected via `checkError()` and evicted automatically
+- Private `getOrCreateTickFilePath(symbol)` combines directory/path caches; called by `flushTickBuffer()`
+- Private `getOrCreateWriter(path)` returns cached `PrintWriter` or creates new one with `putIfAbsent` for thread safety; on race, losing writer is closed immediately
 - Private `createDirectoryOnce(path)` delegates to `createDirectoryIfNotExist()` only on first encounter per path
 
 **JFR Hotspot Fixes (Mar 2026):**
@@ -251,8 +253,9 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 | `saveTickData(symbol, tick)` | Save tick (overwrite) |
 | `appendTickToFile(symbol, tick)` | Serialize tick and buffer; auto-flushes at 100 ticks or 5s timeout |
 | `appendSerializedTickToFile(symbol, jsonString)` | Buffer pre-serialized JSON tick; supports caller-thread serialization pattern to avoid VT memory pressure |
-| `flushTickBuffer(symbol)` | Flush buffered ticks for a symbol to disk |
+| `flushTickBuffer(symbol)` | Flush buffered ticks for a symbol to disk; annotated `@SuppressWarnings("PMD.CloseResource")` since writer lifecycle is managed by `writerCache` |
 | `flushAllTickBuffers()` | Flush all buffered ticks (call at end of day / shutdown) |
+| `closeAllWriters()` | Close all cached `PrintWriter` instances and clear `writerCache`; must be called at shutdown to flush remaining data and release file handles. Also called internally on date change |
 | `logCompletedOrder(ActiveOrder)` | Log to `orderLog/` directory |
 
 **Static File Reading Methods** (moved from CandleUtils):
@@ -442,7 +445,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
-| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers; `symbolFilePathCache` + `createdDirectories` use ConcurrentHashMap; `cachedDateFolder` is volatile for date-change visibility |
+| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers; `symbolFilePathCache`, `createdDirectories`, `writerCache` use ConcurrentHashMap; `writerCache` creation via `putIfAbsent` (race-safe); `cachedDateFolder` is volatile for date-change visibility |
 | HistoricDataCache | ✅ | `ReentrantLock` (VT-safe) guards all access to LRU `LinkedHashMap` |
 | FileUtils (other instance) | ❌ | Instance-based |
 
