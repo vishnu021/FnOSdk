@@ -1,5 +1,6 @@
 package com.vish.fno.reader.core;
 
+import com.vish.fno.model.order.StrikePolicy;
 import com.vish.fno.reader.model.InstrumentSummary;
 import com.vish.fno.reader.model.KiteOpenOrder;
 import com.vish.fno.reader.util.OptionPriceUtils;
@@ -92,6 +93,19 @@ public class KiteService {
 
     public String getOTMStock(String indexSymbol, double price, boolean isCall) {
         return OptionPriceUtils.getOTMStock(indexSymbol, price, isCall, instrumentCache.getInstruments());
+    }
+
+    /**
+     * Resolve option symbol based on the given strike policy.
+     * For production, maps policy to ITM/OTM/ATM resolution.
+     * BacktestKiteService overrides this with DynamicStrikeResolver.
+     */
+    public String getOptionStock(String indexSymbol, double price, boolean isCall, StrikePolicy policy) {
+        return switch (policy) {
+            case ITM_1, ITM_2 -> getITMStock(indexSymbol, price, isCall);
+            case OTM_1, OTM_2 -> getOTMStock(indexSymbol, price, isCall);
+            case ATM -> getITMStock(indexSymbol, price, isCall);
+        };
     }
 
     public void setOnTickerArrivalListener(OnTicks onTickerArrivalListener) {

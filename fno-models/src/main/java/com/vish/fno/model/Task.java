@@ -1,6 +1,7 @@
 package com.vish.fno.model;
 
 import com.vish.fno.model.order.StopLossType;
+import com.vish.fno.model.order.StrikePolicy;
 
 public interface Task {
     String getIndex();
@@ -24,5 +25,14 @@ public interface Task {
      */
     default StopLossType getStopLossStrategy() {
         return StopLossType.FIXED;
+    }
+
+    /**
+     * Get the strike selection policy for option entry.
+     *
+     * @return strike policy (default: ATM)
+     */
+    default StrikePolicy getStrikePolicy() {
+        return StrikePolicy.ATM;
     }
 }

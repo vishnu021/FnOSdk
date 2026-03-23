@@ -112,6 +112,7 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 |--------|---------|-------------|
 | `getITMStock(index, price, isCall)` | `String` | ITM option symbol |
 | `getOTMStock(index, price, isCall)` | `String` | OTM option symbol |
+| `getOptionStock(index, price, isCall, policy)` | `String` | Option symbol resolved by `StrikePolicy` (ITM/OTM/ATM dispatch) |
 | `appendIndexITMOptions()` | `void` | Add ITM options for default indices |
 | `appendAllOptionsForIndex(String)` | `void` | Subscribe to ALL options for index (100+ symbols) |
 

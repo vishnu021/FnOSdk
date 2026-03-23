@@ -89,6 +89,28 @@ Determines exit strategy behavior for an order.
 
 Used by fno-strategy-utils to dispatch to the correct `TargetAndStopLossStrategy` implementation.
 
+### StrikePolicy
+
+```java
+import com.vish.fno.model.order.StrikePolicy;
+```
+
+Controls how many strike intervals away from ATM the option entry strike is chosen. Formula: `targetStrike = ATM + (isCall ? -1 : +1) * offset * strikeInterval`.
+
+| Constant | Offset | Description |
+|----------|--------|-------------|
+| `OTM_2` | `-2` | 2 strikes out-of-the-money |
+| `OTM_1` | `-1` | 1 strike out-of-the-money |
+| `ATM` | `0` | At-the-money (nearest strike) |
+| `ITM_1` | `1` | 1 strike in-the-money |
+| `ITM_2` | `2` | 2 strikes in-the-money |
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getOffset()` | `int` | Signed offset from ATM |
+
+Used by `Task.getStrikePolicy()` and `KiteService.getOptionStock()` for policy-based strike selection.
+
 ### Shared Enum API
 
 | Method | Returns | Description |
@@ -462,6 +484,8 @@ public record SymbolData(@Id CandleMetaData record, List<Candle> data)
 | `isEnabled()` | `boolean` | Active status |
 | `isExpiryDayOrders()` | `boolean` | Trade on expiry |
 | `getLots()` | `int` | Lot multiplier (default: 1) |
+| `getStopLossStrategy()` | `StopLossType` | Stop-loss type (default: `FIXED`) |
+| `getStrikePolicy()` | `StrikePolicy` | Strike selection policy (default: `ATM`) |
 
 ### Strategy Hierarchy
 
