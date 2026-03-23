@@ -180,6 +180,65 @@ Extends `AbstractTargetAndStopLossStrategy`. Planned dual-target strategy where 
 DualTargetRevisingStoplossStrategy strategy = new DualTargetRevisingStoplossStrategy();
 ```
 
+### DualTargetStopLossStrategy
+
+Extends `AbstractTargetAndStopLossStrategy`. 2-target partial exit strategy operating on `MultiTargetOrder` instances.
+
+**Flow:** T1 hit --> sell group 1, SL revises to T1 price. T2 hit --> sell remaining. SL hit at any point --> sell ALL remaining.
+
+```java
+public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
+```
+
+- Returns no-sell (`new OrderSellDetailModel(false)`) for non-`MultiTargetOrder` instances or when all targets exhausted.
+- On target hit: calls `multiOrder.advanceTarget()` (which revises SL), returns `OrderSellDetailModel(true, qty, TARGET_HIT, order)`.
+- Inherits `isStopLossHit()` from `AbstractTargetAndStopLossStrategy` -- sells ALL remaining quantity on SL breach.
+
+```java
+import com.vish.fno.strategy.orderflow.DualTargetStopLossStrategy;
+
+TargetAndStopLossStrategy strategy = new DualTargetStopLossStrategy();
+OrderSellDetailModel result = strategy.isTargetAchieved(multiTargetOrder, ltp);
+if (result.sellOrder()) { /* partial sell of result.quantity() */ }
+```
+
+### TripleTargetStopLossStrategy
+
+Extends `AbstractTargetAndStopLossStrategy`. 3-target partial exit strategy. Identical core logic to `DualTargetStopLossStrategy` -- the `MultiTargetOrder` interface handles target iteration internally. Exists as a separate `StopLossType` dispatch target.
+
+**Flow:** T1 hit --> sell group 1, SL-->T1. T2 hit --> sell group 2, SL-->T2. T3 hit --> sell group 3. SL hit at any point --> sell ALL remaining.
+
+```java
+public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
+```
+
+Same behavior as `DualTargetStopLossStrategy.isTargetAchieved()`.
+
+### TrailingMultiTargetStopLossStrategy
+
+Extends `AbstractTargetAndStopLossStrategy`. T1/T2 are fixed partial exits; remaining position enters trailing mode with SL revision on new price extremes.
+
+**Flow:** T1 hit --> sell group 1, SL-->T1. T2 hit --> sell group 2, SL-->T2. After all fixed targets: trailing mode -- SL revises toward price on new highs (CE) or new lows (PE). SL hit at any point --> sell ALL remaining.
+
+```java
+public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
+public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
+```
+
+- `isTargetAchieved()`: Same partial-exit logic as `DualTargetStopLossStrategy` while targets remain. After all targets exhausted, updates trailing extreme and revises SL (returns no-sell).
+- `isStopLossHit()`: Overrides base class. On SL breach, sells ALL remaining quantity and cleans up trailing state. Uses `ConcurrentHashMap<String, Double>` for trailing extremes.
+
+**Trailing SL revision:** CE orders: new SL = `extreme - (extreme - currentSL) * 0.5` (moves SL up toward high). PE orders: new SL = `extreme + (currentSL - extreme) * 0.5` (moves SL down toward low).
+
+**Thread safety:** `trailingExtremes` uses `ConcurrentHashMap` with `merge()` for atomic extreme updates. Key format: `tag_index`.
+
+```java
+import com.vish.fno.strategy.orderflow.TrailingMultiTargetStopLossStrategy;
+
+TargetAndStopLossStrategy strategy = new TrailingMultiTargetStopLossStrategy();
+// Fixed targets processed first, then trailing mode kicks in automatically
+```
+
 ### OrderManagerUtils
 
 Static utility for exit conditions.
@@ -208,6 +267,8 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 |-----------|-------------|-------|
 | HATrendUtils, CPRUtils, DataAnalyser | ✅ | Static, stateless |
 | OrderManagerUtils, FixedTargetAndStopLossStrategy, DualTargetRevisingStoplossStrategy | ✅ | Stateless |
+| DualTargetStopLossStrategy, TripleTargetStopLossStrategy | ✅ | Stateless; delegates state to `MultiTargetOrder` |
+| TrailingMultiTargetStopLossStrategy | ✅ | `trailingExtremes` uses `ConcurrentHashMap` with atomic `merge()` |
 | Point2D, Line | No | Mutable |
 | PartialRevisingStopLoss | Partial | `lastRevisionCandleCount` uses ConcurrentHashMap; modifies order state via CandleStore |
 

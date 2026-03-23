@@ -71,6 +71,24 @@ import com.vish.fno.model.PositionType;
 | `PositionType.NET` | `"net"` | Net position |
 | `PositionType.DAY` | `"day"` | Day position |
 
+### StopLossType
+
+```java
+import com.vish.fno.model.order.StopLossType;
+```
+
+Determines exit strategy behavior for an order.
+
+| Constant | Description |
+|----------|-------------|
+| `FIXED` | Exit full position on target or stop-loss hit |
+| `PARTIAL_REVISING` | Partial profit-taking at target with trailing stop-loss (HA-based) |
+| `DUAL_TARGET` | 2-target partial exit: T1 sells group 1, SL revises to T1, T2 sells rest |
+| `TRIPLE_TARGET` | 3-target partial exit: T1/T2/T3 with SL revision at each level |
+| `TRAILING_MULTITARGET` | T1/T2 fixed exits, remainder trails with SL revision on new highs/lows |
+
+Used by fno-strategy-utils to dispatch to the correct `TargetAndStopLossStrategy` implementation.
+
 ### Shared Enum API
 
 | Method | Returns | Description |
@@ -152,8 +170,10 @@ Implements `equals()`/`hashCode()` based on the wrapped list.
 | `IndexOrderRequest` | Index futures/options | Has `optionSymbol`, `callOrder` flag |
 | `OptionBasedOrderRequest` | Option premium trading | No option symbol, premium-based |
 | `TickBasedOrderRequest` | High-frequency trading | `verifyBuyThreshold()` always returns self |
+| `MultiTargetOrderRequest` | Multi-target index strategies | Requires `target.size() >= 2`, `task.getLots() >= 2`. Creates `MultiTargetActiveIndexOrder` |
+| `MultiTargetTickOrderRequest` | Multi-target tick strategies | `verifyBuyThreshold()` always returns self. Creates `MultiTargetTickActiveOrder` |
 
-All three store `Target target` (not `double`). Each provides a partial Lombok builder class with a backward-compatible `.target(double)` overload that wraps to `Target.of(val)`. Lombok also generates `.target(Target)` for multi-target usage.
+All five store `Target target` (not `double`). Each provides a partial Lombok builder class with a backward-compatible `.target(double)` overload that wraps to `Target.of(val)`. Lombok also generates `.target(Target)` for multi-target usage.
 
 **Builder Pattern (single target — backward compatible):**
 ```java
@@ -162,9 +182,21 @@ IndexOrderRequest.builder("TAG", "NIFTY", task)
     .target(19600.0).stopLoss(19450.0).callOrder(true).build();
 ```
 
-**Builder Pattern (multi-target):**
+**Builder Pattern (multi-target with MultiTargetOrderRequest):**
 ```java
-IndexOrderRequest.builder("TAG", "NIFTY", task)
+import com.vish.fno.model.order.Target;
+import com.vish.fno.model.order.orderrequest.MultiTargetOrderRequest;
+
+MultiTargetOrderRequest.builder("TAG", "NIFTY", task)
+    .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
+    .target(Target.of(19600.0, 19650.0)).stopLoss(19450.0).callOrder(true).build();
+```
+
+**Builder Pattern (multi-target tick-based):**
+```java
+import com.vish.fno.model.order.orderrequest.MultiTargetTickOrderRequest;
+
+MultiTargetTickOrderRequest.builder("TAG", "NIFTY", task)
     .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
     .target(Target.of(19600.0, 19650.0, 19700.0)).stopLoss(19450.0).callOrder(true).build();
 ```
@@ -247,15 +279,52 @@ Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- sub
 | `ActiveIndexOrder` | `IndexOrderRequest` | Call: only up, Put: only down |
 | `OptionBasedActiveOrder` | `OptionBasedOrderRequest` | Only up (always long) |
 | `TickBasedActiveOrder` | `TickBasedOrderRequest` | Same as ActiveIndexOrder |
+| `MultiTargetActiveIndexOrder` | `MultiTargetOrderRequest` | Same as ActiveIndexOrder + multi-target tracking |
+| `MultiTargetTickActiveOrder` | `MultiTargetTickOrderRequest` | Same as TickBasedActiveOrder + multi-target tracking |
+
+### MultiTargetOrder Interface
+
+```java
+import com.vish.fno.model.order.activeorder.MultiTargetOrder;
+```
+
+Extends `ActiveOrder` for orders with multiple target levels and partial exits. Implemented by `MultiTargetActiveIndexOrder` and `MultiTargetTickActiveOrder`. Used by `DualTargetStopLossStrategy`, `TripleTargetStopLossStrategy`, and `TrailingMultiTargetStopLossStrategy` (fno-strategy-utils).
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `advanceTarget()` | `void` | Advances to next target level; revises SL to current target price |
+| `getCurrentTargetQuantity()` | `int` | Lot-aligned quantity to sell at current target level |
+| `hasMoreTargets()` | `boolean` | `true` if there are unreached targets |
+| `getCurrentTarget()` | `double` | Price of the current active target |
+| `getCurrentTargetIndex()` | `int` | 0-based index of the current target |
+
+**Quantity Distribution:** Lots are distributed evenly across targets. Remainder lots go to the last target. Example: 7 lots with 3 targets = [2, 2, 3] lots per target.
+
+### MultiTargetActiveIndexOrder / MultiTargetTickActiveOrder
+
+Both mirror their single-target counterparts (`ActiveIndexOrder` / `TickBasedActiveOrder`) with additional multi-target state:
+- `currentTargetIndex` (int) -- tracks which target is active (0-based)
+- `targetQuantities` (List<Integer>) -- immutable, lot-aligned quantities per target
+- `appendToStringFields()` appends `targetIndex=N/M` to log output
 
 ### ActiveOrderFactory
 
-Uses Java 21 switch expression. Throws `IllegalArgumentException` for unknown `OrderRequest` types (no longer returns null).
+Uses Java 21 pattern matching switch expression. Throws `IllegalArgumentException` for unknown `OrderRequest` types.
 
 ```java
 public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int timestamp, String orderEntryTimestamp,
                                       int quantity, int lotSize)
 ```
+
+**Dispatch order** (multi-target cases MUST precede their single-target parents due to subtype matching):
+
+| `OrderRequest` type | Creates |
+|---------------------|---------|
+| `MultiTargetOrderRequest` | `MultiTargetActiveIndexOrder` |
+| `MultiTargetTickOrderRequest` | `MultiTargetTickActiveOrder` |
+| `IndexOrderRequest` | `ActiveIndexOrder` |
+| `OptionBasedOrderRequest` | `OptionBasedActiveOrder` |
+| `TickBasedOrderRequest` | `TickBasedActiveOrder` |
 
 ```java
 ActiveOrder order = ActiveOrderFactory.createOrder(orderRequest, ltp, timestamp, timestampString, quantity, lotSize);
@@ -479,6 +548,10 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 - **OrderCache**: `addOrderRequest()` removes duplicates first, rebuilds symbol index entry
 - **OrderCache**: `removeActiveOrder()` removes from active list + symbol index, then moves to completed
 - **OrderCache**: Symbol indices (`orderRequestsBySymbol`, `activeOrdersBySymbol`) and `activeOrderKeys` set are updated on every mutation
+- **MultiTargetOrder quantity distribution**: `computeQuantities(numTargets, totalLots, lotSize)` divides lots evenly; remainder lots added to the last target. If `lotSize <= 0`, all quantities are 0.
+- **MultiTargetOrder advanceTarget()**: No-op if all targets already reached (`currentTargetIndex >= target.size()`)
+- **MultiTargetOrder getCurrentTarget()**: Returns the last target price if all targets are exhausted
+- **ActiveOrderFactory switch order**: `MultiTargetOrderRequest` and `MultiTargetTickOrderRequest` cases must appear before `IndexOrderRequest` and `TickBasedOrderRequest` respectively, since the multi-target types do not extend the single-target types but are matched first
 
 ---
 

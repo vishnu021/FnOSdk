@@ -2,9 +2,13 @@ package com.vish.fno.model.order;
 
 import com.vish.fno.model.order.activeorder.ActiveIndexOrder;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
+import com.vish.fno.model.order.activeorder.MultiTargetActiveIndexOrder;
+import com.vish.fno.model.order.activeorder.MultiTargetTickActiveOrder;
 import com.vish.fno.model.order.activeorder.OptionBasedActiveOrder;
 import com.vish.fno.model.order.activeorder.TickBasedActiveOrder;
 import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
+import com.vish.fno.model.order.orderrequest.MultiTargetOrderRequest;
+import com.vish.fno.model.order.orderrequest.MultiTargetTickOrderRequest;
 import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
 import com.vish.fno.model.order.orderrequest.OrderRequest;
 import com.vish.fno.model.order.orderrequest.TickBasedOrderRequest;
@@ -17,6 +21,10 @@ public final class ActiveOrderFactory {
     public static ActiveOrder createOrder(OrderRequest orderRequest, double ltp, int timestamp, String orderEntryTimestamp,
                                           int quantity, int lotSize) {
         return switch (orderRequest) {
+            case MultiTargetOrderRequest r ->
+                    new MultiTargetActiveIndexOrder(r, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
+            case MultiTargetTickOrderRequest r ->
+                    new MultiTargetTickActiveOrder(r, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
             case IndexOrderRequest r ->
                     new ActiveIndexOrder(r, ltp, timestamp, orderEntryTimestamp, quantity, lotSize);
             case OptionBasedOrderRequest r ->
