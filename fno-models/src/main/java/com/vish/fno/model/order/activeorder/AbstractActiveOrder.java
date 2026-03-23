@@ -96,7 +96,7 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
                 .append(", tag=").append(orderRequest.getTag());
         appendToStringFields(sb);
         sb.append(", buyPrice=").append(buyPrice)
-                .append(", target=").append(roundTo5Paise(orderRequest.getTarget()))
+                .append(", target=").append(orderRequest.getTarget())
                 .append(", stopLoss=").append(roundTo5Paise(stopLoss))
                 .append(", buyQ=").append(buyQuantity)
                 .append(", soldQ=").append(soldQuantity);

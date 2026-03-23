@@ -3,6 +3,7 @@ package com.vish.fno.model.order.orderrequest;
 import com.vish.fno.model.Task;
 import com.vish.fno.model.Ticker;
 import com.vish.fno.model.order.OrderMetadata;
+import com.vish.fno.model.order.Target;
 import com.vish.fno.model.util.ModelUtils;
 import lombok.Builder;
 import lombok.Getter;
@@ -30,7 +31,7 @@ public final class IndexOrderRequest implements OrderRequest {
     private int timestamp;
     private int expirationTimestamp;
     private double buyThreshold;
-    private double target;
+    private Target target;
     private double stopLoss;
     private boolean callOrder;
     private OrderMetadata orderMetadata;
@@ -38,7 +39,7 @@ public final class IndexOrderRequest implements OrderRequest {
     @SuppressWarnings("PMD.ConfusingTernary")
     @Builder(builderMethodName = "builder")
     public IndexOrderRequest(Task task, String tag, String index, String optionSymbol, Date date, int timestamp,
-                             int expirationTimestamp, double buyThreshold, double target, double stopLoss,
+                             int expirationTimestamp, double buyThreshold, Target target, double stopLoss,
                              boolean callOrder, OrderMetadata orderMetadata) {
         this.task = task;
         this.tag = tag == null ? "" : tag;
@@ -52,6 +53,18 @@ public final class IndexOrderRequest implements OrderRequest {
         this.stopLoss = stopLoss;
         this.callOrder = callOrder;
         this.orderMetadata = orderMetadata;
+    }
+
+    /**
+     * Partial builder definition for backward compatibility.
+     * Allows existing strategies to continue using .target(double) on the builder.
+     * Lombok augments this class with generated methods including .targets(List).
+     */
+    public static class IndexOrderRequestBuilder {
+        public IndexOrderRequestBuilder target(double target) {
+            this.target = Target.of(target);
+            return this;
+        }
     }
 
     public static IndexOrderRequestBuilder builder(String tag, String index, Task task) {
@@ -108,15 +121,15 @@ public final class IndexOrderRequest implements OrderRequest {
                 .append(", tag=").append(tag)
                 .append(", expiry=").append(expirationTimestamp)
                 .append(", buyAt=").append(roundTo5Paise(buyThreshold))
-                .append(", target=").append(roundTo5Paise(target))
+                .append(", target=").append(target)
                 .append(", stopLoss=").append(roundTo5Paise(stopLoss));
 
         if(isCallOrder()) {
             sb.append(", risk=").append(roundTo5Paise(buyThreshold - stopLoss))
-                    .append(", reward=").append(roundTo5Paise(target - buyThreshold));
+                    .append(", reward=").append(roundTo5Paise(target.first() - buyThreshold));
         } else {
             sb.append(", risk=").append(roundTo5Paise(stopLoss - buyThreshold))
-                    .append(", reward=").append(roundTo5Paise(buyThreshold - target));
+                    .append(", reward=").append(roundTo5Paise(buyThreshold - target.first()));
         }
 
         sb.append(", CE=").append(isCallOrder())

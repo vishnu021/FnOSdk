@@ -98,7 +98,7 @@ import com.vish.fno.model.PositionType;
 |--------|---------|-------------|
 | `getIndex()` | `String` | Trading index/symbol |
 | `getBuyThreshold()` | `double` | Price threshold for order |
-| `getTarget()` | `double` | Target price |
+| `getTarget()` | `Target` | Target price(s) — returns `Target` value class wrapping one or more prices |
 | `getStopLoss()` | `double` | Stop loss price |
 | `getExpirationTimestamp()` | `int` | Order expiration time index |
 | `getTag()` | `String` | Unique order tag |
@@ -121,6 +121,30 @@ Typed value object replacing the previous `Map<String, String> extraData` on `Or
 OrderMetadata.builder().maxHoldDuration(30).subSignal("breakout").build();
 ```
 
+### Target Value Class
+
+Immutable value class wrapping one or more target prices. Package: `com.vish.fno.model.order`.
+
+**Factory Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `Target.of(double...)` | Varargs: `Target.of(19600.0)` or `Target.of(t1, t2, t3)` |
+| `Target.of(List<Double>)` | From list (defensive copy via `List.copyOf()`) |
+
+**Instance Methods:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `first()` | `double` | First (or only) target price — primary accessor for single-target orders |
+| `get(int)` | `double` | Target at index |
+| `size()` | `int` | Number of targets |
+| `isMultiTarget()` | `boolean` | `true` if more than one target |
+| `asList()` | `List<Double>` | Immutable list of all targets |
+| `toString()` | `String` | Displays full list, e.g. `[24550.0]` or `[24550.0, 24600.0, 24650.0]` |
+
+Implements `equals()`/`hashCode()` based on the wrapped list.
+
 ### Implementations
 
 | Class | Use Case | Key Difference |
@@ -129,11 +153,20 @@ OrderMetadata.builder().maxHoldDuration(30).subSignal("breakout").build();
 | `OptionBasedOrderRequest` | Option premium trading | No option symbol, premium-based |
 | `TickBasedOrderRequest` | High-frequency trading | `verifyBuyThreshold()` always returns self |
 
-**Builder Pattern:**
+All three store `Target target` (not `double`). Each provides a partial Lombok builder class with a backward-compatible `.target(double)` overload that wraps to `Target.of(val)`. Lombok also generates `.target(Target)` for multi-target usage.
+
+**Builder Pattern (single target — backward compatible):**
 ```java
 IndexOrderRequest.builder("TAG", "NIFTY", task)
     .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
     .target(19600.0).stopLoss(19450.0).callOrder(true).build();
+```
+
+**Builder Pattern (multi-target):**
+```java
+IndexOrderRequest.builder("TAG", "NIFTY", task)
+    .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
+    .target(Target.of(19600.0, 19650.0, 19700.0)).stopLoss(19450.0).callOrder(true).build();
 ```
 
 ---
@@ -439,7 +472,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 ## Edge Cases
 
 - **OrderRequest tag**: Null becomes empty string
-- **ActiveOrder identity**: `getTag()`, `getIndex()`, `getTarget()` removed from interface; use `getOrderRequest().getTag()`, `.getIndex()`, `.getTarget()`
+- **ActiveOrder identity**: `getTag()`, `getIndex()`, `getTarget()` removed from interface; use `getOrderRequest().getTag()`, `.getIndex()`, `.getTarget()`. Note: `.getTarget()` now returns `Target` (not `double`); use `.getTarget().first()` for the numeric price
 - **ActiveOrder stop loss**: Trailing only in beneficial direction
 - **ActiveOrder isCallOrder()**: Abstract method; was default returning `true` -- all subclasses must implement
 - **ExitDetail**: `exitReason` removed (was 4-field record, now 3-field). Exit reason tracked at `ActiveOrder` level via `extraData["orderExitReason"]`

@@ -406,16 +406,16 @@ public final class FileUtils implements FnoConstants {
                 .append(' ').append(order.getExitTimeStamp())
                 .append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getBuyThreshold()))
                 .append(',').append(' ').append(roundTo5Paise(order.getBuyPrice()))
-                .append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getTarget()))
+                .append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getTarget().first()))
                 .append(',').append(' ').append(roundTo5Paise(order.getSellPrice()))
                 .append(',').append(' ').append(roundTo5Paise(order.getStopLoss()))
                 .append(',').append(' ').append(roundTo5Paise(order.getProfit()))
                 .append(',').append(' ').append(roundTo5Paise(order.getBuyQuantity()));
 
         if (order.isCallOrder()) {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getTarget() - order.getOrderRequest().getBuyThreshold()));
+            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getTarget().first() - order.getOrderRequest().getBuyThreshold()));
         } else {
-            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getBuyThreshold() - order.getOrderRequest().getTarget()));
+            sb.append(',').append(' ').append(roundTo5Paise(order.getOrderRequest().getBuyThreshold() - order.getOrderRequest().getTarget().first()));
         }
         sb.append(',').append(' ').append(order.isCallOrder());
         if (order.getExtraData() != null) {
@@ -441,7 +441,7 @@ public final class FileUtils implements FnoConstants {
                 .append(",\tentry=").append(getStringDateTime(order.getOrderRequest().getDate()))
                 .append(",\texit=").append(order.getExitTimeStamp())
                 .append(",\tbuy=").append(roundTo5Paise(order.getBuyPrice()))
-                .append(",\ttarget=").append(roundTo5Paise(order.getOrderRequest().getTarget()))
+                .append(",\ttarget=").append(order.getOrderRequest().getTarget())
                 .append(",\tsell=").append(roundTo5Paise(order.getSellPrice()))
                 .append(",\tcall=").append(order.isCallOrder());
 

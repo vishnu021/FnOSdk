@@ -136,7 +136,7 @@ public interface TargetAndStopLossStrategy {
 ### AbstractTargetAndStopLossStrategy
 
 Base class implementing `TargetAndStopLossStrategy`. Provides shared call/put logic via protected methods:
-- `checkTargetAchieved(order, ltp)` -- Call: `ltp > target`, Put: `ltp < target` (reads `order.getOrderRequest().getTarget()`)
+- `checkTargetAchieved(order, ltp)` -- Call: `ltp > target`, Put: `ltp < target` (reads `order.getOrderRequest().getTarget().first()` — uses the first/primary target price from the `Target` value class)
 - `checkStopLossHit(order, ltp)` -- Call: `ltp < stopLoss`, Put: `ltp > stopLoss`
 - `isStopLossHit(order, ltp)` -- Implemented: sells remaining quantity on SL hit
 

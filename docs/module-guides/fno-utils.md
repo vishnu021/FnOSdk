@@ -274,7 +274,7 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 | `toCSV(ActiveOrder)` | `String` | CSV row using `ActiveOrder` interface methods directly |
 | `orderLog(ActiveOrder)` | `String` | Formatted log string using `ActiveOrder` interface methods directly |
 
-All three methods use the `ActiveOrder` interface directly -- no concrete type imports. Immutable fields (`tag`, `index`, `target`, `date`) are accessed via `order.getOrderRequest()` (e.g., `order.getOrderRequest().getTag()`). `OptionBasedActiveOrder` CSV/log includes `call=true/false` consistently with other order types.
+All three methods use the `ActiveOrder` interface directly -- no concrete type imports. Immutable fields (`tag`, `index`, `target`, `date`) are accessed via `order.getOrderRequest()` (e.g., `order.getOrderRequest().getTag()`). `toCSV()` uses `getTarget().first()` for the numeric column and reward calculation; `orderLog()` uses `getTarget()` directly (relies on `Target.toString()` for display). `OptionBasedActiveOrder` CSV/log includes `call=true/false` consistently with other order types.
 
 ---
 
