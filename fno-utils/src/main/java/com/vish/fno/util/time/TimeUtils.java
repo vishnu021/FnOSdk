@@ -320,18 +320,24 @@ public final class TimeUtils {
             return System.currentTimeMillis();
         }
 
-        // First try to parse as a long (milliseconds)
-        try {
-            return Long.parseLong(timeStr);
-        } catch (NumberFormatException e) {
-            // If not a number, parse as ISO-8601 datetime string
+        // Check if it looks numeric before attempting parseLong to avoid
+        // ~3,000 NumberFormatExceptions/day from ISO-8601 strings (JFR overhead)
+        char firstChar = timeStr.charAt(0);
+        if (firstChar >= '0' && firstChar <= '9') {
             try {
-                ZonedDateTime zdt = ZonedDateTime.parse(timeStr, ISO_FORMATTER);
-                return zdt.toInstant().toEpochMilli();
-            } catch (DateTimeParseException e2) {
-                log.warn("Failed to parse timestamp: '{}', using current time", timeStr);
-                return System.currentTimeMillis();
+                return Long.parseLong(timeStr);
+            } catch (NumberFormatException e) {
+                log.debug("Timestamp looks numeric but failed parseLong: '{}'", timeStr);
             }
+        }
+
+        // Parse as ISO-8601 datetime string
+        try {
+            ZonedDateTime zdt = ZonedDateTime.parse(timeStr, ISO_FORMATTER);
+            return zdt.toInstant().toEpochMilli();
+        } catch (DateTimeParseException e) {
+            log.warn("Failed to parse timestamp: '{}', using current time", timeStr);
+            return System.currentTimeMillis();
         }
     }
 

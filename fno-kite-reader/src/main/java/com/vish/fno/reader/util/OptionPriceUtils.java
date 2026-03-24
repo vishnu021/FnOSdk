@@ -68,9 +68,9 @@ public final class OptionPriceUtils {
                 .collect(Collectors.toMap(
                         instrument -> {
                             try {
-                                return Long.parseLong(instrument.getStrike());
+                                return Math.round(Double.parseDouble(instrument.getStrike()));
                             } catch (NumberFormatException e) {
-                                log.error("NumberFormatException while parsing the strike price");
+                                log.error("Failed to parse strike price: '{}'", instrument.getStrike());
                                 return null;
                             }
                         },
