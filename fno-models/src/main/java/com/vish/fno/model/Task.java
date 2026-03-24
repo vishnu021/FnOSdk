@@ -3,6 +3,8 @@ package com.vish.fno.model;
 import com.vish.fno.model.order.StopLossType;
 import com.vish.fno.model.order.StrikePolicy;
 
+import java.util.List;
+
 public interface Task {
     String getIndex();
     boolean isEnabled();
@@ -34,5 +36,16 @@ public interface Task {
      */
     default StrikePolicy getStrikePolicy() {
         return StrikePolicy.ATM;
+    }
+
+    /**
+     * Get the allowed trading sessions for this strategy.
+     * Empty list means all sessions are allowed.
+     * Values: OPENING, MORNING, LUNCH, AFTERNOON, CLOSING
+     *
+     * @return list of allowed session names (default: empty = all allowed)
+     */
+    default List<String> getAllowedSessions() {
+        return List.of();
     }
 }
