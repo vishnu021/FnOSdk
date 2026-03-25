@@ -5,8 +5,6 @@ import com.vish.fno.model.order.orderrequest.IndexOrderRequest;
 import lombok.Getter;
 import lombok.Setter;
 
-import com.vish.fno.model.order.OrderMetadata;
-
 import java.util.Objects;
 
 // CPD-OFF - Intentional structural similarity with TickBasedActiveOrder (both handle option symbols)
@@ -23,13 +21,6 @@ public final class ActiveIndexOrder extends AbstractActiveOrder {
         super(openOrder, buyPrice, timestampIndex, quantity, timestamp);
         this.optionSymbol = openOrder.getOptionSymbol();
         this.lotSize = lotSize;
-        copyExtras(openOrder.getOrderMetadata());
-    }
-
-    private void copyExtras(OrderMetadata orderMetadata) {
-        if (orderMetadata != null && orderMetadata.getSubSignal() != null) {
-            this.extraData.put("subSignal", orderMetadata.getSubSignal());
-        }
     }
 
     @JsonIgnore

@@ -4,8 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vish.fno.model.order.orderrequest.OptionBasedOrderRequest;
 import lombok.Getter;
 
-import com.vish.fno.model.order.OrderMetadata;
-
 @Getter
 public final class OptionBasedActiveOrder extends AbstractActiveOrder {
     private final int lotSize;
@@ -16,13 +14,6 @@ public final class OptionBasedActiveOrder extends AbstractActiveOrder {
         this.lotSize = lotSize;
         // Initialize realised profit directly from buy price (no separate option price)
         this.realisedProfit = -1 * (this.buyQuantity * this.buyPrice);
-        copyExtras(openOrder.getOrderMetadata());
-    }
-
-    private void copyExtras(OrderMetadata orderMetadata) {
-        if (orderMetadata != null && orderMetadata.getSubSignal() != null) {
-            this.extraData.put("subSignal", orderMetadata.getSubSignal());
-        }
     }
 
     @JsonIgnore

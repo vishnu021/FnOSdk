@@ -39,7 +39,7 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
         this.buyQuantity = buyQuantity;
         this.soldQuantity = 0;
         this.stopLoss = orderRequest.getStopLoss();
-        this.extraData = new HashMap<>();
+        this.extraData = new HashMap<>(orderRequest.getExtraData());
         this.stopLossRevisionCount = 0;
         this.realisedProfit = 0;
         this.extraData.put("entryDateTime", entryTimestamp);

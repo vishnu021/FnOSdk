@@ -144,22 +144,10 @@ Used by `Task.getStrikePolicy()` and `KiteService.getOptionStock()` for policy-b
 | `getTag()` | `String` | Unique order tag |
 | `getTask()` | `Task` | Associated task |
 | `getDate()` | `Date` | Order date |
-| `getOrderMetadata()` | `OrderMetadata` | Strategy-specific metadata (maxHoldDuration, subSignal) |
 | `verifyBuyThreshold(Ticker)` | `Optional<OrderRequest>` | Returns order if threshold crossed |
+| `getMaxHoldDuration()` | `int` | Default `0` (no limit). Max minutes to hold before time-stop (triple barrier) |
+| `getExtraData()` | `Map<String, String>` | Default `Map.of()`. Strategy-specific key-value pairs copied into `ActiveOrder.extraData` on creation |
 | `isCallOrder()` | `boolean` | Default returns `true`; override for put orders |
-
-### OrderMetadata
-
-Typed value object replacing the previous `Map<String, String> extraData` on `OrderRequest`. Fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `maxHoldDuration` | `int` | Max minutes to hold before time-stop (0 = no limit) |
-| `subSignal` | `String` | Strategy sub-signal identifier (copied to `ActiveOrder.extraData` on creation) |
-
-```java
-OrderMetadata.builder().maxHoldDuration(30).subSignal("breakout").build();
-```
 
 ### Target Value Class
 
@@ -195,13 +183,16 @@ Implements `equals()`/`hashCode()` based on the wrapped list.
 | `MultiTargetOrderRequest` | Multi-target index strategies | Requires `target.size() >= 2`, `task.getLots() >= 2`. Creates `MultiTargetActiveIndexOrder` |
 | `MultiTargetTickOrderRequest` | Multi-target tick strategies | `verifyBuyThreshold()` always returns self. Creates `MultiTargetTickActiveOrder` |
 
-All five store `Target target` (not `double`). Each provides a partial Lombok builder class with a backward-compatible `.target(double)` overload that wraps to `Target.of(val)`. Lombok also generates `.target(Target)` for multi-target usage.
+All five store `Target target` (not `double`), `int maxHoldDuration`, and `Map<String, String> extraData`. Each provides a partial Lombok builder class with a backward-compatible `.target(double)` overload that wraps to `Target.of(val)`. Lombok also generates `.target(Target)` for multi-target usage. If `extraData` is null at construction, it defaults to `Map.of()`.
 
 **Builder Pattern (single target — backward compatible):**
 ```java
 IndexOrderRequest.builder("TAG", "NIFTY", task)
     .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
-    .target(19600.0).stopLoss(19450.0).callOrder(true).build();
+    .target(19600.0).stopLoss(19450.0).callOrder(true)
+    .maxHoldDuration(30)
+    .extraData(Map.of("signal", "breakout"))
+    .build();
 ```
 
 **Builder Pattern (multi-target with MultiTargetOrderRequest):**
@@ -211,7 +202,9 @@ import com.vish.fno.model.order.orderrequest.MultiTargetOrderRequest;
 
 MultiTargetOrderRequest.builder("TAG", "NIFTY", task)
     .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
-    .target(Target.of(19600.0, 19650.0)).stopLoss(19450.0).callOrder(true).build();
+    .target(Target.of(19600.0, 19650.0)).stopLoss(19450.0).callOrder(true)
+    .maxHoldDuration(45)
+    .build();
 ```
 
 **Builder Pattern (multi-target tick-based):**
@@ -220,7 +213,9 @@ import com.vish.fno.model.order.orderrequest.MultiTargetTickOrderRequest;
 
 MultiTargetTickOrderRequest.builder("TAG", "NIFTY", task)
     .optionSymbol("NIFTY24OCT19500CE").buyThreshold(19500.0)
-    .target(Target.of(19600.0, 19650.0, 19700.0)).stopLoss(19450.0).callOrder(true).build();
+    .target(Target.of(19600.0, 19650.0, 19700.0)).stopLoss(19450.0).callOrder(true)
+    .extraData(Map.of("subSignal", "momentum"))
+    .build();
 ```
 
 ---
@@ -290,7 +285,7 @@ Base class storing a reference to the source `OrderRequest` plus mutable executi
 
 Immutable order identity (`tag`, `index`, `target`, `date`, `task`) is accessed exclusively via `getOrderRequest()`.
 
-`getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries. On construction, `entryDateTime` is automatically added; subclasses copy `subSignal` from `OrderMetadata` if present.
+`getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries. On construction, all entries from `orderRequest.getExtraData()` are copied into a mutable `HashMap`, and `entryDateTime` is automatically added.
 
 Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`). The `toString()` output conditionally includes `kiteOrderId` from the `extraData` map when present, aiding order tracking in logs.
 

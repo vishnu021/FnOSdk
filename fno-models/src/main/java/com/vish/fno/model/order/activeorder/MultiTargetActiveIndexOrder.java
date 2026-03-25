@@ -1,7 +1,6 @@
 package com.vish.fno.model.order.activeorder;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.vish.fno.model.order.OrderMetadata;
 import com.vish.fno.model.order.orderrequest.MultiTargetOrderRequest;
 import lombok.Getter;
 import lombok.Setter;
@@ -37,13 +36,6 @@ public final class MultiTargetActiveIndexOrder extends AbstractActiveOrder imple
         this.currentTargetIndex = 0;
         int totalLots = lotSize > 0 ? quantity / lotSize : 0;
         this.targetQuantities = computeQuantities(openOrder.getTarget().size(), totalLots, lotSize);
-        copyExtras(openOrder.getOrderMetadata());
-    }
-
-    private void copyExtras(OrderMetadata orderMetadata) {
-        if (orderMetadata != null && orderMetadata.getSubSignal() != null) {
-            this.extraData.put("subSignal", orderMetadata.getSubSignal());
-        }
     }
 
     // --- MultiTargetOrder API ---

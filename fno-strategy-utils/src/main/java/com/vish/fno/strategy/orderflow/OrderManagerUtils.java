@@ -1,6 +1,5 @@
 package com.vish.fno.strategy.orderflow;
 
-import com.vish.fno.model.order.OrderMetadata;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
@@ -25,8 +24,7 @@ public final class OrderManagerUtils {
         }
 
         // Check strategy-defined max hold duration (triple barrier time stop)
-        final OrderMetadata metadata = order.getOrderRequest().getOrderMetadata();
-        final int maxHoldDuration = metadata != null ? metadata.getMaxHoldDuration() : 0;
+        final int maxHoldDuration = order.getOrderRequest().getMaxHoldDuration();
         if(maxHoldDuration > 0) {
             final int elapsed = timestampIndex - order.getEntryTimeStamp();
             if(elapsed > maxHoldDuration) {

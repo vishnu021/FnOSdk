@@ -2,7 +2,6 @@ package com.vish.fno.model.order.orderrequest;
 
 import com.vish.fno.model.Task;
 import com.vish.fno.model.Ticker;
-import com.vish.fno.model.order.OrderMetadata;
 import com.vish.fno.model.order.Target;
 import com.vish.fno.model.util.ModelUtils;
 import lombok.Builder;
@@ -10,6 +9,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Date;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -31,13 +31,14 @@ public final class OptionBasedOrderRequest implements OrderRequest {
     private double buyThreshold;
     private Target target;
     private double stopLoss;
-    private OrderMetadata orderMetadata;
+    private int maxHoldDuration;
+    private Map<String, String> extraData;
 
     @SuppressWarnings("PMD.ConfusingTernary")
     @Builder(builderMethodName = "builder")
     public OptionBasedOrderRequest(Task task, String tag, String index, Date date, int timestamp,
                                    int expirationTimestamp, double buyThreshold, Target target, double stopLoss,
-                                   OrderMetadata orderMetadata) {
+                                   int maxHoldDuration, Map<String, String> extraData) {
         this.task = task;
         this.tag = tag == null ? "" : tag;
         this.index = index;
@@ -47,7 +48,8 @@ public final class OptionBasedOrderRequest implements OrderRequest {
         this.buyThreshold = buyThreshold;
         this.target = target;
         this.stopLoss = stopLoss;
-        this.orderMetadata = orderMetadata;
+        this.maxHoldDuration = maxHoldDuration;
+        this.extraData = extraData != null ? extraData : Map.of();
     }
 
     public static class OptionBasedOrderRequestBuilder {
