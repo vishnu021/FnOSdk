@@ -86,6 +86,8 @@ Determines exit strategy behavior for an order.
 | `DUAL_TARGET` | 2-target partial exit: T1 sells group 1, SL revises to T1, T2 sells rest |
 | `TRIPLE_TARGET` | 3-target partial exit: T1/T2/T3 with SL revision at each level |
 | `TRAILING_MULTITARGET` | T1/T2 fixed exits, remainder trails with SL revision on new highs/lows |
+| `BREAKEVEN_TRAILING` | Moves SL to entry (breakeven) once trade goes green, then trails at 50% convergence toward new extremes |
+| `STEPPED` | Uses intermediate targets as SL revision checkpoints without partial selling (1-lot safe) |
 
 Used by fno-strategy-utils to dispatch to the correct `TargetAndStopLossStrategy` implementation.
 

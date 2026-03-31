@@ -10,6 +10,8 @@ package com.vish.fno.model.order;
  *   <li>{@link #DUAL_TARGET} — 2-target partial exit: T1 sells group 1, SL revises to T1, T2 sells rest</li>
  *   <li>{@link #TRIPLE_TARGET} — 3-target partial exit: T1/T2/T3 with SL revision at each level</li>
  *   <li>{@link #TRAILING_MULTITARGET} — T1/T2 fixed exits, remainder trails with SL revision on new highs</li>
+ *   <li>{@link #BREAKEVEN_TRAILING} — moves SL to entry (breakeven) once trade goes green, then trails</li>
+ *   <li>{@link #STEPPED} — uses intermediate targets as SL revision checkpoints (no partial sell, 1-lot safe)</li>
  * </ul>
  */
 public enum StopLossType {
@@ -17,5 +19,7 @@ public enum StopLossType {
     PARTIAL_REVISING,
     DUAL_TARGET,
     TRIPLE_TARGET,
-    TRAILING_MULTITARGET
+    TRAILING_MULTITARGET,
+    BREAKEVEN_TRAILING,
+    STEPPED
 }

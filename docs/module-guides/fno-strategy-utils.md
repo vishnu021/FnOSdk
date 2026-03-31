@@ -22,7 +22,7 @@ Advanced strategy utilities: Heikin-Ashi trend analysis, price action detection,
 | `com.vish.fno.strategy` | HATrendUtils, Point2D, PointType |
 | `com.vish.fno.strategy.util` | CPRUtils |
 | `com.vish.fno.strategy.priceaction` | DataAnalyser, Point, ChartPoint, Vector2, Line |
-| `com.vish.fno.strategy.orderflow` | TargetAndStopLossStrategy, PartialRevisingStopLoss, DualTargetRevisingStoplossStrategy, OrderManagerUtils |
+| `com.vish.fno.strategy.orderflow` | TargetAndStopLossStrategy, PartialRevisingStopLoss, DualTargetRevisingStoplossStrategy, BreakevenTrailingStopLossStrategy, SteppedStopLossStrategy, OrderManagerUtils |
 
 ---
 
@@ -239,6 +239,70 @@ TargetAndStopLossStrategy strategy = new TrailingMultiTargetStopLossStrategy();
 // Fixed targets processed first, then trailing mode kicks in automatically
 ```
 
+### BreakevenTrailingStopLossStrategy
+
+Extends `AbstractTargetAndStopLossStrategy`. Once the trade goes green (LTP crosses entry + buffer in favorable direction), SL moves to entry price (breakeven). After that, trails at 50% convergence toward new price extremes. Works with 1 lot (no minimum lot requirement unlike `PARTIAL_REVISING`).
+
+**Two phases:**
+1. **Pre-breakeven**: Standard FIXED behavior -- check target and SL as normal
+2. **Post-breakeven**: SL = entry + buffer (minimum). On each new favorable extreme, SL moves to midpoint between entry+buffer and extreme, locking in progressively more profit
+
+**Breakeven buffer:** 3.0 points beyond entry price. Ensures the option exit covers bid-ask spread and theta decay (~Rs 97 at delta ~0.5, qty 65). CE: `entry + 3.0`, PE: `entry - 3.0`.
+
+```java
+public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
+public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
+```
+
+- `isTargetAchieved()`: Checks if trade is green past buffer, moves SL to breakeven on first occurrence. Tracks trailing extremes and revises SL via 50% convergence. Standard target check for final exit.
+- `isStopLossHit()`: Overrides base class. Sells ALL remaining quantity on SL breach. Logs whether SL was hit pre-breakeven or post-breakeven.
+
+**Trailing SL revision:** CE: `newSL = breakevenLevel + (extreme - breakevenLevel) * 0.5`. PE: `newSL = breakevenLevel - (breakevenLevel - extreme) * 0.5`. SL only moves in beneficial direction.
+
+**Thread safety:** `breakevenAchieved` and `trailingExtremes` use `ConcurrentHashMap`. Key format: `tag_index_entryTimeStamp`.
+
+**Best suited for:** Wide-SL strategies (SLPanicFE, TkExtremaGold) where trades that go green often reverse to full SL losses.
+
+```java
+import com.vish.fno.strategy.orderflow.BreakevenTrailingStopLossStrategy;
+
+TargetAndStopLossStrategy strategy = new BreakevenTrailingStopLossStrategy();
+// SL auto-moves to breakeven once trade goes green, then trails toward new extremes
+```
+
+### SteppedStopLossStrategy
+
+Extends `AbstractTargetAndStopLossStrategy`. Auto-generates intermediate SL revision checkpoints between entry and target. No partial selling -- full exit only at final target or SL hit. Works with any order type (1-lot safe).
+
+**For standard orders:** Auto-generates 3 steps at 33%/66%/100% of target distance.
+**For `MultiTargetOrder`:** Uses strategy-defined intermediate targets directly.
+
+**Step progression (CE example, entry=22500, target=22600, SL=22475):**
+- Auto-steps: [22533, 22566, 22600]
+- Price crosses 22533 (33%) --> SL moves to 22500 (entry = breakeven)
+- Price crosses 22566 (66%) --> SL moves to 22533 (33pts locked)
+- Price reaches 22600 (100%) --> SELL at full target
+- If reverses from 22570 --> SL hit at 22533 = +33pt profit (not -25pt loss)
+
+```java
+public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
+public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
+```
+
+- `isTargetAchieved()`: For standard orders, creates/retrieves `StepState` (auto-generated steps). Checks each uncrossed step; intermediate steps revise SL to previous step level, final step triggers full exit. For `MultiTargetOrder`, uses `advanceTarget()` with same SL ratchet logic.
+- `isStopLossHit()`: Cleans up step state, logs step level reached at SL hit.
+
+**Thread safety:** `stepStates` uses `ConcurrentHashMap<String, StepState>` with `computeIfAbsent()`. Key format: `tag_index_entryTimeStamp`.
+
+**Best suited for:** High R:R strategies (TkExtremaGold 4:1+, NR4Sweep 3.7:1) where aggressive trailing kills big winners but FIXED loses everything on reversals.
+
+```java
+import com.vish.fno.strategy.orderflow.SteppedStopLossStrategy;
+
+TargetAndStopLossStrategy strategy = new SteppedStopLossStrategy();
+// Auto-generates 3 steps for standard orders, uses MultiTargetOrder targets for multi-target orders
+```
+
 ### OrderManagerUtils
 
 Static utility for exit conditions.
@@ -269,6 +333,8 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 | OrderManagerUtils, FixedTargetAndStopLossStrategy, DualTargetRevisingStoplossStrategy | ✅ | Stateless |
 | DualTargetStopLossStrategy, TripleTargetStopLossStrategy | ✅ | Stateless; delegates state to `MultiTargetOrder` |
 | TrailingMultiTargetStopLossStrategy | ✅ | `trailingExtremes` uses `ConcurrentHashMap` with atomic `merge()` |
+| BreakevenTrailingStopLossStrategy | ✅ | `breakevenAchieved` and `trailingExtremes` use `ConcurrentHashMap` |
+| SteppedStopLossStrategy | ✅ | `stepStates` uses `ConcurrentHashMap` with `computeIfAbsent()` |
 | Point2D, Line | No | Mutable |
 | PartialRevisingStopLoss | Partial | `lastRevisionCandleCount` uses ConcurrentHashMap; modifies order state via CandleStore |
 
