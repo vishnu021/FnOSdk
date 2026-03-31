@@ -18,10 +18,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
+import java.util.Locale;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 @Slf4j
+@SuppressWarnings("PMD.UseConcurrentHashMap")
 class ShoonyaSession {
 
     private static final long LOCK_WAIT_LOG_THRESHOLD_MS = 100;
@@ -200,7 +203,7 @@ class ShoonyaSession {
 
     private static byte[] base32Decode(String encoded) {
         String base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        String upper = encoded.toUpperCase().replaceAll("[=\\s]", "");
+        String upper = encoded.toUpperCase(Locale.ENGLISH).replaceAll("[=\\s]", "");
         int bitBuffer = 0;
         int bitsInBuffer = 0;
         byte[] output = new byte[upper.length() * 5 / 8];

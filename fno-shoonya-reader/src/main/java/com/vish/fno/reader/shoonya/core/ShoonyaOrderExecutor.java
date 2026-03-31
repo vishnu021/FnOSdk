@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
+@SuppressWarnings("PMD.UseConcurrentHashMap")
 @RequiredArgsConstructor
 class ShoonyaOrderExecutor {
 

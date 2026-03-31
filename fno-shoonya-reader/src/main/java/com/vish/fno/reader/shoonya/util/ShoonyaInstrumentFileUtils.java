@@ -43,14 +43,14 @@ public final class ShoonyaInstrumentFileUtils {
     static List<ShoonyaInstrument> parseZippedCsv(byte[] zipData, String exchange) throws IOException {
         List<ShoonyaInstrument> instruments = new ArrayList<>();
 
-        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipData))) {
+        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipData));
+             InputStreamReader isr = new InputStreamReader(zis, StandardCharsets.UTF_8);
+             BufferedReader reader = new BufferedReader(isr)) {
             ZipEntry entry = zis.getNextEntry();
             if (entry == null) {
                 log.warn("Empty zip file for exchange {}", exchange);
                 return instruments;
             }
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(zis, StandardCharsets.UTF_8));
             String line;
             int lineNum = 0;
             while ((line = reader.readLine()) != null) {
@@ -84,7 +84,7 @@ public final class ShoonyaInstrumentFileUtils {
                 Integer.parseInt(parts[2].trim()),
                 parts[3].trim(),
                 parts[4].trim(),
-                parts[5].trim().isEmpty() ? null : parts[5].trim(),
+                parts[5].isBlank() ? null : parts[5].trim(),
                 parts[6].trim(),
                 parts[7].trim(),
                 Double.parseDouble(parts[8].trim()),
