@@ -36,8 +36,8 @@ mvn clean package                           # Build + PMD analysis
 fno-models      (foundation - POJOs, interfaces)
     ^
 fno-utils       (business utilities, time/candle/file utils)
-    ^
-fno-technicals  (indicators, Greeks - also depends on fno-models)
+    ^                   ^
+fno-technicals  |   fno-shoonya-reader (Shoonya API - depends only on fno-utils)
     ^
 fno-kite-reader (Kite API - depends only on fno-utils)
     ^
@@ -54,6 +54,7 @@ fno-phase-analyzer (Wyckoff analysis, market regimes)
 | fno-utils | `TimeUtils`, `CandleUtils`, `PriceUtils`, `FileUtils` | Utilities |
 | fno-technicals | `SimpleMovingAverage`, `RSI`, `BlackScholes` | Indicators/Greeks |
 | fno-kite-reader | `KiteService` (facade), `KiteSession`, `KiteOrderExecutor`, `HistoricalDataProvider`, `InstrumentCache`, `KiteWebSocket` | Kite API |
+| fno-shoonya-reader | `ShoonyaService` (facade), `ShoonyaITMResolver`, `ShoonyaSession`, `ShoonyaOrderExecutor`, `ShoonyaInstrumentCache` | Shoonya API |
 | fno-strategy-utils | `CPRUtils`, `PCRUtils`, `TargetAndStopLossStrategy` | Strategy tools |
 | fno-phase-analyzer | `WyckoffPhaseIdentifier`, `CompositeWyckoffPhaseIdentifier` | Wyckoff analysis |
 
