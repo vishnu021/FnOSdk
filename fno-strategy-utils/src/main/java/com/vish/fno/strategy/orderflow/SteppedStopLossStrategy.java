@@ -2,11 +2,13 @@ package com.vish.fno.strategy.orderflow;
 
 import com.vish.fno.model.order.OrderSellDetailModel;
 import com.vish.fno.model.order.OrderSellReason;
+import com.vish.fno.model.order.SteppedStepProfile;
 import com.vish.fno.model.order.activeorder.ActiveOrder;
 import com.vish.fno.model.order.activeorder.MultiTargetOrder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
-    private static final int DEFAULT_STEPS = 3;
+    private static final List<Double> DEFAULT_FRACTIONS = List.of(1.0 / 3, 2.0 / 3, 1.0);
     private final Map<String, StepState> stepStates = new ConcurrentHashMap<>();
 
     @Override
@@ -93,7 +95,7 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
             order.setStopLoss(newSL);
             state.currentStep++;
 
-            log.info("STEPPED_SL: Step {} crossed at ltp={}, SL revised {:.2f} → {:.2f} for order: {}",
+            log.info("STEPPED_SL: Step {} crossed at ltp={}, SL revised {} → {} for order: {}",
                     state.currentStep, ltp, prevSL, newSL, order);
         }
 
@@ -124,7 +126,7 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
             double prevSL = multiOrder.getStopLoss();
             multiOrder.advanceTarget();
-            log.info("STEPPED_SL: T{} crossed at ltp={}, SL revised {:.2f} → {:.2f} for order: {}",
+            log.info("STEPPED_SL: T{} crossed at ltp={}, SL revised {} → {} for order: {}",
                     targetIndex + 1, ltp, prevSL, multiOrder.getStopLoss(), multiOrder);
         }
 
@@ -137,18 +139,40 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
         boolean isCall = order.isCallOrder();
 
         double distance = isCall ? target - entry : entry - target;
+        List<Double> fractions = resolveStepFractions(order);
         List<Double> steps = new ArrayList<>();
 
-        for (int i = 1; i <= DEFAULT_STEPS; i++) {
-            double fraction = (double) i / DEFAULT_STEPS;
+        for (double fraction : fractions) {
             double stepPrice = isCall ? entry + distance * fraction : entry - distance * fraction;
             steps.add(stepPrice);
         }
 
-        log.debug("STEPPED_SL: Auto-generated {} steps for order: {} | entry={} target={} steps={}",
-                DEFAULT_STEPS, order, entry, target, steps);
+        log.debug("STEPPED_SL: Generated {} steps (fractions={}) for order: {} | entry={} target={} steps={}",
+                fractions.size(), fractions, order, entry, target, steps);
 
         return new StepState(entry, steps);
+    }
+
+    private List<Double> resolveStepFractions(ActiveOrder order) {
+        // Priority 1: Enum profile (clean YAML config)
+        SteppedStepProfile profile = order.getOrderRequest().getTask().getSteppedStepProfile();
+        if (profile != null && profile != SteppedStepProfile.EVEN) {
+            return profile.getFractions();
+        }
+
+        // Priority 2: Raw ratios list (backward compatibility)
+        List<Double> configured = order.getOrderRequest().getTask().getSteppedStepRatios();
+        if (configured != null && !configured.isEmpty()) {
+            List<Double> sorted = new ArrayList<>(configured);
+            Collections.sort(sorted);
+            if (Double.compare(sorted.get(sorted.size() - 1), 1.0) != 0) {
+                sorted.add(1.0);
+            }
+            return Collections.unmodifiableList(sorted);
+        }
+
+        // Default: EVEN (33/66/100)
+        return DEFAULT_FRACTIONS;
     }
 
     private static String buildKey(ActiveOrder order) {

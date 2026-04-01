@@ -274,15 +274,20 @@ TargetAndStopLossStrategy strategy = new BreakevenTrailingStopLossStrategy();
 
 Extends `AbstractTargetAndStopLossStrategy`. Auto-generates intermediate SL revision checkpoints between entry and target. No partial selling -- full exit only at final target or SL hit. Works with any order type (1-lot safe).
 
-**For standard orders:** Auto-generates 3 steps at 33%/66%/100% of target distance.
+**For standard orders:** Auto-generates steps using configurable fractions (default: 33%/66%/100%) of target distance.
 **For `MultiTargetOrder`:** Uses strategy-defined intermediate targets directly.
 
-**Step progression (CE example, entry=22500, target=22600, SL=22475):**
-- Auto-steps: [22533, 22566, 22600]
-- Price crosses 22533 (33%) --> SL moves to 22500 (entry = breakeven)
-- Price crosses 22566 (66%) --> SL moves to 22533 (33pts locked)
+**Step fraction resolution priority** (via `resolveStepFractions(ActiveOrder)`):
+1. **Enum profile**: `Task.getSteppedStepProfile()` -- if non-EVEN, uses profile fractions (e.g., FIBONACCI = 38.2/61.8/100%)
+2. **Raw ratios**: `Task.getSteppedStepRatios()` -- sorted, auto-appends 1.0 if missing
+3. **Default**: EVEN (33%/66%/100%)
+
+**Step progression (CE example, entry=22500, target=22600, SL=22475, FIBONACCI profile):**
+- Steps at fractions [0.382, 0.618, 1.0]: [22538.2, 22561.8, 22600]
+- Price crosses 22538.2 (38.2%) --> SL moves to 22500 (entry = breakeven)
+- Price crosses 22561.8 (61.8%) --> SL moves to 22538.2
 - Price reaches 22600 (100%) --> SELL at full target
-- If reverses from 22570 --> SL hit at 22533 = +33pt profit (not -25pt loss)
+- If reverses from 22570 --> SL hit at 22538.2 = +38.2pt profit (not -25pt loss)
 
 ```java
 public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
@@ -294,13 +299,15 @@ public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
 
 **Thread safety:** `stepStates` uses `ConcurrentHashMap<String, StepState>` with `computeIfAbsent()`. Key format: `tag_index_entryTimeStamp`.
 
-**Best suited for:** High R:R strategies (TkExtremaGold 4:1+, NR4Sweep 3.7:1) where aggressive trailing kills big winners but FIXED loses everything on reversals.
+**Best suited for:** High R:R strategies (TkExtremaGold 4:1+, NR4Sweep 3.7:1) where aggressive trailing kills big winners but FIXED loses everything on reversals. Use FIBONACCI profile for wide structural targets, EVEN for medium targets.
 
 ```java
 import com.vish.fno.strategy.orderflow.SteppedStopLossStrategy;
+import com.vish.fno.model.order.SteppedStepProfile;
 
 TargetAndStopLossStrategy strategy = new SteppedStopLossStrategy();
-// Auto-generates 3 steps for standard orders, uses MultiTargetOrder targets for multi-target orders
+// Step fractions resolved from Task: profile (FIBONACCI/CONSERVATIVE/AGGRESSIVE) > raw ratios > default EVEN
+// Auto-sorts unsorted ratios, auto-appends 1.0 if missing
 ```
 
 ### OrderManagerUtils

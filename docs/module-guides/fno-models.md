@@ -20,7 +20,7 @@ Foundation module providing core POJOs and interfaces for F&O trading operations
 | `com.vish.fno.model` | Core enums (Exchange, InstrumentType, PositionType), Candle, Ticker |
 | `com.vish.fno.model.order.orderrequest` | Order request interfaces and implementations |
 | `com.vish.fno.model.order.activeorder` | Active order tracking and lifecycle |
-| `com.vish.fno.model.order` | Order sell details, exit reasons |
+| `com.vish.fno.model.order` | Order sell details, exit reasons, SteppedStepProfile |
 | `com.vish.fno.model.helper` | Order flow and ITM resolver interfaces |
 | `com.vish.fno.model.cache` | Order caching utilities |
 | `com.vish.fno.model.util` | Model utilities (rounding, formatting) |
@@ -90,6 +90,25 @@ Determines exit strategy behavior for an order.
 | `STEPPED` | Uses intermediate targets as SL revision checkpoints without partial selling (1-lot safe) |
 
 Used by fno-strategy-utils to dispatch to the correct `TargetAndStopLossStrategy` implementation.
+
+### SteppedStepProfile
+
+```java
+import com.vish.fno.model.order.SteppedStepProfile;
+```
+
+Predefined step ratio profiles for `StopLossType.STEPPED`. Controls where SL revision checkpoints are placed as fractions of target distance.
+
+| Profile | Fractions | Best For |
+|---------|-----------|----------|
+| `EVEN` | 33.3% / 66.7% / 100% | Medium targets (30-50pt) -- default |
+| `FIBONACCI` | 38.2% / 61.8% / 100% | Wide structural targets (50-150pt) |
+| `CONSERVATIVE` | 50% / 75% / 100% | Short targets (20-30pt) |
+| `AGGRESSIVE` | 25% / 50% / 100% | Earliest breakeven protection |
+
+**Method:** `getFractions()` returns `List<Double>` -- the checkpoint fractions for the profile.
+
+Backtest data (100-day, Nov 2025 - Mar 2026): FIBONACCI best for wide targets (TkExtremaGold +26%), EVEN for medium (WyckSpring, NR4Sweep baseline), CONSERVATIVE marginal for short targets.
 
 ### StrikePolicy
 
@@ -483,6 +502,9 @@ public record SymbolData(@Id CandleMetaData record, List<Candle> data)
 | `getLots()` | `int` | Lot multiplier (default: 1) |
 | `getStopLossStrategy()` | `StopLossType` | Stop-loss type (default: `FIXED`) |
 | `getStrikePolicy()` | `StrikePolicy` | Strike selection policy (default: `ATM`) |
+| `getAllowedSessions()` | `List<String>` | Allowed trading sessions (default: empty = all allowed) |
+| `getSteppedStepRatios()` | `List<Double>` | Custom step fractions for STEPPED SL (default: empty = 33/66/100%) |
+| `getSteppedStepProfile()` | `SteppedStepProfile` | Step profile for STEPPED SL (default: `EVEN`). Non-EVEN overrides `getSteppedStepRatios()` |
 
 ### Strategy Hierarchy
 
