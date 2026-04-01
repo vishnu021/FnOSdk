@@ -31,6 +31,7 @@ class OrderUtilsTest {
         assertEquals(Constants.VALIDITY_DAY, orderParams.validity);
         assertEquals(Constants.TRANSACTION_TYPE_BUY, orderParams.transactionType);
         assertEquals(0.0, orderParams.triggerPrice);
+        assertEquals(-1, orderParams.marketProtection);
         assertEquals("testBuyTag", orderParams.tag);
     }
 

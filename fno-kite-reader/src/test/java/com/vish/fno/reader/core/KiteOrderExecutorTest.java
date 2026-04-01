@@ -6,6 +6,7 @@ import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
+import com.zerodhatech.models.OrderResponse;
 import com.zerodhatech.models.Position;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,7 +94,7 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNull(openOrder.order());
+        assertNull(openOrder.orderId());
         assertFalse(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertNull(openOrder.exceptionMessage());
@@ -110,7 +111,7 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNull(openOrder.order());
+        assertNull(openOrder.orderId());
         assertTrue(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertNull(openOrder.exceptionMessage());
@@ -128,7 +129,7 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNull(openOrder.order());
+        assertNull(openOrder.orderId());
         assertTrue(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertNull(openOrder.exceptionMessage());
@@ -143,10 +144,10 @@ class KiteOrderExecutorTest {
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
         when(instrumentCache.getExchangeForSymbol(SYMBOL)).thenReturn(EXCHANGE);
 
-        Order expectedOrder = new Order();
-        expectedOrder.orderId = "ORDER123";
+        OrderResponse expectedResponse = new OrderResponse();
+        expectedResponse.orderId = "ORDER123";
         when(mockKiteSdk.placeOrder(any(OrderParams.class), eq(Constants.VARIETY_REGULAR)))
-                .thenReturn(expectedOrder);
+                .thenReturn(expectedResponse);
 
         // Act
         Optional<KiteOpenOrder> result = executor.buyOrder(SYMBOL, ORDER_SIZE, TAG, true);
@@ -154,8 +155,8 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNotNull(openOrder.order());
-        assertEquals("ORDER123", openOrder.order().orderId);
+        assertNotNull(openOrder.orderId());
+        assertEquals("ORDER123", openOrder.orderId());
         assertTrue(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertNull(openOrder.exceptionMessage());
@@ -182,7 +183,7 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNull(openOrder.order());
+        assertNull(openOrder.orderId());
         assertFalse(openOrder.isOrderPlaced());
         assertEquals(403, openOrder.exceptionCode());
         assertEquals("Insufficient funds", openOrder.exceptionMessage());
@@ -207,7 +208,7 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNull(openOrder.order());
+        assertNull(openOrder.orderId());
         assertFalse(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertEquals("Connection timeout", openOrder.exceptionMessage());
@@ -226,10 +227,10 @@ class KiteOrderExecutorTest {
         when(session.getKiteSdk()).thenReturn(mockKiteSdk);
         when(instrumentCache.getExchangeForSymbol(SYMBOL)).thenReturn(EXCHANGE);
 
-        Order expectedOrder = new Order();
-        expectedOrder.orderId = "SELL456";
+        OrderResponse expectedResponse = new OrderResponse();
+        expectedResponse.orderId = "SELL456";
         when(mockKiteSdk.placeOrder(any(OrderParams.class), eq(Constants.VARIETY_REGULAR)))
-                .thenReturn(expectedOrder);
+                .thenReturn(expectedResponse);
 
         // Act
         Optional<KiteOpenOrder> result = executor.sellOrder(SYMBOL, ORDER_SIZE, TAG, true);
@@ -237,8 +238,8 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNotNull(openOrder.order());
-        assertEquals("SELL456", openOrder.order().orderId);
+        assertNotNull(openOrder.orderId());
+        assertEquals("SELL456", openOrder.orderId());
         assertTrue(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertNull(openOrder.exceptionMessage());
@@ -257,7 +258,7 @@ class KiteOrderExecutorTest {
         // Assert
         assertTrue(result.isPresent());
         KiteOpenOrder openOrder = result.get();
-        assertNull(openOrder.order());
+        assertNull(openOrder.orderId());
         assertFalse(openOrder.isOrderPlaced());
         assertNull(openOrder.exceptionCode());
         assertNull(openOrder.exceptionMessage());
@@ -277,13 +278,13 @@ class KiteOrderExecutorTest {
         orderParams.tradingsymbol = SYMBOL;
         orderParams.quantity = ORDER_SIZE;
 
-        Order expectedOrder = new Order();
-        expectedOrder.orderId = "OPT789";
+        OrderResponse expectedResponse = new OrderResponse();
+        expectedResponse.orderId = "OPT789";
         when(mockKiteSdk.placeOrder(eq(orderParams), eq(Constants.VARIETY_REGULAR)))
-                .thenReturn(expectedOrder);
+                .thenReturn(expectedResponse);
 
         // Act
-        Order result = executor.placeOptionOrder(orderParams);
+        OrderResponse result = executor.placeOptionOrder(orderParams);
 
         // Assert
         assertNotNull(result);
@@ -305,7 +306,7 @@ class KiteOrderExecutorTest {
                 .thenThrow(kiteException);
 
         // Act
-        Order result = executor.placeOptionOrder(orderParams);
+        OrderResponse result = executor.placeOptionOrder(orderParams);
 
         // Assert
         assertNull(result);
@@ -324,7 +325,7 @@ class KiteOrderExecutorTest {
                 .thenThrow(new IOException("Network error"));
 
         // Act
-        Order result = executor.placeOptionOrder(orderParams);
+        OrderResponse result = executor.placeOptionOrder(orderParams);
 
         // Assert
         assertNull(result);

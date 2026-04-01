@@ -8,6 +8,7 @@ import com.zerodhatech.models.HistoricalData;
 import com.zerodhatech.models.Instrument;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
+import com.zerodhatech.models.OrderResponse;
 import com.zerodhatech.models.Position;
 import com.zerodhatech.ticker.OnOrderUpdate;
 import com.zerodhatech.ticker.OnTicks;
@@ -146,7 +147,7 @@ public class KiteService {
         return instrumentCache.isExpiryDayForIndex(indexName, date);
     }
 
-    public Order placeOptionOrder(OrderParams orderParams) {
+    public OrderResponse placeOptionOrder(OrderParams orderParams) {
         return orderExecutor.placeOptionOrder(orderParams);
     }
 

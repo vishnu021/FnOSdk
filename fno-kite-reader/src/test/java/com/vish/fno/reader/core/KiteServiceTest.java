@@ -7,6 +7,7 @@ import com.zerodhatech.models.HistoricalData;
 import com.zerodhatech.models.Instrument;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
+import com.zerodhatech.models.OrderResponse;
 import com.zerodhatech.models.Position;
 import com.zerodhatech.ticker.OnOrderUpdate;
 import com.zerodhatech.ticker.OnTicks;
@@ -418,12 +419,12 @@ class KiteServiceTest {
         // Arrange
         OrderParams orderParams = new OrderParams();
         orderParams.tradingsymbol = SYMBOL;
-        Order expectedOrder = new Order();
-        expectedOrder.orderId = "OPT123";
-        when(orderExecutor.placeOptionOrder(orderParams)).thenReturn(expectedOrder);
+        OrderResponse expectedResponse = new OrderResponse();
+        expectedResponse.orderId = "OPT123";
+        when(orderExecutor.placeOptionOrder(orderParams)).thenReturn(expectedResponse);
 
         // Act
-        Order result = kiteService.placeOptionOrder(orderParams);
+        OrderResponse result = kiteService.placeOptionOrder(orderParams);
 
         // Assert
         assertNotNull(result);
@@ -434,7 +435,7 @@ class KiteServiceTest {
     @Test
     void testBuyOrder_delegatesToOrderExecutor() {
         // Arrange
-        KiteOpenOrder expectedOrder = new KiteOpenOrder(new Order(), true, null, null);
+        KiteOpenOrder expectedOrder = new KiteOpenOrder("BUY123", true, null, null);
         when(orderExecutor.buyOrder(SYMBOL, ORDER_SIZE, TAG, true))
                 .thenReturn(Optional.of(expectedOrder));
 
@@ -450,7 +451,7 @@ class KiteServiceTest {
     @Test
     void testSellOrder_delegatesToOrderExecutor() {
         // Arrange
-        KiteOpenOrder expectedOrder = new KiteOpenOrder(new Order(), true, null, null);
+        KiteOpenOrder expectedOrder = new KiteOpenOrder("SELL123", true, null, null);
         when(orderExecutor.sellOrder(SYMBOL, ORDER_SIZE, TAG, true))
                 .thenReturn(Optional.of(expectedOrder));
 

@@ -26,6 +26,7 @@ public class OrderUtils {
         orderParams.validity = Constants.VALIDITY_DAY;
         orderParams.transactionType = transactionType;
         orderParams.triggerPrice = 0.0; // order type is market
+        orderParams.marketProtection = -1; // Zerodha auto-applies default protection slabs
         orderParams.tag = tag.length() > MAX_TAG_LENGTH ? tag.substring(0, MAX_TAG_LENGTH) : tag;
         return orderParams;
     }

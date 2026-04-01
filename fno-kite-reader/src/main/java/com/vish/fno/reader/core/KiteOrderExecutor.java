@@ -7,6 +7,7 @@ import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.kiteconnect.utils.Constants;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
+import com.zerodhatech.models.OrderResponse;
 import com.zerodhatech.models.Position;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,12 +37,12 @@ class KiteOrderExecutor {
         return placeOrder(symbol, orderSize, tag, Constants.TRANSACTION_TYPE_SELL, isPlaceOrder);
     }
 
-    Order placeOptionOrder(OrderParams orderParams) {
+    OrderResponse placeOptionOrder(OrderParams orderParams) {
         log.info("placing order with params : {}", orderParams);
         return session.executeWithLockSafe(() -> {
-            Order order = session.getKiteSdk().placeOrder(orderParams, Constants.VARIETY_REGULAR);
-            log.info("order id: {}", order.orderId);
-            return order;
+            OrderResponse response = session.getKiteSdk().placeOrder(orderParams, Constants.VARIETY_REGULAR);
+            log.info("order id: {}", response.orderId);
+            return response;
         }, "placeOptionOrder", null);
     }
 
@@ -95,13 +96,13 @@ class KiteOrderExecutor {
             return Optional.of(buildSuccessfulKiteTestOrder());
         }
         return session.executeWithLock(() -> {
-            Order order;
+            OrderResponse response;
             try {
                 String exchange = instrumentCache.getExchangeForSymbol(symbol);
                 OrderParams orderParams = createMarketOrderWithParameters(symbol, orderSize, transactionType, tag, exchange);
-                order = session.getKiteSdk().placeOrder(orderParams, Constants.VARIETY_REGULAR);
+                response = session.getKiteSdk().placeOrder(orderParams, Constants.VARIETY_REGULAR);
                 log.info("order placed successfully with id: {} for symbol: {}, orderSize: {}",
-                        order.orderId, symbol, orderSize);
+                        response.orderId, symbol, orderSize);
             } catch (KiteException e) {
                 log.error("KiteException occurred while placing order for symbol: {}, orderSize: {}, code: {}, message: {}",
                         symbol, orderSize, e.code, e.message);
@@ -110,7 +111,7 @@ class KiteOrderExecutor {
                 log.error("Error occurred while placing order", e);
                 return Optional.of(buildUnsuccessfulKiteOrder(e));
             }
-            return Optional.of(new KiteOpenOrder(order, true, null, null));
+            return Optional.of(new KiteOpenOrder(response.orderId, true, null, null));
         }, "placeOrder");
     }
 
