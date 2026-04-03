@@ -92,6 +92,8 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 | `isInitialised()` | `boolean` | Service ready for trading |
 | `buyOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place buy order (exchange auto-resolved) |
 | `sellOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place sell order (exchange auto-resolved) |
+| `placeOptionOrder(OrderParams)` | `OrderResponse` | Place order with explicit params (returns null on failure) |
+| `cancelOrder(orderId, variety)` | `Order` | Cancel an order (returns null on failure) |
 | `getOrders()` | `List<Order>` | All orders for day |
 | `getPositions()` | `Map<String, List<Position>>` | Net and day positions |
 
@@ -159,14 +161,14 @@ Replaces the previous `Map<String, String>` representation for filtered instrume
 ### KiteOpenOrder (Record)
 
 ```java
-public record KiteOpenOrder(Order order, boolean isOrderPlaced, Integer exceptionCode, String exceptionMessage)
+public record KiteOpenOrder(String orderId, boolean isOrderPlaced, Integer exceptionCode, String exceptionMessage)
 ```
 
-| Scenario | isOrderPlaced | order | exceptionCode |
-|----------|---------------|-------|---------------|
+| Scenario | isOrderPlaced | orderId | exceptionCode |
+|----------|---------------|---------|---------------|
 | Not initialized | `false` | `null` | `null` |
 | Paper trading | `true` | `null` | `null` |
-| Order placed | `true` | `Order` | `null` |
+| Order placed | `true` | Order ID string | `null` |
 | Kite API error | `false` | `null` | Error code |
 
 ---
@@ -216,7 +218,7 @@ public static OrderParams createMarketOrderWithParameters(String symbol,
 | `tag` | `String` | Order tag (truncated to 20 chars) |
 | `exchange` | `String` | Exchange string (`"NFO"` or `"BFO"`) |
 
-**Returns:** `OrderParams` -- pre-configured with MARKET order type, MIS product, DAY validity.
+**Returns:** `OrderParams` -- pre-configured with MARKET order type, MIS product, DAY validity, `marketProtection = -1` (Zerodha auto-applies default protection slabs).
 
 ```java
 // KiteService resolves exchange automatically via InstrumentCache
@@ -350,13 +352,14 @@ Manages authentication, KiteConnect SDK instance, and rate-limited API execution
 
 ### KiteOrderExecutor
 
-Handles order placement, position/order queries. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`. Exception handling centralized in `KiteSession.executeWithLockSafe()` -- `placeOptionOrder()`, `getOrders()`, and `getPositions()` use safe execution with fallback values (null, `List.of()`, `Map.of()`).
+Handles order placement, cancellation, and position/order queries. Uses `@RequiredArgsConstructor` with `KiteSession` and `InstrumentCache`. Exception handling centralized in `KiteSession.executeWithLockSafe()` -- `placeOptionOrder()`, `cancelOrder()`, `getOrders()`, and `getPositions()` use safe execution with fallback values (null, `List.of()`, `Map.of()`).
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `buyOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place buy order |
 | `sellOrder(symbol, qty, tag, isPlace)` | `Optional<KiteOpenOrder>` | Place sell order |
-| `placeOptionOrder(OrderParams)` | `Order` | Place order with explicit params (returns null on failure) |
+| `placeOptionOrder(OrderParams)` | `OrderResponse` | Place order with explicit params (returns null on failure) |
+| `cancelOrder(orderId, variety)` | `Order` | Cancel an order via Kite SDK (returns null on failure) |
 | `getOrders()` | `List<Order>` | All orders for day (returns `List.of()` on failure) |
 | `getPositions()` | `Map<String, List<Position>>` | Net and day positions (returns `Map.of()` on failure) |
 | `logExistingOrdersAndPositions(symbol, tag)` | `void` | Debug logging for existing orders |
@@ -390,11 +393,12 @@ Retrieves historical data with continuous contract resolution. Uses `@RequiredAr
 ```java
 Optional<KiteOpenOrder> result = kiteService.buyOrder(symbol, qty, tag, true);
 if (result.isEmpty() || !result.get().isOrderPlaced()) {
-    KiteOpenOrder order = result.orElse(null);
-    if (order != null && order.exceptionCode() != null) {
-        // Handle API error
+    KiteOpenOrder openOrder = result.orElse(null);
+    if (openOrder != null && openOrder.exceptionCode() != null) {
+        // Handle API error using openOrder.exceptionCode() and openOrder.exceptionMessage()
     }
 }
+// On success: result.get().orderId() returns the Kite order ID string
 ```
 
 ---

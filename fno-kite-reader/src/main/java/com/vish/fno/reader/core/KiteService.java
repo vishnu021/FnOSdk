@@ -163,6 +163,10 @@ public class KiteService {
         return orderExecutor.sellOrder(symbol, orderSize, tag, isPlaceOrder);
     }
 
+    public Order cancelOrder(String orderId, String variety) {
+        return orderExecutor.cancelOrder(orderId, variety);
+    }
+
     public List<Order> getOrders() {
         return orderExecutor.getOrders();
     }

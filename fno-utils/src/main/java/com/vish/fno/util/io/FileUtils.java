@@ -76,7 +76,11 @@ public final class FileUtils implements FnoConstants {
      *  per flush (~40 writer triplets/sec with 200 symbols). Cleared on date change and shutdown. */
     private final Map<String, PrintWriter> writerCache = new ConcurrentHashMap<>();
     private volatile String cachedDateFolder = "";
+    private volatile long cachedDateEpochDay = -1L;
     private volatile long lastFlushTimeMs = System.currentTimeMillis();
+
+    /** IST offset from UTC in milliseconds (+5:30 = 19,800,000 ms). Used for zero-allocation epoch day check. */
+    private static final long IST_OFFSET_MS = 19_800_000L;
     final String filePath = Paths.get(".").normalize().toAbsolutePath() + File.separator + directory + File.separator;
     final String tickPath = Paths.get(".").normalize().toAbsolutePath() + File.separator + tick_directory + File.separator;
     final int bufferLength;
@@ -233,17 +237,19 @@ public final class FileUtils implements FnoConstants {
      * </ul>
      */
     private String getOrCreateTickFilePath(String symbol) {
-        String dateFolder = getFormattedDate(new Date());
-
-        // Clear caches on date change (new trading day)
-        if (!dateFolder.equals(cachedDateFolder)) {
+        // Zero-allocation epoch day check: derive IST day from system clock without DateTime objects.
+        // The date string is only recomputed once per trading day when the epoch day changes.
+        long nowEpochDay = (System.currentTimeMillis() + IST_OFFSET_MS) / 86_400_000L;
+        if (nowEpochDay != cachedDateEpochDay) {
+            String dateFolder = getFormattedDate(new Date());
             symbolFilePathCache.clear();
             closeAllWriters();
             cachedDateFolder = dateFolder;
+            cachedDateEpochDay = nowEpochDay;
         }
 
         return symbolFilePathCache.computeIfAbsent(symbol, s -> {
-            String folderPath = tickPath + dateFolder;
+            String folderPath = tickPath + cachedDateFolder;
             createDirectoryOnce(folderPath);
             return WHITESPACE_PATTERN.matcher(folderPath + File.separator + s + ".txt").replaceAll("_");
         });

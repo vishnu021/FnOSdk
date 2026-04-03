@@ -12,7 +12,7 @@ FnOSdk development guide for Claude Code. Multi-module Maven SDK for F&O trading
 - **Spring Boot 3.5.11** (parent POM)
 - **Lombok** (boilerplate reduction)
 - **PMD 7.21.0** (static analysis, fails build on violations)
-- **Kite Connect 3.3.2** (fno-kite-reader only)
+- **Kite Connect 4.0.0** (fno-kite-reader only)
 - **Apache Commons Math3** (fno-technicals only)
 
 ---
@@ -155,6 +155,14 @@ Task(subagent_type="fnosdk-doc-watcher", ...)
 Manual: `/update-docs`, `/update-docs --staged`, `/update-docs fno-technicals`
 
 See `.claude/agent_policy.md` for automation rules.
+
+---
+
+## Pending Tasks
+
+- **Shoonya market price protection** (High priority, SEBI compliance):
+  Shoonya API has no `marketProtection` parameter. Need to implement application-level
+  protection (MKT -> LMT conversion with price buffer). See `docs/plans/2026-04-01-shoonya-market-price-protection.md`.
 
 ---
 

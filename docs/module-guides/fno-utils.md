@@ -234,6 +234,7 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 - `createdDirectories` (`ConcurrentHashMap.newKeySet()`) -- session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated)
 - `symbolFilePathCache` (`ConcurrentHashMap`) -- caches sanitized tick file paths per symbol per date
 - `cachedDateFolder` (`volatile`) -- date-change detection; clears `symbolFilePathCache` and `writerCache` on new trading day
+- `cachedDateEpochDay` (`volatile long`) -- zero-allocation epoch day check; derives IST day from `System.currentTimeMillis()` + `IST_OFFSET_MS` without creating `Date`/`DateTime` objects on every tick flush
 - `writerCache` (`ConcurrentHashMap<String, PrintWriter>`) -- reuses `PrintWriter` instances across tick flushes instead of creating new `FileWriter`/`BufferedWriter`/`PrintWriter` triplets per flush (~40 writer triplets/sec eliminated with 200 symbols). Thread-safe creation via `putIfAbsent`; broken writers detected via `checkError()` and evicted automatically
 - Private `getOrCreateTickFilePath(symbol)` combines directory/path caches; called by `flushTickBuffer()`
 - Private `getOrCreateWriter(path)` returns cached `PrintWriter` or creates new one with `putIfAbsent` for thread safety; on race, losing writer is closed immediately
@@ -445,7 +446,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
-| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers; `symbolFilePathCache`, `createdDirectories`, `writerCache` use ConcurrentHashMap; `writerCache` creation via `putIfAbsent` (race-safe); `cachedDateFolder` is volatile for date-change visibility |
+| FileUtils (tick methods) | ✅ | ConcurrentHashMap + ConcurrentLinkedQueue buffering; time-based flush (5s) prevents orphaned buffers; `symbolFilePathCache`, `createdDirectories`, `writerCache` use ConcurrentHashMap; `writerCache` creation via `putIfAbsent` (race-safe); `cachedDateFolder` and `cachedDateEpochDay` are volatile for date-change visibility; epoch day check avoids `Date` allocation on every tick |
 | HistoricDataCache | ✅ | `ReentrantLock` (VT-safe) guards all access to LRU `LinkedHashMap` |
 | FileUtils (other instance) | ❌ | Instance-based |
 

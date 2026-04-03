@@ -46,6 +46,12 @@ class KiteOrderExecutor {
         }, "placeOptionOrder", null);
     }
 
+    Order cancelOrder(String orderId, String variety) {
+        log.info("Cancelling order: {}, variety: {}", orderId, variety);
+        return session.executeWithLockSafe(() -> session.getKiteSdk().cancelOrder(orderId, variety),
+                "cancelOrder", null);
+    }
+
     List<Order> getOrders() {
         return session.executeWithLockSafe(() -> session.getKiteSdk().getOrders(), "getOrders", List.of());
     }
