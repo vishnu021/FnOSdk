@@ -86,8 +86,10 @@ Determines exit strategy behavior for an order.
 | `DUAL_TARGET` | 2-target partial exit: T1 sells group 1, SL revises to T1, T2 sells rest |
 | `TRIPLE_TARGET` | 3-target partial exit: T1/T2/T3 with SL revision at each level |
 | `TRAILING_MULTITARGET` | T1/T2 fixed exits, remainder trails with SL revision on new highs/lows |
-| `BREAKEVEN_TRAILING` | Moves SL to entry (breakeven) once trade goes green, then trails at 50% convergence toward new extremes |
+| `BREAKEVEN_TRAILING` | Moves SL to entry+3pts (breakeven) once trade goes green, then trails at 50% convergence toward new extremes |
+| `BREAKEVEN_TRAILING_5` | Same as `BREAKEVEN_TRAILING` but with 5pt buffer (higher guaranteed profit per exit) |
 | `STEPPED` | Uses intermediate targets as SL revision checkpoints without partial selling (1-lot safe) |
+| `STEPPED_LATE_67` | Conservative stepped: single SL revision at 67% of target + 5pt buffer. For retest-pattern strategies |
 
 Used by fno-strategy-utils to dispatch to the correct `TargetAndStopLossStrategy` implementation.
 
@@ -105,6 +107,8 @@ Predefined step ratio profiles for `StopLossType.STEPPED`. Controls where SL rev
 | `FIBONACCI` | 38.2% / 61.8% / 100% | Wide structural targets (50-150pt) |
 | `CONSERVATIVE` | 50% / 75% / 100% | Short targets (20-30pt) |
 | `AGGRESSIVE` | 25% / 50% / 100% | Earliest breakeven protection |
+| `LATE_67` | 66.7% / 100% | Retest-pattern strategies (GapAndGo, NR7BO, SMCHyb) -- single revision at 2/3 of target |
+| `LATE_75` | 75% / 100% | Maximum retest breathing room -- single revision at 3/4 of target |
 
 **Method:** `getFractions()` returns `List<Double>` -- the checkpoint fractions for the profile.
 

@@ -241,13 +241,21 @@ TargetAndStopLossStrategy strategy = new TrailingMultiTargetStopLossStrategy();
 
 ### BreakevenTrailingStopLossStrategy
 
-Extends `AbstractTargetAndStopLossStrategy`. Once the trade goes green (LTP crosses entry + buffer in favorable direction), SL moves to entry price (breakeven). After that, trails at 50% convergence toward new price extremes. Works with 1 lot (no minimum lot requirement unlike `PARTIAL_REVISING`).
+Extends `AbstractTargetAndStopLossStrategy`. Once the trade goes green (LTP crosses entry + buffer in favorable direction), SL moves to entry+buffer (breakeven). After that, trails at 50% convergence toward new price extremes. Works with 1 lot (no minimum lot requirement unlike `PARTIAL_REVISING`).
 
 **Two phases:**
 1. **Pre-breakeven**: Standard FIXED behavior -- check target and SL as normal
 2. **Post-breakeven**: SL = entry + buffer (minimum). On each new favorable extreme, SL moves to midpoint between entry+buffer and extreme, locking in progressively more profit
 
-**Breakeven buffer:** 3.0 points beyond entry price. Ensures the option exit covers bid-ask spread and theta decay (~Rs 97 at delta ~0.5, qty 65). CE: `entry + 3.0`, PE: `entry - 3.0`.
+**Constructors:**
+
+```java
+public BreakevenTrailingStopLossStrategy()
+public BreakevenTrailingStopLossStrategy(double breakevenBuffer)
+```
+
+- Default constructor uses 3.0pt buffer (backward compatible).
+- `breakevenBuffer`: index points beyond entry for the breakeven SL level. CE: `entry + buffer`, PE: `entry - buffer`. Higher buffer = more guaranteed profit per exit, fewer trades reach threshold.
 
 ```java
 public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
@@ -266,7 +274,8 @@ public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
 ```java
 import com.vish.fno.strategy.orderflow.BreakevenTrailingStopLossStrategy;
 
-TargetAndStopLossStrategy strategy = new BreakevenTrailingStopLossStrategy();
+TargetAndStopLossStrategy defaultStrategy = new BreakevenTrailingStopLossStrategy();      // 3.0pt buffer
+TargetAndStopLossStrategy widerBuffer    = new BreakevenTrailingStopLossStrategy(5.0);    // 5.0pt buffer
 // SL auto-moves to breakeven once trade goes green, then trails toward new extremes
 ```
 
@@ -277,37 +286,52 @@ Extends `AbstractTargetAndStopLossStrategy`. Auto-generates intermediate SL revi
 **For standard orders:** Auto-generates steps using configurable fractions (default: 33%/66%/100%) of target distance.
 **For `MultiTargetOrder`:** Uses strategy-defined intermediate targets directly.
 
+**Constructors:**
+
+```java
+public SteppedStopLossStrategy()
+public SteppedStopLossStrategy(double breakevenBuffer)
+```
+
+- Default constructor uses 0.0 buffer (SL moves to exact entry on first step -- backward compatible).
+- `breakevenBuffer`: index points beyond entry for first-step SL revision. CE: `entry + buffer`, PE: `entry - buffer`. With buffer 5.0: SL moves to entry+5pts, guaranteeing ~Rs 634 per exit at 3 lots NIFTY ITM_1.
+
 **Step fraction resolution priority** (via `resolveStepFractions(ActiveOrder)`):
-1. **Enum profile**: `Task.getSteppedStepProfile()` -- if non-EVEN, uses profile fractions (e.g., FIBONACCI = 38.2/61.8/100%)
+1. **Enum profile**: `Task.getSteppedStepProfile()` -- if non-EVEN, uses profile fractions (e.g., FIBONACCI = 38.2/61.8/100%, LATE_67 = 66.7/100%)
 2. **Raw ratios**: `Task.getSteppedStepRatios()` -- sorted, auto-appends 1.0 if missing
 3. **Default**: EVEN (33%/66%/100%)
 
-**Step progression (CE example, entry=22500, target=22600, SL=22475, FIBONACCI profile):**
+**Step progression (CE example, entry=22500, target=22600, SL=22475, FIBONACCI profile, buffer=0):**
 - Steps at fractions [0.382, 0.618, 1.0]: [22538.2, 22561.8, 22600]
-- Price crosses 22538.2 (38.2%) --> SL moves to 22500 (entry = breakeven)
+- Price crosses 22538.2 (38.2%) --> SL moves to 22500 (entry + buffer = breakeven)
 - Price crosses 22561.8 (61.8%) --> SL moves to 22538.2
 - Price reaches 22600 (100%) --> SELL at full target
 - If reverses from 22570 --> SL hit at 22538.2 = +38.2pt profit (not -25pt loss)
+
+**With buffer=5.0 (LATE_67 profile, CE, entry=22500, target=22600):**
+- Steps at fractions [0.667, 1.0]: [22566.7, 22600]
+- Price crosses 22566.7 (67%) --> SL moves to 22505 (entry + 5pt buffer)
+- Price reaches 22600 (100%) --> SELL at full target
 
 ```java
 public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp)
 public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
 ```
 
-- `isTargetAchieved()`: For standard orders, creates/retrieves `StepState` (auto-generated steps). Checks each uncrossed step; intermediate steps revise SL to previous step level, final step triggers full exit. For `MultiTargetOrder`, uses `advanceTarget()` with same SL ratchet logic.
+- `isTargetAchieved()`: For standard orders, creates/retrieves `StepState` (auto-generated steps). Checks each uncrossed step; first step revises SL to entry+buffer, subsequent steps to previous step level, final step triggers full exit. For `MultiTargetOrder`, uses `advanceTarget()` with same SL ratchet logic.
 - `isStopLossHit()`: Cleans up step state, logs step level reached at SL hit.
 
 **Thread safety:** `stepStates` uses `ConcurrentHashMap<String, StepState>` with `computeIfAbsent()`. Key format: `tag_index_entryTimeStamp`.
 
-**Best suited for:** High R:R strategies (TkExtremaGold 4:1+, NR4Sweep 3.7:1) where aggressive trailing kills big winners but FIXED loses everything on reversals. Use FIBONACCI profile for wide structural targets, EVEN for medium targets.
+**Best suited for:** High R:R strategies (TkExtremaGold 4:1+, NR4Sweep 3.7:1) where aggressive trailing kills big winners but FIXED loses everything on reversals. Use FIBONACCI profile for wide structural targets, EVEN for medium targets, LATE_67/LATE_75 for retest-pattern strategies.
 
 ```java
 import com.vish.fno.strategy.orderflow.SteppedStopLossStrategy;
 import com.vish.fno.model.order.SteppedStepProfile;
 
-TargetAndStopLossStrategy strategy = new SteppedStopLossStrategy();
-// Step fractions resolved from Task: profile (FIBONACCI/CONSERVATIVE/AGGRESSIVE) > raw ratios > default EVEN
-// Auto-sorts unsorted ratios, auto-appends 1.0 if missing
+TargetAndStopLossStrategy strategy     = new SteppedStopLossStrategy();        // 0pt buffer (exact breakeven)
+TargetAndStopLossStrategy withBuffer   = new SteppedStopLossStrategy(5.0);     // 5pt buffer on first step
+// Step fractions resolved from Task: profile (FIBONACCI/CONSERVATIVE/AGGRESSIVE/LATE_67/LATE_75) > raw ratios > default EVEN
 ```
 
 ### OrderManagerUtils

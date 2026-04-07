@@ -38,7 +38,13 @@ public enum SteppedStepProfile {
     CONSERVATIVE(List.of(0.50, 0.75, 1.0)),
 
     /** Aggressive: 25% / 50% / 100%. Earliest breakeven protection. */
-    AGGRESSIVE(List.of(0.25, 0.50, 1.0));
+    AGGRESSIVE(List.of(0.25, 0.50, 1.0)),
+
+    /** Late 2/3: single revision at 67% / 100%. For retest-pattern strategies (GapAndGo, NR7BO, SMCHyb). */
+    LATE_67(List.of(2.0 / 3, 1.0)),
+
+    /** Late 3/4: single revision at 75% / 100%. Maximum retest breathing room. */
+    LATE_75(List.of(0.75, 1.0));
 
     private final List<Double> fractions;
 

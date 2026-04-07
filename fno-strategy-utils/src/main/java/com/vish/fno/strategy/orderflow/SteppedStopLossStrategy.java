@@ -37,7 +37,25 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
     private static final List<Double> DEFAULT_FRACTIONS = List.of(1.0 / 3, 2.0 / 3, 1.0);
+
+    /**
+     * Buffer added to entry price when SL is revised on first step.
+     * Default 0: SL moves to exact entry (breakeven). With buffer 5.0: SL moves to entry+5pts,
+     * guaranteeing ~Rs 634 per exit at 3 lots NIFTY ITM_1 (covers brokerage + profit).
+     */
+    private final double breakevenBuffer;
+
     private final Map<String, StepState> stepStates = new ConcurrentHashMap<>();
+
+    /** Default constructor — zero buffer (backward compatible). */
+    public SteppedStopLossStrategy() {
+        this(0.0);
+    }
+
+    /** Constructor with configurable breakeven buffer for first-step SL revision. */
+    public SteppedStopLossStrategy(double breakevenBuffer) {
+        this.breakevenBuffer = breakevenBuffer;
+    }
 
     @Override
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp) {
@@ -89,8 +107,14 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
                 return new OrderSellDetailModel(true, remaining, OrderSellReason.TARGET_HIT, order);
             }
 
-            // Intermediate step — revise SL to previous step (or entry for first step)
-            double newSL = state.currentStep == 0 ? state.entryPrice : state.steps.get(state.currentStep - 1);
+            // Intermediate step — revise SL to previous step (or entry+buffer for first step)
+            double newSL;
+            if (state.currentStep == 0) {
+                double buffer = isCall ? breakevenBuffer : -breakevenBuffer;
+                newSL = state.entryPrice + buffer;
+            } else {
+                newSL = state.steps.get(state.currentStep - 1);
+            }
             double prevSL = order.getStopLoss();
             order.setStopLoss(newSL);
             state.currentStep++;

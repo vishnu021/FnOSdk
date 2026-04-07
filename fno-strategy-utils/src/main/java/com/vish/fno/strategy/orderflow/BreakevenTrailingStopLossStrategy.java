@@ -30,15 +30,33 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BreakevenTrailingStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
     /**
-     * Buffer added beyond entry price when setting breakeven SL.
-     * Ensures the option exit is in profit (overcomes bid-ask spread and theta decay).
-     * CE: SL = entry + BREAKEVEN_BUFFER, PE: SL = entry - BREAKEVEN_BUFFER.
-     * At 3.0 pts with delta ~0.5 and 65 qty: captures ~Rs 97 in option premium.
+     * Default buffer: 3.0 index points beyond entry when setting breakeven SL.
+     * At ITM_1 delta 0.65 with NIFTY 65 lots: captures ~Rs 127 per BREAKEVEN exit.
      */
-    private static final double BREAKEVEN_BUFFER = 3.0;
+    private static final double DEFAULT_BREAKEVEN_BUFFER = 3.0;
+
+    /**
+     * Buffer added beyond entry price when setting breakeven SL.
+     * CE: SL = entry + breakevenBuffer, PE: SL = entry - breakevenBuffer.
+     * Higher buffer = more guaranteed profit per exit, but fewer trades reach the threshold.
+     */
+    private final double breakevenBuffer;
 
     private final Map<String, Boolean> breakevenAchieved = new ConcurrentHashMap<>();
     private final Map<String, Double> trailingExtremes = new ConcurrentHashMap<>();
+
+    /** Default constructor — uses 3.0pt buffer (backward compatible). */
+    public BreakevenTrailingStopLossStrategy() {
+        this(DEFAULT_BREAKEVEN_BUFFER);
+    }
+
+    /**
+     * Constructor with configurable buffer.
+     * @param breakevenBuffer index points beyond entry for the breakeven SL level
+     */
+    public BreakevenTrailingStopLossStrategy(double breakevenBuffer) {
+        this.breakevenBuffer = breakevenBuffer;
+    }
 
     @Override
     public OrderSellDetailModel isTargetAchieved(ActiveOrder order, double ltp) {
@@ -47,7 +65,7 @@ public class BreakevenTrailingStopLossStrategy extends AbstractTargetAndStopLoss
         boolean isCall = order.isCallOrder();
 
         // Check if trade has gone green (LTP crossed entry + buffer in favorable direction)
-        double breakevenLevel = isCall ? entryPrice + BREAKEVEN_BUFFER : entryPrice - BREAKEVEN_BUFFER;
+        double breakevenLevel = isCall ? entryPrice + breakevenBuffer : entryPrice - breakevenBuffer;
         boolean isGreen = isCall ? ltp > breakevenLevel : ltp < breakevenLevel;
 
         if (isGreen && !breakevenAchieved.containsKey(key)) {
@@ -56,7 +74,7 @@ public class BreakevenTrailingStopLossStrategy extends AbstractTargetAndStopLoss
             order.setStopLoss(breakevenLevel);
             breakevenAchieved.put(key, Boolean.TRUE);
             log.info("BREAKEVEN_SL: Trade went green, SL moved to {} (entry={}, buffer={}, was {}), order: {}",
-                    breakevenLevel, entryPrice, BREAKEVEN_BUFFER, oldSL, order);
+                    breakevenLevel, entryPrice, breakevenBuffer, oldSL, order);
         }
 
         if (breakevenAchieved.containsKey(key)) {
