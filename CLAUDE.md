@@ -110,6 +110,8 @@ list.stream().filter(...).toList();
 - `volatile` for shared boolean flags
 - `Collections.unmodifiableList()` for immutable lists
 - Widen parameters: `List` not `ArrayList`
+- `ReentrantLock` over `synchronized` (virtual thread safe — avoids carrier thread pinning)
+- Double-checked locking for cache initialization (check → lock → recheck → fetch)
 
 ### Extension Patterns
 
@@ -133,6 +135,7 @@ list.stream().filter(...).toList();
 | `ArrayList` in parameters | Use `List` interface |
 | Forgetting PMD | Always run `mvn clean package` before commit |
 | `new ObjectMapper()` | Use `JsonUtils.createObjectMapper()` — VT-safe shared recycler pool |
+| Unused imports in tests | Strict Mockito fails build — only import stubs you actually use |
 
 ---
 
@@ -142,6 +145,8 @@ list.stream().filter(...).toList();
 - Structure mirrors source: `src/test/java/com/vish/fno/`
 - Mockito for external dependencies (fno-kite-reader)
 - All indicators/utilities require unit tests
+- Mockito strict stubbing: `@ExtendWith(MockitoExtension.class)` fails on unused stubs — only stub methods that will actually be called in the test path
+- Concurrency tests: use `CountDownLatch` + `AtomicInteger` to verify thread-safety (see `CandleStoreImplTest`)
 
 ---
 
@@ -155,6 +160,19 @@ Task(subagent_type="fnosdk-doc-watcher", ...)
 Manual: `/update-docs`, `/update-docs --staged`, `/update-docs fno-technicals`
 
 See `.claude/agent_policy.md` for automation rules.
+
+---
+
+## Verification Workflow
+
+**`/verify`** — dispatches `code-reviewer` and `test-runner` in parallel for fast feedback.
+
+Available subagents:
+- `code-reviewer` — PMD analysis, FnOSdk patterns, security checks (read-only)
+- `test-runner` — smart module selection, dependency-aware testing (read-only)
+- `fnosdk-doc-watcher` — syncs module guides after public API changes
+
+For dependency-aware testing: changes to base modules (fno-models, fno-utils) should test all dependents.
 
 ---
 
