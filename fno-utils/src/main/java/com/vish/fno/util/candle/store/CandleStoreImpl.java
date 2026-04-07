@@ -16,6 +16,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static com.vish.fno.util.FnoConstants.TOTAL_TRADING_MINUTES;
+
 /**
  * Candlestick data cache implementation for both production and backtest environments.
  *
@@ -52,8 +54,12 @@ public class CandleStoreImpl implements CandleStore {
 
     // ConcurrentHashMap required for computeIfAbsent atomicity — Map interface lacks this guarantee
     // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
+    // Separate lock maps for intraday vs historic: intraday locks are cleared on date change,
+    // historic locks are independent (previous day data is immutable once complete).
     @SuppressWarnings("PMD.LooseCoupling")
-    private final ConcurrentHashMap<String, ReentrantLock> symbolFetchLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReentrantLock> intradayFetchLocks = new ConcurrentHashMap<>();
+    @SuppressWarnings("PMD.LooseCoupling")
+    private final ConcurrentHashMap<String, ReentrantLock> historicFetchLocks = new ConcurrentHashMap<>();
 
     public CandleStoreImpl(CandlestickDataProvider candlestickDataProvider,
                            HolidayCalendar holidayCalendar,
@@ -131,7 +137,7 @@ public class CandleStoreImpl implements CandleStore {
                 if (!currentDate.equals(lastIntradayCacheDate)) {
                     log.info("Date changed from {} to {} — clearing candle caches", lastIntradayCacheDate, currentDate);
                     minuteDataCache.clearAll();
-                    symbolFetchLocks.clear();
+                    intradayFetchLocks.clear();
                     lastIntradayCacheDate = currentDate;
                 }
             } finally {
@@ -147,7 +153,7 @@ public class CandleStoreImpl implements CandleStore {
         // for the same uncached symbol. Only the first thread fetches; others wait and
         // then see the cached result via the double-check on isDataAvailable().
         // ReentrantLock (not synchronized) so virtual threads can unmount during I/O waits.
-        ReentrantLock lock = symbolFetchLocks.computeIfAbsent(symbol, k -> new ReentrantLock());
+        ReentrantLock lock = intradayFetchLocks.computeIfAbsent(symbol, k -> new ReentrantLock());
         lock.lock();
         try {
             if (isDataAvailable(symbol)) {
@@ -174,10 +180,26 @@ public class CandleStoreImpl implements CandleStore {
     }
 
     private void updateHistoricCache(String date, String symbol) {
-        if (historicDataCache.getData(date, symbol) == null || historicDataCache.getData(date, symbol).isEmpty()) {
-            log.info("updating intraday cache for date: {}, symbol: {} ", date, symbol);
+        if (isHistoricDataComplete(date, symbol)) {
+            return;
+        }
+
+        String lockKey = date + ":" + symbol;
+        ReentrantLock lock = historicFetchLocks.computeIfAbsent(lockKey, k -> new ReentrantLock());
+        lock.lock();
+        try {
+            if (isHistoricDataComplete(date, symbol)) {
+                return;
+            }
+            log.info("updating historic cache for date: {}, symbol: {}", date, symbol);
             Optional<SymbolData> candleStickData = candlestickDataProvider.getEntireDayHistoryData(date, symbol, "minute");
             candleStickData.ifPresent(d -> historicDataCache.update(date, symbol, d.data()));
+        } finally {
+            lock.unlock();
         }
+    }
+
+    private boolean isHistoricDataComplete(String date, String symbol) {
+        return historicDataCache.getData(date, symbol).size() >= TOTAL_TRADING_MINUTES;
     }
 }

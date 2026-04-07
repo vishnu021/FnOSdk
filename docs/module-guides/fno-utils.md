@@ -342,7 +342,7 @@ Automatically detects date changes and clears intraday candle and per-symbol fet
 
 **Date-boundary locking:** Uses a dedicated `ReentrantLock` (`dateChangeLock`) with double-checked locking to ensure exactly one thread clears caches on date rollover. Prevents the race where multiple virtual threads at market open (9:15) all see a stale date, enter the clear block, and one thread populates data that another immediately clears.
 
-**Per-symbol fetch locking:** Uses `ConcurrentHashMap<String, ReentrantLock> symbolFetchLocks` with `computeIfAbsent` for per-symbol `ReentrantLock` instances. When multiple virtual threads request the same uncached symbol simultaneously, only the first thread fetches from the Kite API; others wait on the lock and then see the cached result via a double-check on `isDataAvailable()`. Locks are cleared on date change. `ReentrantLock` replaces `synchronized` to avoid pinning virtual threads to carrier threads.
+**Per-symbol fetch locking:** Separate lock maps for intraday and historic data. `intradayFetchLocks` (`ConcurrentHashMap<String, ReentrantLock>`) guards intraday fetches — keyed by symbol, cleared on date change. `historicFetchLocks` (`ConcurrentHashMap<String, ReentrantLock>`) guards historic fetches — keyed by `date:symbol`, independent of date rollover (previous day data is immutable once complete). Both use `computeIfAbsent` for per-key `ReentrantLock` instances. When multiple virtual threads request the same uncached symbol, only the first thread fetches; others wait on the lock and then see the cached result via double-checked locking (`isDataAvailable()` for intraday, `isHistoricDataComplete()` for historic). Historic completeness is checked via `size() >= TOTAL_TRADING_MINUTES`. `ReentrantLock` replaces `synchronized` to avoid pinning virtual threads to carrier threads.
 
 ### CandlestickDataProvider Interface
 
@@ -441,7 +441,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | CandleUtils, TimeUtils, CandlePatternUtils, PriceUtils | ✅ | Static methods |
 | JsonUtils, CompressionUtils | ✅ | Static methods; VT-safe ObjectMapper (shared bounded recycler pool) |
 | TickStoreImpl (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer); static CircularBufferView prevents GC pinning; independent date-boundary clearing |
-| CandleStoreImpl (candle fetch) | ✅ | Per-symbol `ReentrantLock` (VT-safe) prevents redundant API calls; dedicated `dateChangeLock` with double-checked locking for date-boundary cache clearing |
+| CandleStoreImpl (candle fetch) | ✅ | Separate `intradayFetchLocks` and `historicFetchLocks` (`ReentrantLock`, VT-safe) prevent redundant API calls; dedicated `dateChangeLock` with double-checked locking for date-boundary cache clearing; historic completeness check (`size() >= TOTAL_TRADING_MINUTES`) |
 | TimeProvider | ✅ | Instance methods |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
