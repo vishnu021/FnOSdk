@@ -477,6 +477,64 @@ public final class Rho extends OptionGreek {
 
 ---
 
+### ImpliedVolatilitySolver - Newton-Raphson IV Solver
+
+```java
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public final class ImpliedVolatilitySolver {
+    public static OptionalDouble solve(double strike, double spot, double timeToExpiry,
+                                        double riskFreeRate, double marketPrice, boolean isCall);
+}
+```
+
+Newton-Raphson solver that finds the volatility (sigma) making Black-Scholes price equal the market price.
+
+**Parameters:**
+- **strike:** Option strike price
+- **spot:** Current underlying spot price
+- **timeToExpiry:** Time to expiry in years (e.g., 7.0/365.0 for 7 days)
+- **riskFreeRate:** Annual risk-free rate as decimal (e.g., 0.065 for 6.5%)
+- **marketPrice:** Current market price of the option
+- **isCall:** true for call option, false for put option
+
+**Returns:** `OptionalDouble` -- implied volatility as decimal (e.g., 0.15 for 15%), or empty if solver fails.
+
+**Convergence guards:** vol bounded [0.01, 5.0], max 30 iterations, vega floor to prevent division by near-zero, returns `MIN_VOL` (0.01) if market price is below intrinsic value.
+
+**Usage:**
+```java
+import com.vish.fno.technical.greeks.ImpliedVolatilitySolver;
+import com.vish.fno.technical.greeks.BlackScholes;
+import lombok.extern.slf4j.Slf4j;
+import java.util.OptionalDouble;
+
+@Slf4j
+public class IVSolverExample {
+    public void solveIV() {
+        double strike = 19500.0;
+        double spot = 19550.0;
+        double tte = 7.0 / 365.0;
+        double rfr = 0.065;
+
+        // Get market price of the call option
+        double marketPrice = 185.0;
+
+        OptionalDouble iv = ImpliedVolatilitySolver.solve(strike, spot, tte, rfr, marketPrice, true);
+        iv.ifPresentOrElse(
+            sigma -> {
+                log.info("Implied Volatility: {}%", sigma * 100);
+                // Verify: price the option with solved IV
+                double bsPrice = BlackScholes.calculateOptionPrice(strike, spot, tte, rfr, sigma, true);
+                log.info("BS price with solved IV: {} (market: {})", bsPrice, marketPrice);
+            },
+            () -> log.warn("IV solver did not converge")
+        );
+    }
+}
+```
+
+---
+
 ## Complete Trading Example
 
 ```java
@@ -532,7 +590,7 @@ public class CompleteTradingStrategy {
 ## Thread Safety
 
 All indicator and Greek classes use static methods or immutable state:
-- **Thread-safe:** All Greek calculations (Delta, Gamma, Theta, Vega, Rho, BlackScholes)
+- **Thread-safe:** All Greek calculations (Delta, Gamma, Theta, Vega, Rho, BlackScholes, ImpliedVolatilitySolver)
 - **Instance-based:** Indicators (create separate instances per thread if needed)
 - **No shared state:** Each indicator instance maintains only configuration (period, multiplier)
 

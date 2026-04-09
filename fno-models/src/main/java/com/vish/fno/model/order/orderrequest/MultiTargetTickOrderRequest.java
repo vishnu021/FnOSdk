@@ -21,8 +21,8 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
  * Tick-based order request for multi-target strategies. Mirrors {@link TickBasedOrderRequest}
  * but requires {@code target.size() >= 2} and {@code task.getLots() >= 2}.
  *
- * <p>{@link #verifyBuyThreshold(Ticker)} always returns {@code Optional.of(this)} because
- * tick-based strategies verify the threshold at tick level before creating the request.
+ * <p>{@link #verifyBuyThreshold(Ticker)} checks that LTP is between the threshold and target,
+ * rejecting orders where price has already drifted past the target during the queue window.
  */
 // CPD-OFF - Intentional structural similarity with TickBasedOrderRequest (multi-target variant)
 @Slf4j
@@ -30,6 +30,7 @@ import static com.vish.fno.model.util.ModelUtils.roundTo5Paise;
 @Builder
 public final class MultiTargetTickOrderRequest implements OrderRequest {
     private static final int ESTIMATED_BUFFER_SIZE = 150;
+    private static final double MAX_FILL_RATIO = 2.0 / 3.0;
     private final Task task;
     private final String tag;
     private final String index;
@@ -94,7 +95,35 @@ public final class MultiTargetTickOrderRequest implements OrderRequest {
 
     @Override
     public Optional<OrderRequest> verifyBuyThreshold(Ticker tick) {
-        return Optional.of(this);
+        double ltp = tick.lastTradedPrice();
+        double targetPrice = target.first();
+        double targetDistance = Math.abs(targetPrice - buyThreshold);
+        double maxAllowedSlippage = MAX_FILL_RATIO * targetDistance;
+
+        if (callOrder) {
+            double maxFillPrice = buyThreshold + maxAllowedSlippage;
+            if (ltp > buyThreshold && ltp <= maxFillPrice) {
+                log.info("CE multi-target tick ltp: {} crossed threshold {} (max fill: {}), placing order({}) : {}",
+                        ltp, buyThreshold, maxFillPrice, optionSymbol, this);
+                return Optional.of(this);
+            }
+            if (ltp > maxFillPrice) {
+                log.info("CE multi-target tick order REJECTED: ltp {} past 2/3 fill limit {} (threshold={}, target={}): {}",
+                        ltp, maxFillPrice, buyThreshold, targetPrice, this);
+            }
+        } else {
+            double minFillPrice = buyThreshold - maxAllowedSlippage;
+            if (ltp < buyThreshold && ltp >= minFillPrice) {
+                log.info("PE multi-target tick ltp: {} crossed threshold {} (min fill: {}), placing order({}) : {}",
+                        ltp, buyThreshold, minFillPrice, optionSymbol, this);
+                return Optional.of(this);
+            }
+            if (ltp < minFillPrice) {
+                log.info("PE multi-target tick order REJECTED: ltp {} past 2/3 fill limit {} (threshold={}, target={}): {}",
+                        ltp, minFillPrice, buyThreshold, targetPrice, this);
+            }
+        }
+        return Optional.empty();
     }
 
     @Override

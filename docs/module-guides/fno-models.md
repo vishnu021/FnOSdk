@@ -169,7 +169,7 @@ Used by `Task.getStrikePolicy()` and `KiteService.getOptionStock()` for policy-b
 | `getTag()` | `String` | Unique order tag |
 | `getTask()` | `Task` | Associated task |
 | `getDate()` | `Date` | Order date |
-| `verifyBuyThreshold(Ticker)` | `Optional<OrderRequest>` | Returns order if threshold crossed |
+| `verifyBuyThreshold(Ticker)` | `Optional<OrderRequest>` | Returns order if threshold crossed; implementation-specific (see below) |
 | `getMaxHoldDuration()` | `int` | Default `0` (no limit). Max minutes to hold before time-stop (triple barrier) |
 | `getExtraData()` | `Map<String, String>` | Default `Map.of()`. Strategy-specific key-value pairs copied into `ActiveOrder.extraData` on creation |
 | `isCallOrder()` | `boolean` | Default returns `true`; override for put orders |
@@ -204,9 +204,9 @@ Implements `equals()`/`hashCode()` based on the wrapped list.
 |-------|----------|----------------|
 | `IndexOrderRequest` | Index futures/options | Has `optionSymbol`, `callOrder` flag |
 | `OptionBasedOrderRequest` | Option premium trading | No option symbol, premium-based |
-| `TickBasedOrderRequest` | High-frequency trading | `verifyBuyThreshold()` always returns self |
+| `TickBasedOrderRequest` | High-frequency trading | `verifyBuyThreshold()` enforces 2/3 fill-ratio slippage guard (see below) |
 | `MultiTargetOrderRequest` | Multi-target index strategies | Requires `target.size() >= 2`, `task.getLots() >= 2`. Creates `MultiTargetActiveIndexOrder` |
-| `MultiTargetTickOrderRequest` | Multi-target tick strategies | `verifyBuyThreshold()` always returns self. Creates `MultiTargetTickActiveOrder` |
+| `MultiTargetTickOrderRequest` | Multi-target tick strategies | `verifyBuyThreshold()` enforces 2/3 fill-ratio slippage guard (see below). Creates `MultiTargetTickActiveOrder` |
 
 All five store `Target target` (not `double`), `int maxHoldDuration`, and `Map<String, String> extraData`. Each provides a partial Lombok builder class with a backward-compatible `.target(double)` overload that wraps to `Target.of(val)`. Lombok also generates `.target(Target)` for multi-target usage. If `extraData` is null at construction, it defaults to `Map.of()`.
 
@@ -242,6 +242,23 @@ MultiTargetTickOrderRequest.builder("TAG", "NIFTY", task)
     .extraData(Map.of("subSignal", "momentum"))
     .build();
 ```
+
+### Tick Order Fill-Ratio Slippage Guard
+
+`TickBasedOrderRequest` and `MultiTargetTickOrderRequest` enforce a `MAX_FILL_RATIO = 2/3` slippage guard in `verifyBuyThreshold(Ticker)`. This prevents order fills when price has drifted too far past the threshold toward the target.
+
+**Logic:**
+```
+targetDistance    = |targetPrice - buyThreshold|
+maxAllowedSlippage = MAX_FILL_RATIO * targetDistance   (i.e. 2/3 of target distance)
+```
+
+| Direction | Accepts fill when | Rejects (returns `Optional.empty()`) when |
+|-----------|-------------------|------------------------------------------|
+| CE (call) | `ltp > buyThreshold && ltp <= buyThreshold + maxAllowedSlippage` | `ltp > buyThreshold + maxAllowedSlippage` |
+| PE (put)  | `ltp < buyThreshold && ltp >= buyThreshold - maxAllowedSlippage` | `ltp < buyThreshold - maxAllowedSlippage` |
+
+Returns `Optional.empty()` if LTP has not yet crossed the threshold (no fill) or has drifted past the 2/3 fill limit (rejected). Other `OrderRequest` implementations (`IndexOrderRequest`, `OptionBasedOrderRequest`, `MultiTargetOrderRequest`) use simple threshold crossing without a fill-ratio guard.
 
 ---
 
@@ -599,6 +616,7 @@ public record WyckoffIndicators(double pricePosition, double volumeAnalysis, dou
 - **MultiTargetOrder advanceTarget()**: No-op if all targets already reached (`currentTargetIndex >= target.size()`)
 - **MultiTargetOrder getCurrentTarget()**: Returns the last target price if all targets are exhausted
 - **ActiveOrderFactory switch order**: `MultiTargetOrderRequest` and `MultiTargetTickOrderRequest` cases must appear before `IndexOrderRequest` and `TickBasedOrderRequest` respectively, since the multi-target types do not extend the single-target types but are matched first
+- **Tick order fill-ratio guard**: `TickBasedOrderRequest` and `MultiTargetTickOrderRequest` use `MAX_FILL_RATIO = 2/3`. If LTP has not crossed the threshold, returns `Optional.empty()` (no fill yet). If LTP has crossed but drifted past 2/3 of the target distance, returns `Optional.empty()` (rejected). Uses `target.first()` as the target price for the distance calculation.
 
 ---
 
