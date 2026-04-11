@@ -15,6 +15,7 @@ package com.vish.fno.model.order;
  *   <li>{@link #BREAKEVEN_TRAILING_7} — same as BREAKEVEN_TRAILING but with 7pt buffer (wider for momentum strategies)</li>
  *   <li>{@link #STEPPED} — uses intermediate targets as SL revision checkpoints (no partial sell, 1-lot safe)</li>
  *   <li>{@link #STEPPED_LATE_67} — conservative stepped: single SL revision at 67% of target + 5pt buffer. For retest-pattern strategies.</li>
+ *   <li>{@link #STEPPED_7} — Stepped SL with 7pt breakeven buffer — revises SL to entry+7pts when first intermediate target (33%) is crossed. Best for momentum strategies: full target on winners, entry+7 protection on partial successes.</li>
  * </ul>
  */
 public enum StopLossType {
@@ -27,5 +28,6 @@ public enum StopLossType {
     BREAKEVEN_TRAILING_5,
     BREAKEVEN_TRAILING_7,
     STEPPED,
-    STEPPED_LATE_67
+    STEPPED_LATE_67,
+    STEPPED_7
 }
