@@ -45,16 +45,34 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
      */
     private final double breakevenBuffer;
 
+    /**
+     * When > 0, overrides fixed {@link #breakevenBuffer}: buffer = fraction * target distance.
+     * E.g. 0.20 means 20% of (target - entry). Floor: {@link #MIN_PROPORTIONAL_BUFFER}.
+     */
+    private final double proportionalFraction;
+    private static final double MIN_PROPORTIONAL_BUFFER = 3.0;
+
     private final Map<String, StepState> stepStates = new ConcurrentHashMap<>();
 
     /** Default constructor — zero buffer (backward compatible). */
     public SteppedStopLossStrategy() {
-        this(0.0);
+        this(0.0, 0.0);
     }
 
-    /** Constructor with configurable breakeven buffer for first-step SL revision. */
+    /** Constructor with configurable fixed breakeven buffer for first-step SL revision. */
     public SteppedStopLossStrategy(double breakevenBuffer) {
+        this(breakevenBuffer, 0.0);
+    }
+
+    /**
+     * Constructor with proportional breakeven buffer.
+     * @param breakevenBuffer fixed buffer (used when proportionalFraction is 0).
+     * @param proportionalFraction fraction of target distance used as buffer (e.g., 0.20 = 20% of target).
+     *                             When {@literal >} 0, overrides fixed buffer. Min buffer: 3.0 pts.
+     */
+    public SteppedStopLossStrategy(double breakevenBuffer, double proportionalFraction) {
         this.breakevenBuffer = breakevenBuffer;
+        this.proportionalFraction = proportionalFraction;
     }
 
     @Override
@@ -110,8 +128,15 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
             // Intermediate step — revise SL to previous step (or entry+buffer for first step)
             double newSL;
             if (state.currentStep == 0) {
-                double buffer = isCall ? breakevenBuffer : -breakevenBuffer;
-                newSL = state.entryPrice + buffer;
+                double effectiveBuffer;
+                if (proportionalFraction > 0) {
+                    double targetDist = Math.abs(state.targetPrice - state.entryPrice);
+                    effectiveBuffer = Math.max(MIN_PROPORTIONAL_BUFFER, proportionalFraction * targetDist);
+                } else {
+                    effectiveBuffer = breakevenBuffer;
+                }
+                double bufferSigned = isCall ? effectiveBuffer : -effectiveBuffer;
+                newSL = state.entryPrice + bufferSigned;
             } else {
                 newSL = state.steps.get(state.currentStep - 1);
             }
@@ -159,10 +184,11 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
     private StepState createSteps(ActiveOrder order) {
         double entry = order.getBuyPrice();
-        double target = order.getOrderRequest().getTarget().first();
+        List<Double> targets = order.getOrderRequest().getTarget().asList();
         boolean isCall = order.isCallOrder();
+        double primaryTarget = isCall ? Collections.max(targets) : Collections.min(targets);
 
-        double distance = isCall ? target - entry : entry - target;
+        double distance = isCall ? primaryTarget - entry : entry - primaryTarget;
         List<Double> fractions = resolveStepFractions(order);
         List<Double> steps = new ArrayList<>();
 
@@ -172,9 +198,9 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
         }
 
         log.debug("STEPPED_SL: Generated {} steps (fractions={}) for order: {} | entry={} target={} steps={}",
-                fractions.size(), fractions, order, entry, target, steps);
+                fractions.size(), fractions, order, entry, primaryTarget, steps);
 
-        return new StepState(entry, steps);
+        return new StepState(entry, primaryTarget, steps);
     }
 
     private List<Double> resolveStepFractions(ActiveOrder order) {
@@ -206,11 +232,13 @@ public class SteppedStopLossStrategy extends AbstractTargetAndStopLossStrategy {
 
     private static class StepState {
         final double entryPrice;
+        final double targetPrice;
         final List<Double> steps;
         int currentStep;
 
-        StepState(double entryPrice, List<Double> steps) {
+        StepState(double entryPrice, double targetPrice, List<Double> steps) {
             this.entryPrice = entryPrice;
+            this.targetPrice = targetPrice;
             this.steps = steps;
             this.currentStep = 0;
         }

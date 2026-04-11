@@ -29,5 +29,7 @@ public enum StopLossType {
     BREAKEVEN_TRAILING_7,
     STEPPED,
     STEPPED_LATE_67,
-    STEPPED_7
+    STEPPED_7,
+    /** Stepped SL with proportional buffer: buffer = 20% of target distance (min 3pt). Scales with trade size — works for both small and large targets. */
+    STEPPED_PROPORTIONAL
 }
