@@ -12,6 +12,7 @@ package com.vish.fno.model.order;
  *   <li>{@link #TRAILING_MULTITARGET} — T1/T2 fixed exits, remainder trails with SL revision on new highs</li>
  *   <li>{@link #BREAKEVEN_TRAILING} — moves SL to entry+3pts (breakeven) once trade goes green, then trails</li>
  *   <li>{@link #BREAKEVEN_TRAILING_5} — same as BREAKEVEN_TRAILING but with 5pt buffer (higher guaranteed profit per exit)</li>
+ *   <li>{@link #BREAKEVEN_TRAILING_7} — same as BREAKEVEN_TRAILING but with 7pt buffer (wider for momentum strategies)</li>
  *   <li>{@link #STEPPED} — uses intermediate targets as SL revision checkpoints (no partial sell, 1-lot safe)</li>
  *   <li>{@link #STEPPED_LATE_67} — conservative stepped: single SL revision at 67% of target + 5pt buffer. For retest-pattern strategies.</li>
  * </ul>
@@ -24,6 +25,7 @@ public enum StopLossType {
     TRAILING_MULTITARGET,
     BREAKEVEN_TRAILING,
     BREAKEVEN_TRAILING_5,
+    BREAKEVEN_TRAILING_7,
     STEPPED,
     STEPPED_LATE_67
 }
