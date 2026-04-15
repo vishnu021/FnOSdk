@@ -28,6 +28,17 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     protected final Map<Integer, Double> stopLossRevision = new ConcurrentHashMap<>();
     protected double realisedProfit;
 
+    /**
+     * Broker-confirmed option buy price from Kite order-update callback.
+     * Zero until the BUY leg completes with status=COMPLETE on a live broker.
+     * Daily-analysis reports prefer this over {@code optionBuyPrice} / {@code buyPrice}
+     * when computing real P&L because it removes the signal-time-vs-fill-time slippage bias.
+     */
+    protected double actualOptionBuyPrice;
+
+    /** Broker-confirmed option sell price from Kite order-update callback. Zero until fill arrives. */
+    protected double actualOptionSellPrice;
+
     protected AbstractActiveOrder(OrderRequest orderRequest,
                                double buyPrice,
                                int entryTimeStamp,
@@ -48,6 +59,16 @@ public abstract class AbstractActiveOrder implements ActiveOrder {
     protected void updateStopLoss(double stopLoss) {
         stopLossRevision.put(++stopLossRevisionCount, this.stopLoss);
         this.stopLoss = stopLoss;
+    }
+
+    @Override
+    public void setActualOptionBuyPrice(double actualOptionBuyPrice) {
+        this.actualOptionBuyPrice = actualOptionBuyPrice;
+    }
+
+    @Override
+    public void setActualOptionSellPrice(double actualOptionSellPrice) {
+        this.actualOptionSellPrice = actualOptionSellPrice;
     }
 
     @Override

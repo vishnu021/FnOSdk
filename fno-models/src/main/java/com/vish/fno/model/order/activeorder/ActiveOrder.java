@@ -31,6 +31,39 @@ public interface ActiveOrder {
     double getOptionBuyPrice();
 
 
+    // --- Broker-confirmed fill prices (set from Kite onOrderUpdate callback) ---
+
+    /**
+     * Returns the actual broker-confirmed option buy price from Kite's order-update
+     * callback (averagePrice on status=COMPLETE for BUY). Zero until a fill arrives
+     * or if running in a mode without a live broker (backtest, mock).
+     *
+     * <p>Daily-analysis reports should prefer this over {@link #getOptionBuyPrice()}
+     * when computing real broker P&L — the latter is the price snapshot at signal
+     * generation time, which can drift several rupees from the actual fill in the
+     * milliseconds-to-seconds of order routing (the "~Rs 29/trade slippage gap"
+     * documented in the Apr 15 prod analysis).
+     */
+    double getActualOptionBuyPrice();
+
+    /**
+     * Sets the actual broker-confirmed option buy price. Called from the Kite
+     * order-update callback when the BUY leg completes.
+     */
+    void setActualOptionBuyPrice(double actualOptionBuyPrice);
+
+    /**
+     * Returns the actual broker-confirmed option sell price from Kite's order-update
+     * callback (averagePrice on status=COMPLETE for SELL). Zero until a fill arrives.
+     */
+    double getActualOptionSellPrice();
+
+    /**
+     * Sets the actual broker-confirmed option sell price. Called from the Kite
+     * order-update callback when the SELL leg completes.
+     */
+    void setActualOptionSellPrice(double actualOptionSellPrice);
+
     // --- Risk management ---
     double getStopLoss();
     void setStopLoss(double stopLoss);
