@@ -231,14 +231,14 @@ Static methods are thread-safe. Instance tick methods use `ConcurrentHashMap` + 
 **Tick I/O Performance Caches (Mar 2026, JFR-profiled):**
 - `WHITESPACE_PATTERN` -- pre-compiled `Pattern.compile("\\s")` replacing per-call `String.replaceAll()` (~10M compilations/day eliminated)
 - `DATE_FORMATTER` / `DATE_ZONE` -- static `DateTimeFormatter` + `ZoneId` replacing per-call `new SimpleDateFormat()` allocation (thread-safe, zero allocation per call)
-- `createdDirectories` (`ConcurrentHashMap.newKeySet()`) -- session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated)
+- `createdDirectories` (`ConcurrentHashMap<String, Boolean>`) -- session cache of already-created directories; avoids repeated `Files.createDirectories()` calls that throw `FileAlreadyExistsException` internally on Windows (~5M exceptions/day eliminated). Uses a `Map` (not `Set`) so `createDirectoryOnce()` can use `computeIfAbsent` for atomic create-and-block semantics -- losing threads block until the winner finishes `createDirectoryIfNotExist()`, preventing a TOCTOU race where `getOrCreateWriter` previously hit `FileNotFoundException` on the first tick of a new trading day (prod incident 2026-04-17 with 1806 subscribed tokens)
 - `symbolFilePathCache` (`ConcurrentHashMap`) -- caches sanitized tick file paths per symbol per date
 - `cachedDateFolder` (`volatile`) -- date-change detection; clears `symbolFilePathCache` and `writerCache` on new trading day
 - `cachedDateEpochDay` (`volatile long`) -- zero-allocation epoch day check; derives IST day from `System.currentTimeMillis()` + `IST_OFFSET_MS` without creating `Date`/`DateTime` objects on every tick flush
 - `writerCache` (`ConcurrentHashMap<String, PrintWriter>`) -- reuses `PrintWriter` instances across tick flushes instead of creating new `FileWriter`/`BufferedWriter`/`PrintWriter` triplets per flush (~40 writer triplets/sec eliminated with 200 symbols). Thread-safe creation via `putIfAbsent`; broken writers detected via `checkError()` and evicted automatically
 - Private `getOrCreateTickFilePath(symbol)` combines directory/path caches; called by `flushTickBuffer()`
 - Private `getOrCreateWriter(path)` returns cached `PrintWriter` or creates new one with `putIfAbsent` for thread safety; on race, losing writer is closed immediately
-- Private `createDirectoryOnce(path)` delegates to `createDirectoryIfNotExist()` only on first encounter per path
+- Private `createDirectoryOnce(path)` uses `ConcurrentHashMap.computeIfAbsent` to invoke `createDirectoryIfNotExist()` atomically under the bin lock on first encounter per path; concurrent callers on the same path block until the winner completes, guaranteeing the directory exists for every caller before they proceed to `getOrCreateWriter`
 
 **JFR Hotspot Fixes (Mar 2026):**
 - `createDirectoryIfNotExist()` — added `Files.exists()` guard before `Files.createDirectories()` to avoid `FileAlreadyExistsException` (~2,325 exceptions/day eliminated)

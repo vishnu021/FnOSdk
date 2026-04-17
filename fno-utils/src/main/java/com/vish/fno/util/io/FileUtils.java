@@ -30,7 +30,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
@@ -65,9 +64,16 @@ public final class FileUtils implements FnoConstants {
     private final ObjectMapper mapper;
     private final Map<String, Queue<String>> tickBuffer = new ConcurrentHashMap<>();
 
-    /** Cache of directories already created this session. Avoids repeated Files.createDirectories() calls
-     *  that throw FileAlreadyExistsException internally on Windows (~5M exceptions/day in JFR). */
-    private final Set<String> createdDirectories = ConcurrentHashMap.newKeySet();
+    /**
+     * Cache of directories already created this session. Avoids repeated {@code Files.createDirectories()}
+     * calls that throw {@code FileAlreadyExistsException} internally on Windows (~5M exceptions/day in JFR).
+     *
+     * <p>Declared as {@code Map<String, Boolean>} (not {@code Set<String>}) so {@link #createDirectoryOnce}
+     * can use {@link ConcurrentHashMap#computeIfAbsent computeIfAbsent} — see that method's Javadoc for
+     * the race condition the previous {@code Set.add()}-based gate had. The {@code Boolean.TRUE} value is
+     * a sentinel; only key presence matters.
+     */
+    private final Map<String, Boolean> createdDirectories = new ConcurrentHashMap<>();
 
     /** Cache of sanitized file paths per symbol (avoids re-computing date + regex replace per flush). */
     private final Map<String, String> symbolFilePathCache = new ConcurrentHashMap<>();
@@ -257,13 +263,39 @@ public final class FileUtils implements FnoConstants {
 
     /**
      * Creates a directory only if it hasn't been created in this session.
-     * Avoids repeated {@code Files.createDirectories()} calls that internally throw
-     * {@code FileAlreadyExistsException} for each existing path component on Windows.
+     *
+     * <p><b>Why this exists:</b> avoids repeated {@code Files.createDirectories()} calls
+     * that internally throw {@code FileAlreadyExistsException} for each existing path
+     * component on Windows (~5M exceptions/day in JFR before this cache was added).
+     *
+     * <p><b>Why {@code computeIfAbsent} (not {@code Set.add}):</b> the previous implementation
+     * used {@code createdDirectories.add(path)} as a "winner takes the work" gate — only the
+     * thread whose {@code add} returned {@code true} called {@code Files.createDirectories}.
+     * That had a TOCTOU race: <em>losing</em> threads got {@code false} immediately and
+     * proceeded to {@link #getOrCreateWriter} <b>before</b> the winning thread had actually
+     * created the directory, hitting {@code FileNotFoundException} when {@code FileWriter}
+     * tried to open the file. This surfaced on the first tick of every trading day, when
+     * many symbol-flush virtual threads race on the brand-new {@code tick/YYYY-MM-DD} folder
+     * — see prod incident on 2026-04-17 with 1806 subscribed tokens.
+     *
+     * <p>{@link ConcurrentHashMap#computeIfAbsent} fixes this because the {@code remappingFunction}
+     * is invoked atomically <b>under the bin lock</b> (per CHM javadoc: "the entire method
+     * invocation is performed atomically"). Threads racing on the same key block until the
+     * lambda completes, so by the time {@code computeIfAbsent} returns, the directory is
+     * guaranteed to exist for every caller — winner and losers alike.
+     *
+     * <p><b>Why a {@code Map<String, Boolean>} instead of a {@code Set<String>}:</b>
+     * {@code ConcurrentHashMap.newKeySet()} exposes no atomic compute-and-block primitive
+     * equivalent to {@code computeIfAbsent}. The {@code Boolean.TRUE} value is a sentinel —
+     * we never read it; the key's presence is what matters.
+     *
+     * @param path absolute folder path that must exist before any caller proceeds
      */
     private void createDirectoryOnce(String path) {
-        if (createdDirectories.add(path)) {
-            createDirectoryIfNotExist(path);
-        }
+        createdDirectories.computeIfAbsent(path, p -> {
+            createDirectoryIfNotExist(p);
+            return Boolean.TRUE;
+        });
     }
 
     public void flushAllTickBuffers() {
