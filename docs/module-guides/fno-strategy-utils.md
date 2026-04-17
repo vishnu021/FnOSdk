@@ -291,10 +291,12 @@ Extends `AbstractTargetAndStopLossStrategy`. Auto-generates intermediate SL revi
 ```java
 public SteppedStopLossStrategy()
 public SteppedStopLossStrategy(double breakevenBuffer)
+public SteppedStopLossStrategy(double breakevenBuffer, double proportionalFraction)
 ```
 
 - Default constructor uses 0.0 buffer (SL moves to exact entry on first step -- backward compatible).
-- `breakevenBuffer`: index points beyond entry for first-step SL revision. CE: `entry + buffer`, PE: `entry - buffer`. With buffer 5.0: SL moves to entry+5pts, guaranteeing ~Rs 634 per exit at 3 lots NIFTY ITM_1.
+- `breakevenBuffer`: fixed index points beyond entry for first-step SL revision. CE: `entry + buffer`, PE: `entry - buffer`. With buffer 5.0: SL moves to entry+5pts, guaranteeing ~Rs 634 per exit at 3 lots NIFTY ITM_1.
+- `proportionalFraction` (> 0): overrides fixed `breakevenBuffer`. Effective buffer = `max(MIN_PROPORTIONAL_BUFFER, fraction * |target - entry|)`. `MIN_PROPORTIONAL_BUFFER = 3.0`. E.g., `0.20` = 20% of target distance (floor 3pt). Scales with trade size -- works for both small targets (hits floor) and large targets (wider protection). Dispatched from `StopLossType.STEPPED_PROPORTIONAL`.
 
 **Step fraction resolution priority** (via `resolveStepFractions(ActiveOrder)`):
 1. **Enum profile**: `Task.getSteppedStepProfile()` -- if non-EVEN, uses profile fractions (e.g., FIBONACCI = 38.2/61.8/100%, LATE_67 = 66.7/100%)
@@ -329,8 +331,10 @@ public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp)
 import com.vish.fno.strategy.orderflow.SteppedStopLossStrategy;
 import com.vish.fno.model.order.SteppedStepProfile;
 
-TargetAndStopLossStrategy strategy     = new SteppedStopLossStrategy();        // 0pt buffer (exact breakeven)
-TargetAndStopLossStrategy withBuffer   = new SteppedStopLossStrategy(5.0);     // 5pt buffer on first step
+TargetAndStopLossStrategy strategy     = new SteppedStopLossStrategy();             // 0pt buffer (exact breakeven)
+TargetAndStopLossStrategy withBuffer   = new SteppedStopLossStrategy(5.0);          // fixed 5pt buffer on first step
+TargetAndStopLossStrategy buffer7      = new SteppedStopLossStrategy(7.0);          // STEPPED_7 -- 7pt momentum buffer
+TargetAndStopLossStrategy proportional = new SteppedStopLossStrategy(0.0, 0.20);    // STEPPED_PROPORTIONAL -- 20% of target (min 3pt)
 // Step fractions resolved from Task: profile (FIBONACCI/CONSERVATIVE/AGGRESSIVE/LATE_67/LATE_75) > raw ratios > default EVEN
 ```
 

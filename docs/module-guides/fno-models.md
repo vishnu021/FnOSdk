@@ -88,8 +88,11 @@ Determines exit strategy behavior for an order.
 | `TRAILING_MULTITARGET` | T1/T2 fixed exits, remainder trails with SL revision on new highs/lows |
 | `BREAKEVEN_TRAILING` | Moves SL to entry+3pts (breakeven) once trade goes green, then trails at 50% convergence toward new extremes |
 | `BREAKEVEN_TRAILING_5` | Same as `BREAKEVEN_TRAILING` but with 5pt buffer (higher guaranteed profit per exit) |
+| `BREAKEVEN_TRAILING_7` | Same as `BREAKEVEN_TRAILING` but with 7pt buffer (wider for momentum strategies) |
 | `STEPPED` | Uses intermediate targets as SL revision checkpoints without partial selling (1-lot safe) |
 | `STEPPED_LATE_67` | Conservative stepped: single SL revision at 67% of target + 5pt buffer. For retest-pattern strategies |
+| `STEPPED_7` | Stepped SL with 7pt breakeven buffer — revises SL to entry+7pts when first intermediate target (33%) is crossed. Best for momentum strategies: full target on winners, entry+7 protection on partial successes |
+| `STEPPED_PROPORTIONAL` | Stepped SL with proportional buffer: buffer = 20% of target distance (min 3pt). Scales with trade size — works for both small and large targets |
 
 Used by fno-strategy-utils to dispatch to the correct `TargetAndStopLossStrategy` implementation.
 
@@ -286,6 +289,15 @@ Organized into semantic groups:
 | `setOptionBuyPrice(double)` | `void` | Sets option buy price (no-op for `OptionBasedActiveOrder` where buyPrice IS the option price) |
 | `getOptionBuyPrice()` | `double` | Option buy price (`buyOptionPrice` for index/tick orders, `buyPrice` for option-based orders) |
 
+**Broker-confirmed fill prices** (set from Kite `onOrderUpdate` callback; zero until a live fill arrives -- backtest/mock modes leave these at zero):
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getActualOptionBuyPrice()` | `double` | Broker-confirmed option buy price (Kite `averagePrice` on `status=COMPLETE` for BUY). Preferred over `getOptionBuyPrice()` in daily-analysis reports -- removes signal-time-vs-fill-time slippage bias |
+| `setActualOptionBuyPrice(double)` | `void` | Sets broker-confirmed buy price. Called from Kite order-update callback when BUY leg completes |
+| `getActualOptionSellPrice()` | `double` | Broker-confirmed option sell price (Kite `averagePrice` on `status=COMPLETE` for SELL) |
+| `setActualOptionSellPrice(double)` | `void` | Sets broker-confirmed sell price. Called from Kite order-update callback when SELL leg completes |
+
 **Risk management:**
 
 | Method | Returns | Description |
@@ -323,7 +335,9 @@ Organized into semantic groups:
 
 ### AbstractActiveOrder
 
-Base class storing a reference to the source `OrderRequest` plus mutable execution state: `entryTimeStamp`, `exitTimeStamp`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`, `realisedProfit`.
+Base class storing a reference to the source `OrderRequest` plus mutable execution state: `entryTimeStamp`, `exitTimeStamp`, `buyPrice`, `buyQuantity`, `soldQuantity`, `sellPrice`, `stopLoss`, `extraData`, `stopLossRevisionCount`, `stopLossRevision`, `realisedProfit`, `actualOptionBuyPrice`, `actualOptionSellPrice`.
+
+Broker-fill fields `actualOptionBuyPrice` / `actualOptionSellPrice` default to `0.0` and are populated only when a live Kite order-update callback reports `status=COMPLETE`. Daily-analysis reports prefer these over `optionBuyPrice` / `buyPrice` for real broker P&L since they capture actual fill prices (not signal-time snapshots). Also exposes protected `initializeRealisedProfit(double buyOptionPrice)` which seeds `realisedProfit = -1 * buyQuantity * buyOptionPrice` (called when actual option buy price is set after order creation).
 
 Immutable order identity (`tag`, `index`, `target`, `date`, `task`) is accessed exclusively via `getOrderRequest()`.
 
