@@ -45,6 +45,26 @@ public record Ticker(
     ) {
     }
 
+    /**
+     * Returns a copy of this Ticker with the depth map set to null.
+     * Use this to avoid retaining depth data in long-lived caches (e.g., TickCircularBuffer)
+     * where depth is never read — saves ~600 bytes/tick and ~15 object allocations.
+     *
+     * <p>Depth is preserved in tick files (via onTickReceived before this is called)
+     * for future limit order logic and backtest replay.
+     */
+    public Ticker withoutDepth() {
+        if (depth == null) {
+            return this;
+        }
+        return new Ticker(mode, tradable, instrumentToken, instrumentSymbol,
+                lastTradedPrice, highPrice, lowPrice, openPrice, closePrice, change,
+                lastTradedQuantity, averageTradePrice, volumeTradedToday,
+                totalBuyQuantity, totalSellQuantity, lastTradedTime,
+                oi, openInterestDayHigh, openInterestDayLow,
+                tickTimestamp, tickReceivedTime, null);
+    }
+
     @Override
     public int compareTo(Ticker other) {
         return this.tickTimestamp.compareTo(other.tickTimestamp);

@@ -514,6 +514,10 @@ public record Ticker(String mode, boolean tradable, long instrumentToken, String
 
 **Note:** `tickReceivedTime` enables latency analysis between exchange tick generation and SDK processing.
 
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `withoutDepth()` | `Ticker` | Returns a copy with `depth` nulled (or `this` if already null). Use for long-lived caches (e.g., `TickCircularBuffer`) to drop ~600 bytes/tick and ~15 object allocations. Depth is preserved in tick files written earlier in the pipeline for limit-order logic and backtest replay. |
+
 ### Metadata Records
 
 ```java
