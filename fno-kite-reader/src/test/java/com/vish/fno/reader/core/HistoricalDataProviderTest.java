@@ -638,10 +638,13 @@ class HistoricalDataProviderTest {
             HistoricalDataProvider realProvider = createProviderWithRealCache();
             setupSessionForFullFlow();
 
-            // All expired BANKNIFTY symbols should resolve to the same nearest contract
-            realProvider.getHistoricalData(fromDate, toDate, "BANKNIFTY23JANFUT", INTERVAL, true);
-            realProvider.getHistoricalData(fromDate, toDate, "BANKNIFTY24AUGFUT", INTERVAL, true);
-            realProvider.getHistoricalData(fromDate, toDate, "BANKNIFTY25DECFUT", INTERVAL, true);
+            // All expired BANKNIFTY symbols should resolve to the same nearest contract.
+            // Use distinct date pairs per call so the new dedup cache doesn't collapse
+            // identical (token, from, to, interval, continuous) tuples into one Kite call —
+            // here we're verifying symbol-resolution, not throughput.
+            realProvider.getHistoricalData(new Date(10_000L), new Date(20_000L), "BANKNIFTY23JANFUT", INTERVAL, true);
+            realProvider.getHistoricalData(new Date(30_000L), new Date(40_000L), "BANKNIFTY24AUGFUT", INTERVAL, true);
+            realProvider.getHistoricalData(new Date(50_000L), new Date(60_000L), "BANKNIFTY25DECFUT", INTERVAL, true);
 
             ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
             verify(mockKiteSdk, times(3)).getHistoricalData(
