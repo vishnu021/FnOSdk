@@ -1,0 +1,1 @@
+../../../OptionsAnalyzerV2/docs/facts/domain.md

@@ -60,6 +60,44 @@ fno-phase-analyzer (Wyckoff analysis, market regimes)
 
 ---
 
+## Canonical facts ledger
+
+Trading-domain facts (lot sizes, field semantics, cache semantics,
+hot-path rules, ADRs) live in the **consumer** repo. Before asserting
+any such fact, read from the canonical source:
+
+- `../OptionsAnalyzerV2/docs/facts/domain.md`
+- `../OptionsAnalyzerV2/docs/facts/cache-and-state.md`
+- `../OptionsAnalyzerV2/docs/facts/performance.md`
+- `../OptionsAnalyzerV2/docs/facts/external.md`
+- `../OptionsAnalyzerV2/docs/adr/`
+
+This repo mirrors those paths under `docs/facts/` and `docs/adr` via
+symlinks. If a symlink is broken, the sibling checkout is missing —
+restore with `git clone <url> ../OptionsAnalyzerV2`.
+
+**Repo-local files** (NOT symlinked, because the content is SDK-specific):
+
+- `docs/facts/sdk-public-api.md` — this SDK's publicly-consumed surface
+  with `@since` tags and stability markers.
+
+## Public-API change rule
+
+Any change to an entry in `docs/facts/sdk-public-api.md` (addition,
+removal, rename, contract change) requires:
+
+1. A new ADR in `../OptionsAnalyzerV2/docs/adr/` documenting motivation
+   and consumer impact.
+2. A version bump (`pom.xml` `<version>` in the affected module).
+3. Updating `sdk-public-api.md` to reflect the addition / removal /
+   contract change.
+
+**Recommendation**: add `japicmp-maven-plugin` or `revapi` to the build to
+detect public-surface changes automatically. Not installed this session;
+propose a PR if desired.
+
+---
+
 ## Code Standards
 
 ### Critical Rules
