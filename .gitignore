@@ -72,3 +72,6 @@ spring.log
 # Git worktrees
 .worktrees/
 *.md
+
+# Graphify knowledge-graph cache (local, per-repo)
+graphify-out/
