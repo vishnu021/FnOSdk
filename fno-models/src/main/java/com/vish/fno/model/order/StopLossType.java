@@ -31,5 +31,9 @@ public enum StopLossType {
     STEPPED_LATE_67,
     STEPPED_7,
     /** Stepped SL with proportional buffer: buffer = 20% of target distance (min 3pt). Scales with trade size — works for both small and large targets. */
-    STEPPED_PROPORTIONAL
+    STEPPED_PROPORTIONAL,
+    /** Exits at entry+3pts when trigger fires (no trailing). Companion to BREAKEVEN_TRAILING for testing whether locking in trigger-level profit beats trailing for choppy regimes. */
+    BREAKEVEN_EXIT,
+    /** Same as BREAKEVEN_EXIT with 5pt buffer (matches BREAKEVEN_TRAILING_5 pre-trigger geometry). */
+    BREAKEVEN_EXIT_5
 }
