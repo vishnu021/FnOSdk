@@ -107,7 +107,12 @@ public class CandleStoreImpl implements CandleStore {
             LocalDate localDate1 = convertToLocalDate(currentDay);
             LocalDate localDate2 = convertToLocalDate(date);
             long daysBetween = ChronoUnit.DAYS.between(localDate1, localDate2);
-            if (daysBetween > 5) {
+            // Safety bound on lookback distance. Bumped from 5 to 14: the 5-cap caused
+            // strategies needing >=4 trading days of history to fail on Mondays and Tuesdays
+            // (weekend eats 2 calendar days, leaving only 3 trading days within the 5-day budget).
+            // 14 covers up to ~10 trading days of lookback even across one weekend, which is
+            // ample for current strategies (NR4 needs 4) without enabling unbounded scans.
+            if (daysBetween > 14) {
                 break;
             }
         }
