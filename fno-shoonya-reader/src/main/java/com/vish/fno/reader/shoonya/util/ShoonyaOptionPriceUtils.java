@@ -7,8 +7,14 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
@@ -20,6 +26,12 @@ import static com.vish.fno.util.FnoConstants.INDEX_TO_DERIVATIVE;
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ShoonyaOptionPriceUtils {
+
+    /** Shoonya expiry format, e.g. {@code "28-APR-2026"}. Month is parsed case-insensitively. */
+    private static final DateTimeFormatter EXPIRY_FORMAT = new DateTimeFormatterBuilder()
+            .parseCaseInsensitive()
+            .appendPattern("dd-MMM-yyyy")
+            .toFormatter(Locale.ENGLISH);
 
     public static String getITMStock(String indexSymbol, double price, boolean isCall,
                                      List<ShoonyaInstrument> instruments) {
@@ -105,9 +117,26 @@ public final class ShoonyaOptionPriceUtils {
                 .collect(Collectors.groupingBy(ShoonyaInstrument::expiry));
 
         return byExpiry.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
+                .sorted(Map.Entry.comparingByKey(Comparator.comparing(ShoonyaOptionPriceUtils::parseExpiry)))
                 .map(Map.Entry::getValue)
                 .findFirst();
+    }
+
+    /**
+     * Parse a Shoonya expiry string (e.g. {@code "28-APR-2026"}, case-insensitive month) to a {@link LocalDate}.
+     *
+     * <p>Expiry must be ordered chronologically, not lexicographically: as strings,
+     * {@code "28-APR-2026"} sorts before {@code "28-DEC-2025"} ('A' &lt; 'D'), which would wrongly pick a
+     * far expiry as the nearest. Unparseable values return {@link LocalDate#MAX} so a malformed row never
+     * sorts as the nearest expiry.
+     */
+    static LocalDate parseExpiry(String expiry) {
+        try {
+            return LocalDate.parse(expiry, EXPIRY_FORMAT);
+        } catch (DateTimeParseException e) {
+            log.warn("Unparseable Shoonya expiry '{}'; sorting it last", expiry);
+            return LocalDate.MAX;
+        }
     }
 
     private static String getOptionPrefix(String indexSymbol) {
