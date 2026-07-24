@@ -295,6 +295,30 @@ Abstraction for time injection (production, backtest, unit test).
 
 **Implementation:** `TimeProvider` - real system time, thread-safe.
 
+**⚠ Hot-path contract — `getTodaysDateString()` must stay allocation-free.**
+`TickStoreImpl.appendTick()` calls `clearOnDateChange()` unconditionally, so this method
+runs **once per tick** (~12 M calls/day in production, on the WebSocket `ReadingThread`).
+`TimeProvider` memoises the value for the local day behind a volatile
+`DayCache(validUntilMillis, value)` record: the fast path is one volatile read plus a
+`long` comparison and allocates nothing; formatting runs once per day.
+
+Do **not** reintroduce per-call `SimpleDateFormat` (or any per-call formatter
+construction) behind this method. Building a `SimpleDateFormat` constructs a
+`GregorianCalendar`, which resolves the locale's first-day-of-week by re-parsing the
+entire JDK locale table via `Locale.forLanguageTag`. That defect cost **2,136 bytes per
+call ≈ 30% of all JVM allocation (~44.8 GB/day)**, confirmed across three JFR recordings
+(2026-07-21/22/23) and fixed 2026-07-23.
+
+Day-key caveat: the expiry instant is
+`zonedNow.toLocalDate().plusDays(1).atStartOfDay(zone)` — **not** `millis / 86_400_000`,
+which is a UTC day key and would serve a stale date for the first 5.5 h of every IST
+morning. `atStartOfDay` also resolves DST gaps to the first valid local instant.
+
+`BacktestTimeProvider` returns a stored field, so it was never affected. Any caching for
+this value belongs in the `TimeSource` implementation, never in `TickStoreImpl` — that
+class holds a `TimeSource` that is *simulated* time under backtest, so a wall-clock fast
+path there would break backtest determinism.
+
 ### CandleStore Interface
 
 Candlestick data retrieval — intraday minute data and historical lookback. Fully independent from `TickStore` (Interface Segregation Principle). Consumers: `IndexStrategyHandlerImpl`, `OptionStrategyHandlerImpl`, `PartialRevisingStopLoss`, and index-based strategies.
@@ -442,7 +466,7 @@ public PositionSizingService(LotSizeProvider lotSizeProvider, int defaultLotSize
 | JsonUtils, CompressionUtils | ✅ | Static methods; VT-safe ObjectMapper (shared bounded recycler pool) |
 | TickStoreImpl (tick ops) | ✅ | ConcurrentHashMap + TickCircularBuffer (volatile write index, single-writer); static CircularBufferView prevents GC pinning; independent date-boundary clearing |
 | CandleStoreImpl (candle fetch) | ✅ | Separate `intradayFetchLocks` and `historicFetchLocks` (`ReentrantLock`, VT-safe) prevent redundant API calls; dedicated `dateChangeLock` with double-checked locking for date-boundary cache clearing; historic completeness check (`size() >= TOTAL_TRADING_MINUTES`) |
-| TimeProvider | ✅ | Instance methods |
+| TimeProvider | ✅ | Instance methods; `getTodaysDateString()` day-cache published via a single volatile `DayCache` record (immutable pair, no lock — a benign race only re-formats the same value at a day boundary); static `DateTimeFormatter`s are immutable and thread-safe (unlike `SimpleDateFormat`) |
 | CandleStickCache | ✅ | ConcurrentHashMap |
 | TradingHoursValidator | ✅ | Immutable fields |
 | PositionSizingService | ✅ | Stateless (reads only) |
