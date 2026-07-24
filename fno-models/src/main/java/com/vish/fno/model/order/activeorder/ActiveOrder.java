@@ -95,4 +95,13 @@ public interface ActiveOrder {
     // --- Runtime diagnostics ---
     Map<String, String> getExtraData();
     void appendExtraData(String key, String value);
+
+    /**
+     * Records the running favourable/adverse excursion for this order from the given LTP.
+     * Pure recorder — never influences any exit decision. Call on every tick of the symbol
+     * that drives this order's sell loop, BEFORE the exit-condition check, so the excursion
+     * is never censored by the exit itself. Full contract, sign convention, and the FIXED-arm
+     * kill criterion: {@link AbstractActiveOrder} class Javadoc.
+     */
+    void updateExcursion(double ltp);
 }
