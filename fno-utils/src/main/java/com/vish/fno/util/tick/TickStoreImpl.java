@@ -71,8 +71,19 @@ public class TickStoreImpl implements TickStore {
     /**
      * Clears all tick caches when the trading day changes.
      *
-     * <p>Called on every {@code appendTick} — the fast path (same day) is a single
-     * volatile read + String comparison. The slow path (date change) clears both maps.
+     * <p>Called on every {@code appendTick}, so the cost of
+     * {@link TimeSource#getTodaysDateString()} is on the tick hot path. The production
+     * {@link com.vish.fno.util.time.TimeProvider} memoises that value for the local day
+     * (volatile read + one {@code long} comparison, zero allocation) and
+     * {@code BacktestTimeProvider} returns a stored field, so the same-day path here is a
+     * cheap String comparison. The slow path (date change) clears both maps.
+     *
+     * <p>An earlier version of this comment claimed the same-day path was already "a
+     * single volatile read + String comparison". It was not: {@code TimeProvider} built a
+     * {@code new SimpleDateFormat} per call, which constructs a {@code GregorianCalendar}
+     * and triggers a full JDK locale-provider scan — ~30% of all JVM allocation
+     * (~44.8 GB/day), confirmed across three JFR recordings (2026-07-21/22/23) before the
+     * memoisation landed. Do not reintroduce per-call formatting behind this call.
      *
      * <p>Single-writer safety: only the WebSocket tick-processing thread calls appendTick,
      * so no lock is needed for the clear operation itself.
