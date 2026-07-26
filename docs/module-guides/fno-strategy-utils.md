@@ -22,7 +22,7 @@ Advanced strategy utilities: Heikin-Ashi trend analysis, price action detection,
 | `com.vish.fno.strategy` | HATrendUtils, Point2D, PointType |
 | `com.vish.fno.strategy.util` | CPRUtils |
 | `com.vish.fno.strategy.priceaction` | DataAnalyser, Point, ChartPoint, Vector2, Line |
-| `com.vish.fno.strategy.orderflow` | TargetAndStopLossStrategy, PartialRevisingStopLoss, DualTargetRevisingStoplossStrategy, BreakevenTrailingStopLossStrategy, SteppedStopLossStrategy, OrderManagerUtils |
+| `com.vish.fno.strategy.orderflow` | TargetAndStopLossStrategy, PartialRevisingStopLoss, DualTargetRevisingStoplossStrategy, BreakevenTrailingStopLossStrategy, SteppedStopLossStrategy, TargetRunnerStopLoss, OrderManagerUtils |
 
 ---
 
@@ -338,6 +338,23 @@ TargetAndStopLossStrategy proportional = new SteppedStopLossStrategy(0.0, 0.20);
 // Step fractions resolved from Task: profile (FIBONACCI/CONSERVATIVE/AGGRESSIVE/LATE_67/LATE_75) > raw ratios > default EVEN
 ```
 
+### TargetRunnerStopLoss
+
+Extends `AbstractTargetAndStopLossStrategy`. Removes the hard profit ceiling at the target without touching anything below it: below target it is behaviourally identical to `FixedTargetAndStopLossStrategy` (no `setStopLoss` call at all); at the target it plants a profit floor at `target - floorGapR * R` instead of selling, then trails `trailGapR * R` behind the running high-water mark. `R = |buyPrice - orderRequest.stopLoss|` (anchored on the actual fill).
+
+**Constructors:**
+
+```java
+public TargetRunnerStopLoss()                                    // 0.50R floor, 0.50R trail
+public TargetRunnerStopLoss(double floorGapR, double trailGapR)  // precondition: 0 < floorGapR <= 1.0
+```
+
+- `isTargetAchieved()`: pre-target — no-sell, no state, FIXED-identical. On target crossing — plants the floor via `setStopLoss(profitFloor)` and starts the high-water-mark trail (`candidate = ltp - sign * trailGapR * R`, clamped to the floor). Never sells at the target; the position becomes a runner.
+- `isStopLossHit()`: fires on the ratcheted stop. Reports **`TARGET_HIT` when the stop sits beyond entry** (profitable ratchet exit) and `STOP_LOSS_HIT` otherwise — load-bearing, because consumers branch on `STOP_LOSS_HIT` for loss-streak/cooldown rails.
+- **Degenerate geometry** (zero/negative risk leg, target on the wrong side of the fill, or a floor that would not improve on the original stop): both methods degrade to `FixedTargetAndStopLossStrategy` behaviour, logged at WARN.
+- **Stateless:** two final doubles, no map, no key, no cleanup — the trail's high-water mark lives in `order.stopLoss` itself via the ratchet-only setter, so one instance is safely shared across strategies, indices, and simulated days. Behaviour is identical at every lot count (no partial sells — exactly one buy and one sell).
+- **Multi-target caveat:** anchors on `Target.first()`; not designed for multi-target requests (`advanceTarget()` is never called).
+
 ### OrderManagerUtils
 
 Static utility for exit conditions.
@@ -370,6 +387,7 @@ OrderSellDetailModel exit = OrderManagerUtils.isExitCondition(strategy, ltp, tim
 | TrailingMultiTargetStopLossStrategy | ✅ | `trailingExtremes` uses `ConcurrentHashMap` with atomic `merge()` |
 | BreakevenTrailingStopLossStrategy | ✅ | `breakevenAchieved` and `trailingExtremes` use `ConcurrentHashMap` |
 | SteppedStopLossStrategy | ✅ | `stepStates` uses `ConcurrentHashMap` with `computeIfAbsent()` |
+| TargetRunnerStopLoss | ✅ | Two final doubles, no mutable field of any kind; trail state lives on the order itself |
 | Point2D, Line | No | Mutable |
 | PartialRevisingStopLoss | Partial | `lastRevisionCandleCount` uses ConcurrentHashMap; modifies order state via CandleStore |
 
