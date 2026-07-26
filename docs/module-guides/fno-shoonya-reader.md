@@ -67,9 +67,9 @@ shoonya.authenticate();
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| `getITMStock(index, price, isCall)` | `String` | Resolve ITM option symbol |
-| `getOTMStock(index, price, isCall)` | `String` | Resolve OTM option symbol |
-| `getOptionStock(index, price, isCall, policy)` | `String` | Resolve via StrikePolicy |
+| `getITMStock(index, price, isCall)` | `String` | **Nearest ITM** symbol — floor/ceiling relative to spot, takes no offset |
+| `getOTMStock(index, price, isCall)` | `String` | **Nearest OTM** symbol — floor/ceiling relative to spot, takes no offset |
+| `getOptionStock(index, price, isCall, policy)` | `String` | ⚠️ **Does NOT honour `StrikePolicy`** — same collapse as Kite (ADR 0062): `ITM_1, ITM_2 → getITMStock` · `OTM_1, OTM_2 → getOTMStock` · `ATM → getITMStock`. So `ATM` resolves one strike in-the-money and `ITM_2`/`OTM_2` are unreachable. Unlike `KiteService`, there is **no shadow logging and no offset-aware resolver** in this module yet |
 | `getInstrument(symbol)` | `Optional<Long>` | Symbol to token lookup |
 | `getSymbol(token)` | `String` | Token to symbol lookup |
 | `getAllOptionSymbols(indexSymbol)` | `List<String>` | All CE+PE for nearest expiry |
@@ -77,6 +77,15 @@ shoonya.authenticate();
 | `getAllFutureLotSizeInfo()` | `Map<String,Integer>` | All indices lot sizes |
 | `isExpiryDayForOption(symbol, date)` | `boolean` | Check option expiry |
 | `isExpiryDayForIndex(name, date)` | `boolean` | Check index expiry |
+
+**Nearest-expiry selection (fixed 2026-06-16):** `ShoonyaOptionPriceUtils` selects the nearest
+expiry **chronologically**, by parsing the contract-master expiry string as a `LocalDate`
+(`dd-MMM-yyyy`, case-insensitive). It previously sorted the raw strings lexicographically, which
+across month boundaries could pick a far expiry as "nearest" (`"28-APR-2026"` sorts before
+`"28-DEC-2025"`) on the live trading path. Unparseable expiry strings sort as `LocalDate.MAX`, so
+a malformed contract-master row can never be selected as nearest. Affects `getITMStock`,
+`getOTMStock`, `getOptionStock`, and `getAllOptionSymbols`. (Kite was never affected — it groups
+on parsed `java.util.Date`.)
 
 ### ShoonyaITMResolver
 

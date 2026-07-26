@@ -30,7 +30,7 @@ When the version changes, re-verify every `@since` entry below.
 | `Task` | 1.0 | stable | Strategy task binding |
 | `SymbolData` | 1.0 | stable | Per-symbol candle container |
 | `Exchange`, `InstrumentType`, `PositionType` | 1.0 | stable | Order classification enums |
-| `order.activeorder.ActiveOrder` / `AbstractActiveOrder` / `OptionBasedActiveOrder` | 1.0 | stable | ⚠ `extraData : Map<String,String>` is `HashMap` — **not thread-safe under concurrent writes**. Documented in consumer `sdk-surface.md`. |
+| `order.activeorder.ActiveOrder` / `AbstractActiveOrder` / `OptionBasedActiveOrder` | 1.0 | stable | ⚠ `extraData : Map<String,String>` is `HashMap` — **not thread-safe under concurrent writes**. Documented in consumer `sdk-surface.md`. **Contract addition 2026-07-24:** `updateExcursion(double ltp)` declared on the interface (MFE/MAE pure recorder — call per tick BEFORE exit checks; see fno-models guide); implementation in `AbstractActiveOrder` committed 2026-07-26. ⚠ Change-protocol incomplete: no ADR filed, no version bump. |
 | `order.orderrequest.*` (`OrderRequest`, `TickBasedOrderRequest`, `IndexOrderRequest`, `OptionBasedOrderRequest`, `MultiTargetOrderRequest`, `MultiTargetTickOrderRequest`) | 1.0 | stable | Strategy-emitted intent records |
 | `order.Target` | 1.0 | stable | Multi-target split record |
 | `cache.OrderCache` | 1.0 | stable | Thread-safe; hot-path ~520/sec. See canonical `cache-and-state.md`. |
@@ -61,7 +61,8 @@ When the version changes, re-verify every `@since` entry below.
 
 | Type | @since | Stability | Notes |
 |------|--------|-----------|-------|
-| `core.KiteService` | 1.0 | stable | Facade — orders, historical, lot size |
+| `core.KiteService` | 1.0 | stable | Facade — orders, historical, lot size. ⚠ `getOptionStock(index, price, isCall, policy)` does **not** honour `StrikePolicy` (ADR 0062): all five enum values collapse onto offset-less ITM/OTM helpers (ATM resolves one strike ITM; ITM_2/OTM_2 unreachable). Since 2026-07-26 it logs `STRIKE_POLICY_SHADOW` when the corrected resolution differs, but still returns the legacy symbol. |
+| `util.OptionPriceUtils` | 1.0 | stable (`getStrikeByPolicy`: **experimental**) | Static strike-resolution helpers. `getStrikeByPolicy(index, price, isCall, policy, instruments)` added 2026-07-26 (ADR 0062) — offset-aware resolution implementing `StrikePolicy`'s documented formula; shadow-only, not yet wired into order placement. ⚠ Change-protocol incomplete: ADR 0062 filed, but no version bump. |
 | `core.KiteSession`, `KiteOrderExecutor`, `KiteWebSocket` | 1.0 | stable | Used internally by `KiteService`; direct use is [VERIFY] |
 | `core.InstrumentCache` / `InstrumentSummary` | 1.0 | stable | Daily Kite instrument dump |
 | `core.HistoricalDataProvider` | 1.0 | stable | 3 req/sec rate-limited; 30s dedup |

@@ -116,6 +116,8 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 | `getOTMStock(index, price, isCall)` | `String` | **Nearest OTM** symbol — first strike above spot (CE) / last below (PE). Takes no offset |
 | `getOptionStock(index, price, isCall, policy)` | `String` | ⚠️ **Does NOT honour `StrikePolicy`** — see the note below |
 | `OptionPriceUtils.getStrikeByPolicy(index, price, isCall, policy, instruments)` | `String` | Offset-aware resolution implementing the enum's documented formula. **Not yet wired into order placement** (ADR 0062 shadow) |
+| `appendIndexITMOptions()` | `void` | Add ITM options for default indices |
+| `appendAllOptionsForIndex(String)` | `void` | Subscribe to ALL options for index (100+ symbols) |
 
 > ⚠️ **`getOptionStock` does not implement `StrikePolicy` (ADR 0062).** It dispatches all five enum
 > values onto the two offset-less helpers above:
@@ -131,8 +133,6 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 > **still returns the legacy symbol** — switching changes the strike of every production option
 > order and needs a soak first. Callers wanting correct policy semantics today must call
 > `getStrikeByPolicy` directly.
-| `appendIndexITMOptions()` | `void` | Add ITM options for default indices |
-| `appendAllOptionsForIndex(String)` | `void` | Subscribe to ALL options for index (100+ symbols) |
 
 ### WebSocket Management
 

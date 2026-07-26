@@ -4,7 +4,7 @@
 
 This document serves as the entry point for consuming FnOSdk modules in your trading applications.
 
-**Requirements:** Java 21+, Spring Boot 3.4.1
+**Requirements:** Java 21+, Spring Boot 3.5.11
 
 ## Knowledge Paths Structure
 
@@ -14,6 +14,7 @@ docs/module-guides/
 ├── fno-utils.md           - Utility functions (candle ops, time utils, price utils, order formatting)
 ├── fno-technicals.md      - Technical indicators and Greeks
 ├── fno-kite-reader.md     - Kite Connect API integration (diagnostics, WebSocket)
+├── fno-shoonya-reader.md  - Shoonya (Finvasia) broker integration (experimental, disabled by default)
 ├── fno-strategy-utils.md  - Strategy utilities (trend analysis, CPR, price action)
 └── fno-phase-analyzer.md  - Wyckoff phase identification and market regime analysis
 ```
