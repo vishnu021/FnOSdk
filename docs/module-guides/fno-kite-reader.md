@@ -112,9 +112,25 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getITMStock(index, price, isCall)` | `String` | ITM option symbol |
-| `getOTMStock(index, price, isCall)` | `String` | OTM option symbol |
-| `getOptionStock(index, price, isCall, policy)` | `String` | Option symbol resolved by `StrikePolicy` (ITM/OTM/ATM dispatch) |
+| `getITMStock(index, price, isCall)` | `String` | **Nearest ITM** symbol — last strike below spot (CE) / first above (PE). Takes no offset |
+| `getOTMStock(index, price, isCall)` | `String` | **Nearest OTM** symbol — first strike above spot (CE) / last below (PE). Takes no offset |
+| `getOptionStock(index, price, isCall, policy)` | `String` | ⚠️ **Does NOT honour `StrikePolicy`** — see the note below |
+| `OptionPriceUtils.getStrikeByPolicy(index, price, isCall, policy, instruments)` | `String` | Offset-aware resolution implementing the enum's documented formula. **Not yet wired into order placement** (ADR 0062 shadow) |
+
+> ⚠️ **`getOptionStock` does not implement `StrikePolicy` (ADR 0062).** It dispatches all five enum
+> values onto the two offset-less helpers above:
+> `ITM_1, ITM_2 → getITMStock` · `OTM_1, OTM_2 → getOTMStock` · `ATM → getITMStock`.
+>
+> Consequences: **`ATM` resolves one strike in-the-money**, and **`ITM_2` / `OTM_2` are
+> unreachable** — silently, with no warning. Measured 2026-07-24: prod strike moneyness sat in
+> (0, 1.03] strike-intervals for every order regardless of policy.
+>
+> `getStrikeByPolicy` implements the contract correctly (`ATM = round(price/interval)`, then
+> `offset` intervals toward the money, interval inferred from the live instrument ladder).
+> `getOptionStock` currently computes it, logs `STRIKE_POLICY_SHADOW` when the two disagree, and
+> **still returns the legacy symbol** — switching changes the strike of every production option
+> order and needs a soak first. Callers wanting correct policy semantics today must call
+> `getStrikeByPolicy` directly.
 | `appendIndexITMOptions()` | `void` | Add ITM options for default indices |
 | `appendAllOptionsForIndex(String)` | `void` | Subscribe to ALL options for index (100+ symbols) |
 
