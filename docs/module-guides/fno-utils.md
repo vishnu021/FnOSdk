@@ -192,12 +192,22 @@ Converts regular candles to Heikin Ashi. All methods static and thread-safe.
 
 ### TimeFrameUtils
 
+> ⚠️ **`mergeIntradayCompleteCandle` groups by session (changed 2026-07-26).** It previously chunked
+> purely positionally across the whole list, despite its javadoc promising groups "from the same
+> day". Identical for single-day input — which is why ~60 callers were unaffected — but with
+> multi-day input one merged bar straddled the overnight gap and took the gap as its range. Measured
+> on 2026-07-24 that drove NIFTY 50 `atrRatio` to 1.95, past `RegimeClassifier`'s 1.5
+> HIGH_VOLATILITY threshold, blocking an `enabled: true` REAL leg gated on RANGE_BOUND.
+> Trailing partial groups are still dropped, now per day, preserving the non-repainting guarantee
+> that `MtfStructPullbackReversalStrategy` and `TrendBlipResumeStrategy` depend on.
+
+
 All methods static and thread-safe.
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `mergeCandle(List<Candle>, int)` | `List<Candle>` | Merge N candles (date-grouped) |
-| `mergeIntradayCompleteCandle(List<Candle>, int)` | `List<Candle>` | Merge without date grouping, no partial |
+| `mergeIntradayCompleteCandle(List<Candle>, int)` | `List<Candle>` | Merge n candles into one, **grouped by session**; trailing partial groups dropped **per day** |
 | `combine(List<Candle>)` | `Candle` | Combine multiple into one (single-pass loop using `getFirst()`/`getLast()`) |
 
 ---
