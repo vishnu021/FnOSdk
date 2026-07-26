@@ -2,6 +2,7 @@ package com.vish.fno.reader.util;
 
 import com.vish.fno.model.Exchange;
 import com.vish.fno.model.InstrumentType;
+import com.vish.fno.model.order.StrikePolicy;
 import com.zerodhatech.models.Instrument;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -54,6 +55,91 @@ public final class OptionPriceUtils {
         return otmSymbol;
     }
 
+    /**
+     * Resolve an option symbol by {@link StrikePolicy}, implementing the enum's own documented
+     * contract: {@code ATM = round(price / strikeInterval)}, then step {@code offset} intervals
+     * toward the money ({@code -1} for calls, {@code +1} for puts).
+     *
+     * <p>ADR 0062. This did not previously exist: {@code KiteService.getOptionStock} mapped all
+     * five policy values onto {@link #getITMStock} / {@link #getOTMStock}, which are floor/ceiling
+     * selections relative to spot and take no offset. The effect in production was that
+     * {@code ATM} resolved one strike in-the-money, and {@code ITM_2} / {@code OTM_2} resolved
+     * identically to their _1 counterparts — silently, with no log line. Measured 2026-07-24, prod
+     * strike moneyness sat in (0, 1.03] strike-intervals for every order regardless of policy.
+     *
+     * <p>The strike interval is inferred from the live instrument ladder rather than configured, so
+     * it stays correct per index and across any exchange re-gridding.
+     *
+     * @return the option symbol, or {@code ""} when the index has no listed options
+     */
+    public static String getStrikeByPolicy(String indexSymbol, double price, boolean isCall,
+                                           StrikePolicy policy, List<Instrument> instruments) {
+        String symbolsName = getOptionPrefix(indexSymbol);
+        String instrumentType = isCall ? InstrumentType.CE.getCode() : InstrumentType.PE.getCode();
+        return getEarliestExpiryInstrument(instruments, symbolsName, instrumentType)
+                .map(expiryInstruments -> resolveByPolicy(expiryInstruments, price, isCall, policy))
+                .orElse("");
+    }
+
+    private static String resolveByPolicy(List<Instrument> expiryInstruments, double price,
+                                          boolean isCall, StrikePolicy policy) {
+        NavigableMap<Long, String> strikes = strikeMap(expiryInstruments);
+        if (strikes.isEmpty()) {
+            return "";
+        }
+        long interval = inferStrikeInterval(strikes);
+        if (interval <= 0) {
+            log.error("Could not infer strike interval from {} strikes — falling back to nearest", strikes.size());
+            return nearestTo(strikes, Math.round(price));
+        }
+        long atm = Math.round(price / (double) interval) * interval;
+        long target = atm + (long) (isCall ? -1 : 1) * policy.getOffset() * interval;
+
+        String exact = strikes.get(target);
+        if (exact != null) {
+            return exact;
+        }
+        log.warn("Strike {} not listed (policy={}, price={}, interval={}) — using nearest available",
+                target, policy, price, interval);
+        return nearestTo(strikes, target);
+    }
+
+    /**
+     * Median gap between consecutive listed strikes. The median rather than the minimum, so an
+     * occasional missing strike or a stray off-grid listing — both of which occur in live
+     * instrument dumps — cannot skew the inferred grid.
+     */
+    private static long inferStrikeInterval(NavigableMap<Long, String> strikes) {
+        List<Long> gaps = new ArrayList<>();
+        Long previous = null;
+        for (Long strike : strikes.keySet()) {
+            if (previous != null && strike - previous > 0) {
+                gaps.add(strike - previous);
+            }
+            previous = strike;
+        }
+        if (gaps.isEmpty()) {
+            return 0L;
+        }
+        gaps.sort(Long::compare);
+        return gaps.get(gaps.size() / 2);
+    }
+
+    private static String nearestTo(NavigableMap<Long, String> strikes, long target) {
+        Long floor = strikes.floorKey(target);
+        Long ceiling = strikes.ceilingKey(target);
+        if (floor == null && ceiling == null) {
+            return "";
+        }
+        if (floor == null) {
+            return strikes.get(ceiling);
+        }
+        if (ceiling == null) {
+            return strikes.get(floor);
+        }
+        return strikes.get(target - floor <= ceiling - target ? floor : ceiling);
+    }
+
     private static String findStrike(String indexSymbol, double price, boolean isCall, boolean selectLastBelow,
                                      List<Instrument> instruments) {
         String symbolsName = getOptionPrefix(indexSymbol);
@@ -63,8 +149,9 @@ public final class OptionPriceUtils {
                 .orElse("");
     }
 
-    private static String resolveStrike(List<Instrument> instruments, double price, boolean selectLastBelow) {
-        NavigableMap<Long, String> strikeToSymbolMap = instruments.stream()
+    /** Strike → tradingsymbol for one expiry, ordered ascending. */
+    private static NavigableMap<Long, String> strikeMap(List<Instrument> instruments) {
+        return instruments.stream()
                 .collect(Collectors.toMap(
                         instrument -> {
                             try {
@@ -78,6 +165,10 @@ public final class OptionPriceUtils {
                         (existing, replacement) -> existing,
                         TreeMap::new
                 ));
+    }
+
+    private static String resolveStrike(List<Instrument> instruments, double price, boolean selectLastBelow) {
+        NavigableMap<Long, String> strikeToSymbolMap = strikeMap(instruments);
 
         if (selectLastBelow) {
             String result = "";
@@ -100,9 +191,12 @@ public final class OptionPriceUtils {
 
     private static Optional<List<Instrument>> getEarliestExpiryInstrument(List<Instrument> instruments, String symbolsName, String instrumentType) {
         final Map<Date, List<Instrument>> indexSymbolsInstruments = instruments.stream()
-                .filter(i -> i.getName().equalsIgnoreCase(symbolsName))
+                // Receiver flipped so a null name filters out instead of throwing. Live instrument
+                // dumps do contain entries with a null name; this path only avoided NPEing because
+                // every production caller happened to pre-filter through InstrumentCache.
+                .filter(i -> symbolsName.equalsIgnoreCase(i.getName()))
                 .filter(instrument -> Exchange.NFO.matches(instrument.exchange) || Exchange.BFO.matches(instrument.exchange))
-                .filter(i -> i.getInstrument_type().equals(instrumentType))
+                .filter(i -> instrumentType.equals(i.getInstrument_type()))
                 .collect(Collectors.groupingBy(Instrument::getExpiry));
 
         return indexSymbolsInstruments.entrySet().stream()

@@ -101,12 +101,48 @@ public class KiteService {
      * For production, maps policy to ITM/OTM/ATM resolution.
      * BacktestKiteService overrides this with DynamicStrikeResolver.
      */
+    /**
+     * Resolve the option symbol for an entry.
+     *
+     * <p><b>ADR 0062 — SHADOW MODE.</b> The {@code switch} below does not implement
+     * {@link StrikePolicy}'s documented contract: it maps all five values onto two floor/ceiling
+     * helpers that take no offset, so {@code ATM} resolves one strike in-the-money and
+     * {@code ITM_2} / {@code OTM_2} resolve identically to their {@code _1} counterparts. Measured
+     * 2026-07-24: prod strike moneyness sat in (0, 1.03] strike-intervals for every order
+     * regardless of policy, against the backtest's [−0.49, +1.52]; the two rules disagree on 51.5%
+     * of orders.
+     *
+     * <p>Correcting it changes the strike of <b>every production option order</b>, so this method
+     * computes the corrected symbol, logs it when it differs, and <b>still returns the current
+     * one</b>. Soak the {@code STRIKE_POLICY_SHADOW} lines for at least five sessions, then delete
+     * the legacy branch and return {@code corrected}.
+     */
     public String getOptionStock(String indexSymbol, double price, boolean isCall, StrikePolicy policy) {
-        return switch (policy) {
+        String legacy = switch (policy) {
             case ITM_1, ITM_2 -> getITMStock(indexSymbol, price, isCall);
             case OTM_1, OTM_2 -> getOTMStock(indexSymbol, price, isCall);
             case ATM -> getITMStock(indexSymbol, price, isCall);
         };
+        logStrikePolicyShadow(indexSymbol, price, isCall, policy, legacy);
+        return legacy;
+    }
+
+    /**
+     * Never allowed to affect the returned symbol — a fault in the shadow path must not disturb
+     * order placement, so the whole computation is guarded.
+     */
+    private void logStrikePolicyShadow(String indexSymbol, double price, boolean isCall,
+                                       StrikePolicy policy, String legacy) {
+        try {
+            String corrected = OptionPriceUtils.getStrikeByPolicy(
+                    indexSymbol, price, isCall, policy, instrumentCache.getInstruments());
+            if (corrected != null && !corrected.isBlank() && !corrected.equals(legacy)) {
+                log.info("STRIKE_POLICY_SHADOW: index={} price={} leg={} policy={} legacy={} corrected={} (ADR 0062 — legacy still used)",
+                        indexSymbol, price, isCall ? "CE" : "PE", policy, legacy, corrected);
+            }
+        } catch (RuntimeException e) {
+            log.warn("STRIKE_POLICY_SHADOW failed for index={} policy={}: {}", indexSymbol, policy, e.getMessage());
+        }
     }
 
     public void setOnTickerArrivalListener(OnTicks onTickerArrivalListener) {
