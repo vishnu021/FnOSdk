@@ -68,15 +68,54 @@ public class TimeFrameUtils {
      */
     public static List<Candle> mergeIntradayCompleteCandle(List<Candle> allCandles, int n) {
         List<Candle> candles = new ArrayList<>();
+        if (allCandles == null || allCandles.isEmpty() || n <= 0) {
+            return candles;
+        }
 
-        for (int i = 0; i < allCandles.size(); i += n) {
-            if (allCandles.size() < i + n){
-                break;
+        // Chunk WITHIN each day, never across a day boundary.
+        //
+        // This method chunked purely positionally (i += n over the whole list), despite the javadoc
+        // above promising groups "from the same day". With a single day of input the two are
+        // identical, which is why ~60 callers passing today-only candles are unaffected. With
+        // multi-day input they are not: one merged bar straddled the overnight gap, so its range
+        // was the gap itself.
+        //
+        // Measured 2026-07-24 after RegimeClassifier began seeding warm-up from prior-day history:
+        // the straddling bar drove NIFTY 50 atrRatio to 1.95, past the 1.5 HIGH_VOLATILITY
+        // threshold, pinning the index in HIGH_VOLATILITY through the opening window and blocking
+        // RegimeBBReversionHighAdx — an enabled:true REAL leg that requires RANGE_BOUND.
+        //
+        // Trailing partial groups are still DROPPED, per day. That preserves the non-repainting
+        // guarantee documented by MtfStructPullbackReversalStrategy and TrendBlipResumeStrategy:
+        // an incomplete final block never becomes a bar, so a bar cannot change after it is emitted.
+        int dayStart = 0;
+        for (int i = 1; i <= allCandles.size(); i++) {
+            boolean endOfList = i == allCandles.size();
+            if (!endOfList && sameDay(allCandles.get(i - 1), allCandles.get(i))) {
+                continue;
             }
-            Candle mergedCandle = combine(allCandles.subList(i, i + n));
-            candles.add(mergedCandle);
+            for (int j = dayStart; j + n <= i; j += n) {
+                candles.add(combine(allCandles.subList(j, j + n)));
+            }
+            dayStart = i;
         }
         return candles;
+    }
+
+    /**
+     * Two candles belong to the same session when their time strings share a {@code yyyy-MM-dd}
+     * prefix. Mirrors the prior-day isolation already used by {@code CprWidthCalculator} and
+     * {@code StrategyContextEnricher.priorSessionClose}. A null or short time is treated as
+     * same-day so that malformed input degrades to the previous positional behaviour rather than
+     * fragmenting into single-candle groups.
+     */
+    private static boolean sameDay(Candle a, Candle b) {
+        String ta = a == null ? null : a.time();
+        String tb = b == null ? null : b.time();
+        if (ta == null || tb == null || ta.length() < 10 || tb.length() < 10) {
+            return true;
+        }
+        return ta.regionMatches(0, tb, 0, 10);
     }
 
     public static Candle combine(List<Candle> candleList) {
