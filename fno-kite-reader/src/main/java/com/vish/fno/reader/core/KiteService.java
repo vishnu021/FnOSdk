@@ -31,6 +31,9 @@ import static com.vish.fno.util.time.TimeUtils.getOpeningTime;
 @Slf4j
 @SuppressWarnings("PMD.TooManyStaticImports")
 public class KiteService {
+
+    /** Shared PMD suppression key — the literal appears on several deliberately-broad catches. */
+    private static final String SUPPRESS_GENERIC_CATCH = "PMD.AvoidCatchingGenericException";
     private static final List<String> defaultIndices = List.of(NIFTY_50, NIFTY_BANK, BANKEX, SENSEX);
 
     private final KiteSession session;
@@ -131,6 +134,9 @@ public class KiteService {
      * Never allowed to affect the returned symbol — a fault in the shadow path must not disturb
      * order placement, so the whole computation is guarded.
      */
+    @SuppressWarnings(SUPPRESS_GENERIC_CATCH) // deliberate: see the javadoc above —
+    // this is a diagnostics-only shadow path and ANY fault in it, including an unchecked one from
+    // the instrument cache, must be swallowed rather than propagate into order placement.
     private void logStrikePolicyShadow(String indexSymbol, double price, boolean isCall,
                                        StrikePolicy policy, String legacy) {
         try {
@@ -211,7 +217,7 @@ public class KiteService {
         return orderExecutor.getPositions();
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings(SUPPRESS_GENERIC_CATCH)
     public void appendIndexITMOptions() {
         if (kiteWebSocket.isConnectToWebSocket() && !itmOptionsAppended) {
             try {
@@ -225,7 +231,7 @@ public class KiteService {
         itmOptionsAppended = true;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings(SUPPRESS_GENERIC_CATCH)
     public void appendAllOptionsForIndex(String indexSymbol) {
         if (kiteWebSocket.isConnectToWebSocket()) {
             try {
@@ -253,7 +259,7 @@ public class KiteService {
         return kiteWebSocket.isSymbolSubscribed(symbol);
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings(SUPPRESS_GENERIC_CATCH)
     public List<String> getAllOptionSymbols(String indexSymbol) {
         try {
             return OptionPriceUtils.getAllOptionSymbols(indexSymbol, instrumentCache.getInstruments());
