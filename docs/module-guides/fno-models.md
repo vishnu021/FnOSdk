@@ -330,6 +330,7 @@ Organized into semantic groups:
 |--------|---------|-------------|
 | `getExtraData()` | `Map<String, String>` | Read-only extra data (unmodifiable) |
 | `appendExtraData(String, String)` | `void` | Add key-value to extra data |
+| `updateExcursion(double)` | `void` | Records the running favourable/adverse excursion (MFE/MAE) from the tick LTP. **Pure recorder — never influences any exit decision.** Call once per tick of the symbol driving the sell loop, **BEFORE** the exit-condition check, so the excursion is never censored by the exit itself |
 
 **Note:** Immutable order metadata (`date`, `buyThreshold`, `tag`, `index`, `target`, `task`) is accessed via `getOrderRequest()` -- the `ActiveOrder` interface no longer exposes `getTag()`, `getIndex()`, or `getTarget()`. Callers must use `order.getOrderRequest().getTag()`, `.getIndex()`, `.getTarget()`. Setters for `sellPrice`, `exitTimeStamp`, and `active` have been removed from the interface; `closeOrder()` is the single entry point for exit state changes. `isCallOrder()` is now abstract (was default returning `true`).
 
@@ -344,6 +345,22 @@ Immutable order identity (`tag`, `index`, `target`, `date`, `task`) is accessed 
 `getExtraData()` returns `Collections.unmodifiableMap(extraData)` -- external callers can read but not mutate. Use `appendExtraData(key, value)` to add entries. On construction, all entries from `orderRequest.getExtraData()` are copied into a mutable `HashMap`, and `entryDateTime` is automatically added.
 
 Consolidated `toString()` with `appendToStringFields(StringBuilder)` hook -- subclasses override to add extra fields (e.g., `ActiveIndexOrder` appends `optionSymbol`). The `toString()` output conditionally includes `kiteOrderId` from the `extraData` map when present, aiding order tracking in logs.
+
+#### Excursion instrumentation (MFE / MAE)
+
+`AbstractActiveOrder` implements `ActiveOrder.updateExcursion(double ltp)` for all five concrete order types and carries two recorder fields:
+
+| Field | Meaning |
+|-------|---------|
+| `maxFavourableExcursion` | Running peak favourable move. Zero until the first tick; **never negative** (a first adverse tick leaves it 0.0) |
+| `maxAdverseExcursion` | Running worst adverse move. Zero until the first tick; **never positive** |
+
+- **Sign convention:** `move = isCallOrder() ? ltp - buyPrice : buyPrice - ltp` — signed in the trade's own direction, so positive is always favourable for both CE and PE.
+- **Units follow `buyPrice`:** INDEX POINTS for `ActiveIndexOrder` / `TickBasedActiveOrder` / the multi-target variants (the sell loop is driven by the index tick); option premium for `OptionBasedActiveOrder`.
+- **Pure recorder:** never reads its own values back, never calls `setStopLoss`, never affects an exit. Uncensored by whichever stop-loss strategy is selected — that is the point (censored excursion data cannot answer exit-design questions).
+- **No thresholds, no per-order external state:** the two fields live on the order and die with it; not routed through `extraData` (live-view `HashMap`, would be a data race plus per-tick boxing).
+- **Thread safety:** plain non-volatile doubles — single-writer (WebSocket reading thread in prod, loop thread in backtest); the orderLog serialiser reads after close on a happens-after path.
+- **R conversion is post-hoc:** `mfe / Math.abs(buyThreshold - orderRequest.stopLoss)`, off the hot path.
 
 ### Implementations
 
@@ -430,7 +447,9 @@ Exit reason is tracked at the `ActiveOrder` level via `extraData["orderExitReaso
 
 ### OrderSellReason Enum
 
-`TARGET_HIT`, `STOP_LOSS_HIT`, `EXPIRY_TIME_REACHED`, `MAX_HOLD_DURATION_REACHED`
+`TARGET_HIT`, `STOP_LOSS_HIT`, `EXPIRY_TIME_REACHED`, `MAX_HOLD_DURATION_REACHED`, `SCRATCH_TIME_EXIT`
+
+`SCRATCH_TIME_EXIT` (OAV2 ADR-0063) marks the flag-gated time-scratch exit: position aged past the scratch window still inside the flat band. It is deliberately distinct from `STOP_LOSS_HIT` so scratch exits never feed stop-loss-streak accounting (same-strike cooldown / loss-streak rails in the consumer).
 
 ---
 
