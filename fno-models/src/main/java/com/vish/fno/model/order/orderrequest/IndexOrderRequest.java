@@ -59,12 +59,20 @@ public final class IndexOrderRequest implements OrderRequest {
 
     /**
      * Partial builder definition for backward compatibility.
-     * Allows existing strategies to continue using .target(double) on the builder.
-     * Lombok augments this class with generated methods including .targets(List).
+     * Allows existing strategies to continue using {@code .target(double)} for single-target
+     * orders, and {@code .target(Target)} for multi-target scale-out orders (see
+     * {@code com.vish.fno.manage.strategy.TargetGeometry} in Orderflow). Lombok stops generating
+     * its own {@code target(...)} setter once any method of that name is declared manually here,
+     * so both overloads must be declared explicitly rather than relying on the annotation.
      */
     public static class IndexOrderRequestBuilder {
         public IndexOrderRequestBuilder target(double target) {
             this.target = Target.of(target);
+            return this;
+        }
+
+        public IndexOrderRequestBuilder target(Target target) {
+            this.target = target;
             return this;
         }
     }
