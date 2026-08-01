@@ -19,6 +19,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 import static com.vish.fno.util.FnoConstants.BANKEX;
 import static com.vish.fno.util.FnoConstants.MINUTE;
@@ -187,6 +188,16 @@ public class KiteService {
 
     public boolean isExpiryDayForIndex(String indexName, Date date) {
         return instrumentCache.isExpiryDayForIndex(indexName, date);
+    }
+
+    /**
+     * Calendar days from {@code date} to the nearest option expiry for the index (0 == expiry
+     * day), derived from the broker's real instrument expiry dates (holiday-proof). Empty when
+     * no option instrument for the index expires on or after the date. Supports the ADR-0068
+     * {@code maxDaysToExpiry} entry gate; backtest overrides this with a schedule-derived value.
+     */
+    public OptionalInt daysToExpiryForIndex(String indexName, Date date) {
+        return instrumentCache.daysToExpiryForIndex(indexName, date);
     }
 
     public OrderResponse placeOptionOrder(OrderParams orderParams) {

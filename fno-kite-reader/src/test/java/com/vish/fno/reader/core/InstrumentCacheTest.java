@@ -1110,4 +1110,70 @@ class InstrumentCacheTest {
             assertEquals(292786437L, token.get(), "Should resolve to SENSEX26JANFUT (BFO) token");
         }
     }
+
+    // ==================== daysToExpiryForIndex (ADR-0068) ====================
+    // Fixture expiries (IST): NIFTY weekly first = 2026-01-06 (Tue); BANKEX monthly = 2026-01-29
+    // (last Thu). Derived from real instrument expiry dates, so holiday-shifted expiries are
+    // correct by construction.
+
+    private static Date istDate(int year, int month, int day) {
+        Calendar calendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"));
+        calendar.clear();
+        calendar.set(year, month, day, 10, 0, 0);
+        return calendar.getTime();
+    }
+
+    @Test
+    void daysToExpiryForIndex_dayBeforeWeeklyExpiryIsOne() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            assertEquals(java.util.OptionalInt.of(1),
+                    instrumentCache.daysToExpiryForIndex("NIFTY 50", istDate(2026, Calendar.JANUARY, 5)));
+        }
+    }
+
+    @Test
+    void daysToExpiryForIndex_zeroOnExpiryDay() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            assertEquals(java.util.OptionalInt.of(0),
+                    instrumentCache.daysToExpiryForIndex("NIFTY 50", istDate(2026, Calendar.JANUARY, 6)));
+        }
+    }
+
+    @Test
+    void daysToExpiryForIndex_monthlyIndexCountsCalendarDays() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            // BANKEX monthly expiry 2026-01-29; from Jan-28 (E-1) = 1, from Jan-01 = 28
+            assertEquals(java.util.OptionalInt.of(1),
+                    instrumentCache.daysToExpiryForIndex("BANKEX", istDate(2026, Calendar.JANUARY, 28)));
+            assertEquals(java.util.OptionalInt.of(28),
+                    instrumentCache.daysToExpiryForIndex("BANKEX", istDate(2026, Calendar.JANUARY, 1)));
+        }
+    }
+
+    @Test
+    void daysToExpiryForIndex_unknownIndexOrNullIsEmpty() {
+        try (MockedStatic<InstrumentFileUtils> mockedStatic = Mockito.mockStatic(InstrumentFileUtils.class)) {
+            mockedStatic.when(() -> InstrumentFileUtils.saveInstrumentCache(any())).thenAnswer(i -> null);
+            mockedStatic.when(() -> InstrumentFileUtils.saveFilteredInstrumentCache(any())).thenAnswer(i -> null);
+            InstrumentCache instrumentCache = createInstrumentCache();
+
+            assertTrue(instrumentCache.daysToExpiryForIndex("NO SUCH INDEX",
+                    istDate(2026, Calendar.JANUARY, 5)).isEmpty());
+            assertTrue(instrumentCache.daysToExpiryForIndex(null,
+                    istDate(2026, Calendar.JANUARY, 5)).isEmpty());
+            assertTrue(instrumentCache.daysToExpiryForIndex("NIFTY 50", null).isEmpty());
+        }
+    }
 }

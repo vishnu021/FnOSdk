@@ -11,6 +11,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -21,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -279,6 +284,38 @@ class InstrumentCache {
                 .filter(i -> InstrumentType.CE.matches(i.getInstrument_type())
                         || InstrumentType.PE.matches(i.getInstrument_type()))
                 .anyMatch(i -> i.getExpiry() != null && isSameDay(currentDate, i.getExpiry()));
+    }
+
+    /**
+     * Calendar days from {@code currentDate} to the nearest option expiry for the index
+     * (0 == expiry day), derived from the broker's real instrument expiry dates — so it is
+     * holiday-proof by construction. Empty when no option instrument for the index expires on
+     * or after the given date. Supports the ADR-0068 {@code maxDaysToExpiry} entry gate.
+     *
+     * @param indexName   the index name (e.g., "NIFTY 50", "BANKEX")
+     * @param currentDate the date to measure from
+     * @return calendar days to the nearest expiry, or empty if none known
+     */
+    public OptionalInt daysToExpiryForIndex(String indexName, Date currentDate) {
+        if (indexName == null || currentDate == null) {
+            return OptionalInt.empty();
+        }
+        String derivativeName = INDEX_TO_DERIVATIVE.getOrDefault(indexName, indexName);
+        LocalDate today = toLocalDateIst(currentDate);
+        return getInstruments().stream()
+                .filter(i -> derivativeName.equals(i.getName()))
+                .filter(i -> InstrumentType.CE.matches(i.getInstrument_type())
+                        || InstrumentType.PE.matches(i.getInstrument_type()))
+                .map(Instrument::getExpiry)
+                .filter(Objects::nonNull)
+                .map(InstrumentCache::toLocalDateIst)
+                .filter(expiry -> !expiry.isBefore(today))
+                .mapToInt(expiry -> (int) ChronoUnit.DAYS.between(today, expiry))
+                .min();
+    }
+
+    private static LocalDate toLocalDateIst(Date date) {
+        return Instant.ofEpochMilli(date.getTime()).atZone(ZoneId.of("Asia/Kolkata")).toLocalDate();
     }
 
     /**
