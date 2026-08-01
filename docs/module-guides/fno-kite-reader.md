@@ -159,6 +159,7 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
 | `isExpiryDayForOption(symbol, date)` | `boolean` | Check if option expires on given date |
 | `isExpiryDayForIndex(indexName, date)` | `boolean` | Check if any options for index expire on given date |
+| `daysToExpiryForIndex(indexName, date)` | `OptionalInt` | Calendar days to nearest option expiry (0 = expiry day; OAV2 ADR-0068 gate) |
 | `getInstrumentCacheSize()` | `int` | Cache size (diagnostics) |
 | `getFilteredInstruments()` | `List<InstrumentSummary>` | All filtered instruments (exchange, symbol, expiry) |
 
@@ -283,6 +284,7 @@ Option data is computed on-the-fly via `getEarliestExpiryInstruments()` / `resol
 | `getInstrumentForSymbol(String)` | `List<Instrument>` | Instruments matching exact tradingSymbol |
 | `isExpiryDayForOption(String, Date)` | `boolean` | Check if option expires on given date |
 | `isExpiryDayForIndex(String, Date)` | `boolean` | Check if any CE/PE options for index expire on given date |
+| `daysToExpiryForIndex(String, Date)` | `OptionalInt` | Calendar days (IST) to nearest CE/PE expiry on/after date; empty if none known |
 | `getLotSizeFromFuture(String)` | `Optional<Integer>` | Lot size for index via FUT contract |
 | `getAllFutureLotSizeInfo()` | `Map<String, Integer>` | All index lot sizes |
 | `getInstrumentMapSize()` | `int` | Cache size (diagnostics) |
