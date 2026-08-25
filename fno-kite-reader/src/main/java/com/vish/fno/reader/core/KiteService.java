@@ -4,8 +4,10 @@ import com.vish.fno.model.order.StrikePolicy;
 import com.vish.fno.reader.model.InstrumentSummary;
 import com.vish.fno.reader.model.KiteOpenOrder;
 import com.vish.fno.reader.util.OptionPriceUtils;
+import com.zerodhatech.models.CombinedMarginData;
 import com.zerodhatech.models.HistoricalData;
 import com.zerodhatech.models.Instrument;
+import com.zerodhatech.models.MarginCalculationParams;
 import com.zerodhatech.models.Order;
 import com.zerodhatech.models.OrderParams;
 import com.zerodhatech.models.OrderResponse;
@@ -226,6 +228,43 @@ public class KiteService {
 
     public Map<String, List<Position>> getPositions() {
         return orderExecutor.getPositions();
+    }
+
+    /**
+     * Broker-computed margin and charges for a multi-leg basket, without placing anything.
+     *
+     * <p>This is the only way to learn what a hedged option structure actually costs to hold:
+     * {@code initialMargin} is the requirement before the basket, {@code finalMargin} the
+     * requirement with it, and each entry in {@code orders} carries that leg's SPAN
+     * ({@code span}), extreme-loss margin ({@code exposure}) and {@code charges} breakdown.
+     * For a defined-risk spread the netted {@code finalMargin.total} is the number that
+     * decides whether the structure is fundable — assuming ELM nets across the legs, which
+     * is exactly what this call exists to verify rather than assume.
+     *
+     * <p>Rate-limited and fail-safe like every other broker call: any Kite/IO/JSON fault is
+     * logged and returns {@link Optional#empty()} rather than propagating.
+     *
+     * @param legs              one entry per leg; quantity is in units, not lots
+     * @param considerPositions whether to net against currently open positions
+     * @param compact           request the compact response (per-leg charges omitted by the broker)
+     * @return the combined margin data, or empty if not initialised or the call failed
+     */
+    public Optional<CombinedMarginData> getBasketMargin(List<MarginCalculationParams> legs,
+                                                        boolean considerPositions,
+                                                        boolean compact) {
+        if (legs == null || legs.isEmpty()) {
+            log.warn("BASKET_MARGIN: no legs supplied, skipping call");
+            return Optional.empty();
+        }
+        if (!session.isInitialised()) {
+            log.warn("BASKET_MARGIN: kite session not initialised, cannot price {} leg(s)", legs.size());
+            return Optional.empty();
+        }
+        return session.executeWithLockSafe(
+                () -> Optional.ofNullable(
+                        session.getKiteSdk().getCombinedMarginCalculation(legs, considerPositions, compact)),
+                "getBasketMargin",
+                Optional.empty());
     }
 
     @SuppressWarnings(SUPPRESS_GENERIC_CATCH)
