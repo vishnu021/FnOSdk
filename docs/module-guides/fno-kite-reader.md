@@ -96,6 +96,43 @@ public KiteService(apiSecret, apiKey, userId, nifty100Symbols, placeOrders, conn
 | `cancelOrder(orderId, variety)` | `Order` | Cancel an order (returns null on failure) |
 | `getOrders()` | `List<Order>` | All orders for day |
 | `getPositions()` | `Map<String, List<Position>>` | Net and day positions |
+| `getBasketMargin(legs, considerPositions, compact)` | `Optional<CombinedMarginData>` | Broker-computed margin + charges for a multi-leg basket. **Places nothing.** |
+
+### Basket Margin
+
+Quotes what a multi-leg structure actually costs to hold, before anything is placed. This is
+the only way to learn whether extreme-loss margin nets across the legs of a defined-risk
+spread or is levied ungrossed on the shorts — a difference that decides whether a 4-leg
+option structure needs roughly its max loss or several times that.
+
+```java
+MarginCalculationParams shortCall = new MarginCalculationParams();
+shortCall.tradingSymbol = "NIFTY2690224200CE";
+shortCall.exchange = "NFO";           // BFO for SENSEX
+shortCall.transactionType = "SELL";
+shortCall.variety = "regular";
+shortCall.product = "NRML";           // MIS for intraday — these can quote differently
+shortCall.orderType = "MARKET";
+shortCall.quantity = 65;              // UNITS, not lots
+
+Optional<CombinedMarginData> quote =
+        kiteService.getBasketMargin(List.of(shortCall, /* ... */), false, false);
+```
+
+Response shape (`com.zerodhatech.models.CombinedMarginData`):
+
+| Field | Meaning |
+|-------|---------|
+| `initialMargin.total` | Requirement before the basket |
+| `finalMargin.total` | **Requirement to hold the basket** — the number that decides fundability |
+| `orders[].span` | SPAN scan risk for that leg |
+| `orders[].exposure` | Extreme-loss margin for that leg |
+| `orders[].charges.*` | Broker-computed `brokerage`, `transactionTax` (STT), `exchangeTurnoverCharge`, `stampDuty`, `gst`, `total` |
+
+Rate-limited through the shared `ApiRateLimiter` like every other broker call; returns
+`Optional.empty()` on an empty basket, an uninitialised session, or any Kite/IO/JSON fault
+(logged, never propagated). Passing `compact = true` makes the broker omit the per-leg
+charges breakdown.
 
 ### Historical Data
 
