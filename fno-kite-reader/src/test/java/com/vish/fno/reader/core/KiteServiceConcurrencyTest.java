@@ -42,7 +42,7 @@ class KiteServiceConcurrencyTest {
 
     @BeforeEach
     void setUp() throws Throwable {
-        kiteService = new KiteService("secret", "apiKey", "userId", List.of(), false, false);
+        kiteService = new KiteService("secret", "apiKey", "userId", List.of(), false, false, false);
         // Inject mock KiteConnect into KiteSession via reflection
         Field sessionField = KiteService.class.getDeclaredField("session");
         sessionField.setAccessible(true);

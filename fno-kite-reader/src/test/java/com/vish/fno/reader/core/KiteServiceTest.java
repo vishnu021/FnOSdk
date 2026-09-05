@@ -62,7 +62,7 @@ class KiteServiceTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        kiteService = new KiteService("secret", "apiKey", "userId", List.of(), false, false);
+        kiteService = new KiteService("secret", "apiKey", "userId", List.of(), false, false, false);
         setField("session", session);
         setField("instrumentCache", instrumentCache);
         setField("dataProvider", dataProvider);

@@ -44,6 +44,8 @@ public class KiteService {
     private final HistoricalDataProvider dataProvider;
     private final InstrumentCache instrumentCache;
     private final KiteWebSocket kiteWebSocket;
+    /** ADR 0062 — when false, keep the legacy strike collapse. See {@link #getOptionStock}. */
+    private final boolean strikePolicyCorrectionEnabled;
     private boolean itmOptionsAppended;
 
     public KiteService(String apiSecret,
@@ -51,7 +53,9 @@ public class KiteService {
                        String userId,
                        List<String> nifty100Symbols,
                        boolean placeOrders,
-                       boolean connectToWebSocket) {
+                       boolean connectToWebSocket,
+                       boolean strikePolicyCorrectionEnabled) {
+        this.strikePolicyCorrectionEnabled = strikePolicyCorrectionEnabled;
         this.session = new KiteSession(apiKey, userId, apiSecret, placeOrders);
         this.instrumentCache = new InstrumentCache(nifty100Symbols, session);
         this.dataProvider = new HistoricalDataProvider(session, instrumentCache);
@@ -103,34 +107,31 @@ public class KiteService {
     }
 
     /**
-     * Resolve option symbol based on the given strike policy.
-     * For production, maps policy to ITM/OTM/ATM resolution.
-     * BacktestKiteService overrides this with DynamicStrikeResolver.
-     */
-    /**
      * Resolve the option symbol for an entry.
      *
-     * <p><b>ADR 0062 — SHADOW MODE.</b> The {@code switch} below does not implement
-     * {@link StrikePolicy}'s documented contract: it maps all five values onto two floor/ceiling
-     * helpers that take no offset, so {@code ATM} resolves one strike in-the-money and
-     * {@code ITM_2} / {@code OTM_2} resolve identically to their {@code _1} counterparts. Measured
-     * 2026-07-24: prod strike moneyness sat in (0, 1.03] strike-intervals for every order
-     * regardless of policy, against the backtest's [−0.49, +1.52]; the two rules disagree on 51.5%
-     * of orders.
+     * <p><b>ADR 0062.</b> {@link StrikePolicy} documents
+     * {@code targetStrike = ATM + (isCall ? -1 : +1) * offset * strikeInterval}. Production never
+     * implemented it: all five values collapsed onto {@link #getITMStock} / {@link #getOTMStock},
+     * floor/ceiling helpers that take no offset — so {@code ATM} resolved one strike
+     * in-the-money and {@code ITM_2} / {@code OTM_2} were unreachable, silently.
      *
-     * <p>Correcting it changes the strike of <b>every production option order</b>, so this method
-     * computes the corrected symbol, logs it when it differs, and <b>still returns the current
-     * one</b>. Soak the {@code STRIKE_POLICY_SHADOW} lines for at least five sessions, then delete
-     * the legacy branch and return {@code corrected}.
+     * <p>Correcting this changes the strike of <b>every production option order</b>, so it is
+     * gated on {@code order.strikePolicyCorrectionEnabled}, default {@code false}. Both candidates
+     * are computed on every call and the shadow line is logged whenever they differ, in <b>either</b>
+     * flag state — with the flag off it measures what the fix would change; with it on it should
+     * fall silent, which is the go-live check.
+     *
+     * <p>Evidence (2026-09-05, 78 matched prod/backtest pairs): the rules disagree on 49% of orders
+     * even when both see an identical spot to the paisa, and each reproduces its own side 78/78.
+     * Strike moneyness is separately P&amp;L-neutral (r = -0.009 over 1,693 orders), so this is a
+     * correctness change, not a performance one.
      */
     public String getOptionStock(String indexSymbol, double price, boolean isCall, StrikePolicy policy) {
-        String legacy = switch (policy) {
-            case ITM_1, ITM_2 -> getITMStock(indexSymbol, price, isCall);
-            case OTM_1, OTM_2 -> getOTMStock(indexSymbol, price, isCall);
-            case ATM -> getITMStock(indexSymbol, price, isCall);
-        };
-        logStrikePolicyShadow(indexSymbol, price, isCall, policy, legacy);
-        return legacy;
+        String selected = OptionPriceUtils.getStrikeForEntry(
+                indexSymbol, price, isCall, policy, instrumentCache.getInstruments(),
+                strikePolicyCorrectionEnabled);
+        logStrikePolicyShadow(indexSymbol, price, isCall, policy, selected);
+        return selected;
     }
 
     /**
@@ -141,13 +142,17 @@ public class KiteService {
     // this is a diagnostics-only shadow path and ANY fault in it, including an unchecked one from
     // the instrument cache, must be swallowed rather than propagate into order placement.
     private void logStrikePolicyShadow(String indexSymbol, double price, boolean isCall,
-                                       StrikePolicy policy, String legacy) {
+                                       StrikePolicy policy, String selected) {
         try {
-            String corrected = OptionPriceUtils.getStrikeByPolicy(
-                    indexSymbol, price, isCall, policy, instrumentCache.getInstruments());
-            if (corrected != null && !corrected.isBlank() && !corrected.equals(legacy)) {
-                log.info("STRIKE_POLICY_SHADOW: index={} price={} leg={} policy={} legacy={} corrected={} (ADR 0062 — legacy still used)",
-                        indexSymbol, price, isCall ? "CE" : "PE", policy, legacy, corrected);
+            String other = OptionPriceUtils.getStrikeForEntry(
+                    indexSymbol, price, isCall, policy, instrumentCache.getInstruments(),
+                    !strikePolicyCorrectionEnabled);
+            if (other != null && !other.isBlank() && !other.equals(selected)) {
+                String legacy = strikePolicyCorrectionEnabled ? other : selected;
+                String corrected = strikePolicyCorrectionEnabled ? selected : other;
+                log.info("STRIKE_POLICY_SHADOW: index={} price={} leg={} policy={} legacy={} corrected={} (ADR 0062 — live={})",
+                        indexSymbol, price, isCall ? "CE" : "PE", policy, legacy, corrected,
+                        strikePolicyCorrectionEnabled ? "corrected" : "legacy");
             }
         } catch (RuntimeException e) {
             log.warn("STRIKE_POLICY_SHADOW failed for index={} policy={}: {}", indexSymbol, policy, e.getMessage());

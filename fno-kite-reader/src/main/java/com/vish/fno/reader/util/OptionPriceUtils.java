@@ -56,6 +56,36 @@ public final class OptionPriceUtils {
     }
 
     /**
+     * The single entry point production uses to pick an option strike, gated on ADR 0062.
+     *
+     * <p>{@code correctionEnabled = true} applies {@link #getStrikeByPolicy}, i.e. the contract
+     * {@link StrikePolicy} documents. {@code false} reproduces the legacy rule that has been in
+     * production since inception: all five policy values collapse onto {@link #getITMStock} /
+     * {@link #getOTMStock}, which are floor/ceiling selections against spot and take no offset.
+     *
+     * <p>The flag exists because correcting this changes the strike of <b>every production option
+     * order</b>. Measured 2026-09-05 over 78 matched prod/backtest pairs, the two rules disagree on
+     * 49% of orders <b>even when both see an identical spot to the paisa</b> — the divergence is
+     * entirely this rule, not a price or depth difference. Moneyness was separately measured to be
+     * P&amp;L-neutral (r = -0.009 over 1,693 orders), so this is a correctness change, not a
+     * performance one.
+     *
+     * <p>Turning the flag off must reproduce the historical strike exactly — otherwise the rollback
+     * is not a rollback. {@code StrikePolicyEntryWiringTest} pins both sides.
+     */
+    public static String getStrikeForEntry(String indexSymbol, double price, boolean isCall,
+                                           StrikePolicy policy, List<Instrument> instruments,
+                                           boolean correctionEnabled) {
+        if (correctionEnabled) {
+            return getStrikeByPolicy(indexSymbol, price, isCall, policy, instruments);
+        }
+        return switch (policy) {
+            case ITM_1, ITM_2, ATM -> getITMStock(indexSymbol, price, isCall, instruments);
+            case OTM_1, OTM_2 -> getOTMStock(indexSymbol, price, isCall, instruments);
+        };
+    }
+
+    /**
      * Resolve an option symbol by {@link StrikePolicy}, implementing the enum's own documented
      * contract: {@code ATM = round(price / strikeInterval)}, then step {@code offset} intervals
      * toward the money ({@code -1} for calls, {@code +1} for puts).
