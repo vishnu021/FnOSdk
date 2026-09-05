@@ -151,25 +151,36 @@ charges breakdown.
 |--------|---------|-------------|
 | `getITMStock(index, price, isCall)` | `String` | **Nearest ITM** symbol — last strike below spot (CE) / first above (PE). Takes no offset |
 | `getOTMStock(index, price, isCall)` | `String` | **Nearest OTM** symbol — first strike above spot (CE) / last below (PE). Takes no offset |
-| `getOptionStock(index, price, isCall, policy)` | `String` | ⚠️ **Does NOT honour `StrikePolicy`** — see the note below |
-| `OptionPriceUtils.getStrikeByPolicy(index, price, isCall, policy, instruments)` | `String` | Offset-aware resolution implementing the enum's documented formula. **Not yet wired into order placement** (ADR 0062 shadow) |
+| `getOptionStock(index, price, isCall, policy)` | `String` | Entry-path resolution. Honours `StrikePolicy` **only when `order.strikePolicyCorrectionEnabled` is true** — see the note below |
+| `OptionPriceUtils.getStrikeForEntry(index, price, isCall, policy, instruments, correctionEnabled)` | `String` | The flag-gated entry point `getOptionStock` delegates to. `true` = the contract, `false` = the legacy collapse |
+| `OptionPriceUtils.getStrikeByPolicy(index, price, isCall, policy, instruments)` | `String` | Offset-aware resolution implementing the enum's documented formula |
 | `appendIndexITMOptions()` | `void` | Add ITM options for default indices |
 | `appendAllOptionsForIndex(String)` | `void` | Subscribe to ALL options for index (100+ symbols) |
 
-> ⚠️ **`getOptionStock` does not implement `StrikePolicy` (ADR 0062).** It dispatches all five enum
-> values onto the two offset-less helpers above:
-> `ITM_1, ITM_2 → getITMStock` · `OTM_1, OTM_2 → getOTMStock` · `ATM → getITMStock`.
+> ⚠️ **`getOptionStock` is gated on `order.strikePolicyCorrectionEnabled`, default `false` (ADR 0062).**
 >
-> Consequences: **`ATM` resolves one strike in-the-money**, and **`ITM_2` / `OTM_2` are
-> unreachable** — silently, with no warning. Measured 2026-07-24: prod strike moneyness sat in
-> (0, 1.03] strike-intervals for every order regardless of policy.
+> `StrikePolicy` documents `targetStrike = ATM + (isCall ? -1 : +1) * offset * strikeInterval`.
+> Production never implemented it: all five enum values dispatched onto the two offset-less helpers
+> above (`ITM_1, ITM_2 → getITMStock` · `OTM_1, OTM_2 → getOTMStock` · `ATM → getITMStock`), so
+> **`ATM` resolved one strike in-the-money** and **`ITM_2` / `OTM_2` were unreachable** — silently.
 >
-> `getStrikeByPolicy` implements the contract correctly (`ATM = round(price/interval)`, then
-> `offset` intervals toward the money, interval inferred from the live instrument ladder).
-> `getOptionStock` currently computes it, logs `STRIKE_POLICY_SHADOW` when the two disagree, and
-> **still returns the legacy symbol** — switching changes the strike of every production option
-> order and needs a soak first. Callers wanting correct policy semantics today must call
-> `getStrikeByPolicy` directly.
+> **Flag `false` (default)** reproduces that legacy behaviour exactly — it is the rollback, and
+> `StrikePolicyEntryWiringTest` pins it. **Flag `true`** applies the documented contract via
+> `getStrikeByPolicy` (`ATM = round(price/interval)`, then `offset` intervals toward the money,
+> interval inferred from the live instrument ladder).
+>
+> Measured over ~30 sessions of `STRIKE_POLICY_SHADOW`: the two rules disagree on **49% of orders
+> even when both see an identical spot to the paisa** — it is the rule, not a price or depth
+> difference. Production moneyness sits in **(0, 1.00] strike-intervals** for every order
+> regardless of policy (NIFTY 50, n = 1,308, zero rows beyond 1.05), and `ATM` (+0.71) lands
+> **deeper** in the money than `ITM_1` (+0.19) — the ordering is inverted, not merely collapsed.
+>
+> Shadow logging runs in **both** flag states: with the flag off it measures what the fix would
+> change; with it on it should fall silent, which is the go-live check.
+>
+> 🔴 Flipping the flag changes the strike of **every production option order**. Moneyness is
+> separately P&L-neutral (`r = -0.009` over 1,693 orders), so this is a correctness change — but
+> soak it in MOCK first and re-base any leg whose effective strike moves.
 
 ### WebSocket Management
 
