@@ -501,9 +501,12 @@ List<ActiveOrder> completed = cache.getCompletedOrders();  // Orders moved from 
 | `removeActiveOrder(ActiveOrder)` | ✅ | Remove from active + index, add to completed |
 | `getActiveOrderForSymbol(String)` | ✅ | O(1) symbol index lookup, returns `List.copyOf()` |
 | `getCompletedOrders()` | ✅ | Get list of completed orders |
+| `clearCompletedOrders()` | ✅ | Drop completed orders only; active orders, order requests and cash untouched |
 | `removeExpiredOpenOrders(int)` | ✅ | Clean expired orders + update symbol index |
 
 **Note:** `removeActiveOrder()` removes from `activeOrders` and the symbol index, then moves the order to `completedOrders` for historical tracking.
+
+**Note:** `completedOrders` is append-only for the life of the cache. `clearCompletedOrders()` exists for long-lived backtest servers that run one backtest after another in the same JVM (OptionsAnalyzerV2 BacktestRunner clears it at the start of each REST day, ADR 0074 amendment). Production never calls it: it restarts every trading day.
 
 ---
 
