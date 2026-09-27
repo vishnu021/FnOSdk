@@ -97,6 +97,17 @@ public class OrderCache {
         log.debug("Order completed and moved to completedOrders: {}", order.getOrderRequest().getTag());
     }
 
+    /**
+     * Drops every completed order; active orders, open order requests and cash are untouched.
+     *
+     * <p>For long-lived backtest servers that run one backtest after another in the same JVM, where
+     * the append-only list would otherwise grow for the life of the process. Production never calls
+     * this: it restarts every trading day.
+     */
+    public void clearCompletedOrders() {
+        completedOrders.clear();
+    }
+
     public List<ActiveOrder> getActiveOrderForSymbol(String symbol) {
         // O(1) index lookup instead of streaming all activeOrders
         List<ActiveOrder> result = activeOrdersBySymbol.get(symbol);

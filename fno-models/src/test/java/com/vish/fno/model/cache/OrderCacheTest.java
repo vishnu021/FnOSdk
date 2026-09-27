@@ -17,6 +17,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class OrderCacheTest {
@@ -121,6 +122,30 @@ class OrderCacheTest {
 
         // Assert
         assertTrue(orderCache.getActiveOrders().isEmpty());
+    }
+
+    @Test
+    void clearCompletedOrdersEmptiesCompletedAndKeepsActiveOrders() {
+        // Arrange: one order completed, one still open
+        when(mockActiveOrder.getOrderRequest()).thenReturn(mockOrderRequest);
+        when(mockOrderRequest.getTag()).thenReturn("TAG1");
+        when(mockOrderRequest.getIndex()).thenReturn("NIFTY");
+        orderCache.appendActiveOrder(mockActiveOrder);
+        orderCache.removeActiveOrder(mockActiveOrder);
+
+        OrderRequest openRequest = mock(OrderRequest.class);
+        ActiveOrder openOrder = mock(ActiveOrder.class);
+        when(openOrder.getOrderRequest()).thenReturn(openRequest);
+        when(openRequest.getTag()).thenReturn("TAG2");
+        when(openRequest.getIndex()).thenReturn("NIFTY");
+        orderCache.appendActiveOrder(openOrder);
+
+        // Act
+        orderCache.clearCompletedOrders();
+
+        // Assert
+        assertTrue(orderCache.getCompletedOrders().isEmpty());
+        assertEquals(List.of(openOrder), orderCache.getActiveOrders());
     }
 
     /**
