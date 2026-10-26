@@ -196,6 +196,24 @@ charges breakdown.
 
 **WebSocket defaults:** All default indices (NIFTY 50, NIFTY BANK, BANKEX, SENSEX) have their option symbols auto-subscribed on initialization. Reconnection: max 10 retries with up to 30-second intervals.
 
+### Quick-REST and WebSocket recovery methods (OAV2 ADR 0078)
+
+Used by OAV2's feed watchdog when the tick feed is lost. The three `*Quick` methods run on a **dedicated 2-second lock**,
+never the shared API lock, and never block longer than that; they are meant for a single watchdog thread.
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `getLtpQuick(symbols)` | `Map<String, Double>` | Batched last-traded prices. Symbols the broker did not return are absent; total failure gives an empty map |
+| `getOrderFilledQuantitiesQuick()` | `Optional<Map<String, Integer>>` | Kite order id to `filledQuantity` from the order book. **Empty Optional = the call failed** (distinct from an empty map = no orders); an order id absent from the map is unknown, never 0 |
+| `getNetPositionQuantitiesQuick()` | `Optional<Map<String, Integer>>` | Trading symbol to net quantity. Empty Optional = failed. **Unused by OAV2** since R4 moved to per-leg order-book truth (a `Position` has no tag or order id) |
+| `forceWebSocketResubscribe()` | `void` | Re-subscribe the full known token set on the live socket (used on a stale feed) |
+| `rebuildWebSocket()` | `void` | Tear down and rebuild the ticker from the current session, then re-subscribe the full set (used on a lost feed). Skipped if `initialize` holds `rebuildLock`; the caller retries on its next cycle |
+
+The quick methods do not catch `RuntimeException` (for example before authentication); the caller must.
+`KiteWebSocket.initialize` takes `rebuildLock`, and the first connect after a rebuild logs `rebuild=true`. Every connect
+re-subscribes the union of known tokens and logs `WS_RESUBSCRIBE: <N> tokens (reconnect=<bool>)` (Kite SDK 4.0.0 runs
+`connect()` before its own re-subscribe wrapper, so the application listener must do it).
+
 ### Instrument Utilities
 
 | Method | Returns | Description |
