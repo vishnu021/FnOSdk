@@ -98,8 +98,9 @@ class QuickQuoteClient {
 
     /**
      * @return Kite order id to filled quantity from today's order book; empty Optional means the call
-     *         FAILED (distinct from an empty map = no orders). An order whose filled quantity cannot be
-     *         parsed is omitted (never reported as 0), so the caller treats it as a failure.
+     *         FAILED (distinct from an empty map = no orders). An order whose filled quantity is null,
+     *         blank or cannot be parsed is UNKNOWN: it is omitted (never reported as 0), so the caller
+     *         treats it as a failure.
      */
     Optional<Map<String, Integer>> getOrderFilledQuantities() {
         if (!acquire("getOrders")) {
@@ -128,7 +129,10 @@ class QuickQuoteClient {
         }
         String raw = order.filledQuantity;
         if (raw == null || raw.isBlank()) {
-            result.put(order.orderId, 0);
+            // A missing fill is UNKNOWN, not 0: a 0 would read as "buy never filled" while the
+            // order may still be open at the broker.
+            log.warn("QUICK_REST getOrders blank filledQuantity for order {}", order.orderId);
+            result.remove(order.orderId);
             return;
         }
         try {

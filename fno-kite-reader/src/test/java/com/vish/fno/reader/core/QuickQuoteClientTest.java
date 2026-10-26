@@ -213,9 +213,16 @@ class QuickQuoteClientTest {
     }
 
     @Test
-    void blankFilledIsZero() throws Throwable {
-        when(kite.getOrders()).thenReturn(List.of(order("A1", null), order("B2", "  "), order("C3", "")));
-        assertEquals(Map.of("A1", 0, "B2", 0, "C3", 0), client.getOrderFilledQuantities().orElseThrow());
+    void blankFilledIsOmitted() throws Throwable {
+        when(kite.getOrders()).thenReturn(
+                List.of(order("A1", null), order("B2", "  "), order("C3", ""), order("D4", "65")));
+        assertEquals(Map.of("D4", 65), client.getOrderFilledQuantities().orElseThrow());
+    }
+
+    @Test
+    void laterBlankEntryForSameOrderMakesItUnknown() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of(order("A1", "0"), order("A1", null)));
+        assertEquals(Map.of(), client.getOrderFilledQuantities().orElseThrow());
     }
 
     @Test
