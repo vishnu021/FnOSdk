@@ -65,19 +65,28 @@ public class KiteWebSocket {
     }
 
     public void initialize(KiteConnect kiteSdk) {
-        if (connectToWebSocket) {
-            log.info("Initialising websocket...");
-            this.tickerProvider = tickerFactory.apply(kiteSdk);
-            addWebSocketListeners(onTickerArrivalListener, onOrderUpdateListener);
-            tickerProvider.connect();
-            log.info("WebSocket connect() called, waiting for onConnected callback");
+        if (!connectToWebSocket) {
+            return;
+        }
+        if (tickerProvider != null) {
+            log.info("WS_REINITIALIZE: tearing down existing ticker");
+            retireCurrentTicker();
+        }
+        startTicker(kiteSdk);
+    }
 
-            tokenLock.lock();
-            try {
-                tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeLTP);
-            } finally {
-                tokenLock.unlock();
-            }
+    private void startTicker(KiteConnect kiteSdk) {
+        log.info("Initialising websocket...");
+        this.tickerProvider = tickerFactory.apply(kiteSdk);
+        addWebSocketListeners(onTickerArrivalListener, onOrderUpdateListener);
+        tickerProvider.connect();
+        log.info("WebSocket connect() called, waiting for onConnected callback");
+
+        tokenLock.lock();
+        try {
+            tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeLTP);
+        } finally {
+            tokenLock.unlock();
         }
     }
 
@@ -102,6 +111,10 @@ public class KiteWebSocket {
         tickerProvider.setOnDisconnectedListener(() -> {
             if (ticker != tickerProvider) {
                 log.info("WS_RESUBSCRIBE: stale-ticker onDisconnected ignored");
+                return;
+            }
+            if (ticker.isConnectionOpen()) {
+                log.info("WS_DISCONNECT_IGNORED: current socket still open");
                 return;
             }
             isConnected = false;
@@ -168,30 +181,38 @@ public class KiteWebSocket {
             return;
         }
         try {
-            KiteTicker old;
-            tokenLock.lock();
-            try {
-                LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
-                union.addAll(tokensToSubscribe);
-                subscribedTokens.clear();
-                tokensToSubscribe.clear();
-                tokensToSubscribe.addAll(union);
-                isConnected = false;
-                old = tickerProvider;
-            } finally {
-                tokenLock.unlock();
-            }
-            if (old != null) {
-                try {
-                    old.setTryReconnection(false);
-                    old.disconnect();
-                } catch (RuntimeException e) {
-                    log.warn("WS_RESUBSCRIBE: stopping old ticker failed, continuing with rebuild", e);
-                }
-            }
-            initialize(kiteSdk);
+            retireCurrentTicker();
+            startTicker(kiteSdk);
         } finally {
             rebuildLock.unlock();
+        }
+    }
+
+    /**
+     * Queues every known token for the next ticker, marks the socket disconnected and stops the
+     * current ticker (auto-reconnect off, then disconnect) so no parallel live feed survives.
+     */
+    private void retireCurrentTicker() {
+        KiteTicker old;
+        tokenLock.lock();
+        try {
+            LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
+            union.addAll(tokensToSubscribe);
+            subscribedTokens.clear();
+            tokensToSubscribe.clear();
+            tokensToSubscribe.addAll(union);
+            isConnected = false;
+            old = tickerProvider;
+        } finally {
+            tokenLock.unlock();
+        }
+        if (old != null) {
+            try {
+                old.setTryReconnection(false);
+                old.disconnect();
+            } catch (RuntimeException e) {
+                log.warn("WS_RESUBSCRIBE: stopping old ticker failed, continuing", e);
+            }
         }
     }
 

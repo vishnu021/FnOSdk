@@ -1047,5 +1047,64 @@ class KiteWebSocketTest {
 
             assertEquals(1, created.get());
         }
+
+        @Test
+        @DisplayName("late disconnect from a replaced socket of the same ticker is ignored while the current socket is open")
+        void lateDisconnectIgnoredWhenCurrentSocketOpen() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            OnDisconnect disconnect = captureDisconnected(mockTicker);
+            when(mockTicker.isConnectionOpen()).thenReturn(true);
+            assertTrue(getIsConnected(ws));
+
+            disconnect.onDisconnected();
+
+            assertTrue(getIsConnected(ws));
+        }
+
+        @Test
+        @DisplayName("disconnect with the current socket closed marks the websocket disconnected")
+        void disconnectWhenSocketClosedFlipsIsConnected() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            OnDisconnect disconnect = captureDisconnected(mockTicker);
+            when(mockTicker.isConnectionOpen()).thenReturn(false);
+
+            disconnect.onDisconnected();
+
+            assertFalse(getIsConnected(ws));
+        }
+
+        @Test
+        @DisplayName("a second initialize tears down the first ticker and subscribes the full set once")
+        void secondInitializeTearsDownFirstTicker() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            OnConnect firstConnect = connectedWithOptions(ws, mockTicker);
+            OnDisconnect firstDisconnect = captureDisconnected(mockTicker);
+            KiteTicker second = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> second);
+            clearInvocations(mockTicker);
+
+            ws.initialize(mock(KiteConnect.class));
+
+            InOrder order = inOrder(mockTicker, second);
+            order.verify(mockTicker).setTryReconnection(false);
+            order.verify(mockTicker).disconnect();
+            order.verify(second).connect();
+            ArgumentCaptor<OnConnect> cap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(second).setOnConnectedListener(cap.capture());
+            cap.getValue().onConnected();
+            verify(second, times(1)).subscribe(any());
+            assertEquals(6, lastSubscribe(second).size());
+            assertEquals(6, ws.getSubscribedTokensCount());
+
+            clearInvocations(mockTicker);
+            firstConnect.onConnected();
+            firstDisconnect.onDisconnected();
+
+            verify(mockTicker, never()).subscribe(any());
+            assertTrue(getIsConnected(ws));
+            assertEquals(6, ws.getSubscribedTokensCount());
+        }
     }
 }
