@@ -37,6 +37,8 @@ public class KiteWebSocket {
     @Getter
     private final boolean connectToWebSocket;
     private volatile boolean isConnected;
+    // True from rebuild() until the rebuilt ticker's first onConnected; makes the WS_RESUBSCRIBE log honest.
+    private volatile boolean rebuildPending;
     // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
     // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
     // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
@@ -68,11 +70,19 @@ public class KiteWebSocket {
         if (!connectToWebSocket) {
             return;
         }
-        if (tickerProvider != null) {
-            log.info("WS_REINITIALIZE: tearing down existing ticker");
-            retireCurrentTicker();
+        // Blocking lock: an initialize racing a rebuild must wait, else both swap tickerProvider and orphan one.
+        // rebuild() does not call initialize(); it calls retireCurrentTicker()/startTicker() directly under the same lock.
+        rebuildLock.lock();
+        try {
+            if (tickerProvider != null) {
+                log.info("WS_REINITIALIZE: tearing down existing ticker");
+                retireCurrentTicker();
+            }
+            rebuildPending = false;
+            startTicker(kiteSdk);
+        } finally {
+            rebuildLock.unlock();
         }
-        startTicker(kiteSdk);
     }
 
     private void startTicker(KiteConnect kiteSdk) {
@@ -101,7 +111,9 @@ public class KiteWebSocket {
                     return;
                 }
                 boolean reconnect = !subscribedTokens.isEmpty();
-                sendAllKnownTokens(reconnect);
+                boolean rebuilt = rebuildPending;
+                rebuildPending = false;
+                sendAllKnownTokens(reconnect, rebuilt);
                 isConnected = true;
             } finally {
                 tokenLock.unlock();
@@ -121,8 +133,24 @@ public class KiteWebSocket {
             log.info("disconnected");
         });
 
-        tickerProvider.setOnOrderUpdateListener(onOrderUpdateListener);
-        tickerProvider.setOnTickerArrivalListener(onTickerArrivalListener);
+        tickerProvider.setOnOrderUpdateListener(order -> {
+            if (ticker != tickerProvider) {
+                log.debug("WS_STALE_TICKER: order update from replaced ticker dropped");
+                return;
+            }
+            if (onOrderUpdateListener != null) {
+                onOrderUpdateListener.onOrderUpdate(order);
+            }
+        });
+        tickerProvider.setOnTickerArrivalListener(ticks -> {
+            if (ticker != tickerProvider) {
+                log.debug("WS_STALE_TICKER: ticks from replaced ticker dropped");
+                return;
+            }
+            if (onTickerArrivalListener != null) {
+                onTickerArrivalListener.onTicks(ticks);
+            }
+        });
 
         tickerProvider.setTryReconnection(true);
         try {
@@ -139,7 +167,7 @@ public class KiteWebSocket {
      * ticker, sets full mode, and records the union as subscribed. Caller must hold {@code tokenLock}.
      * The Kite SDK's own re-subscribe wrapper is not relied on (D-23-01).
      */
-    private void sendAllKnownTokens(boolean reconnect) {
+    private void sendAllKnownTokens(boolean reconnect, boolean rebuilt) {
         LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
         union.addAll(tokensToSubscribe);
         ArrayList<Long> all = new ArrayList<>(union);
@@ -148,7 +176,13 @@ public class KiteWebSocket {
         subscribedTokens.clear();
         subscribedTokens.addAll(all);
         tokensToSubscribe.clear();
-        log.info("WS_RESUBSCRIBE: {} tokens (reconnect={})", all.size(), reconnect);
+        log.info(resubscribeMessage(all.size(), reconnect, rebuilt));
+    }
+
+    /** Builds the WS_RESUBSCRIBE line; the boot grep prefix is unchanged, rebuild=true is appended only after a rebuild. */
+    static String resubscribeMessage(int tokenCount, boolean reconnect, boolean rebuilt) {
+        String base = "WS_RESUBSCRIBE: " + tokenCount + " tokens (reconnect=" + reconnect + ")";
+        return rebuilt ? base + " rebuild=true" : base;
     }
 
     /** Re-sends every known token on the current socket, if connected. No-op when the websocket is disabled. */
@@ -162,7 +196,7 @@ public class KiteWebSocket {
                 log.warn("WS_RESUBSCRIBE: skipped, websocket not connected");
                 return;
             }
-            sendAllKnownTokens(true);
+            sendAllKnownTokens(true, false);
         } finally {
             tokenLock.unlock();
         }
@@ -182,6 +216,7 @@ public class KiteWebSocket {
         }
         try {
             retireCurrentTicker();
+            rebuildPending = true;
             startTicker(kiteSdk);
         } finally {
             rebuildLock.unlock();

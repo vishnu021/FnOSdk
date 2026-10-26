@@ -2,7 +2,11 @@ package com.vish.fno.reader.core;
 
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.zerodhatech.models.Instrument;
+import com.zerodhatech.models.Order;
 import com.zerodhatech.ticker.KiteTicker;
 import com.zerodhatech.ticker.OnConnect;
 import com.zerodhatech.ticker.OnDisconnect;
@@ -17,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -938,6 +943,7 @@ class KiteWebSocketTest {
         void forceResubscribeIsNoOpWhenWebSocketDisabled() throws Exception {
             KiteWebSocket ws = new KiteWebSocket(false, instrumentCache);
             injectTickerProvider(ws);
+            setIsConnected(ws, true);
 
             ws.forceResubscribe();
 
@@ -1105,6 +1111,130 @@ class KiteWebSocketTest {
             verify(mockTicker, never()).subscribe(any());
             assertTrue(getIsConnected(ws));
             assertEquals(6, ws.getSubscribedTokensCount());
+        }
+
+        private List<String> captureLogsWhile(Runnable action) {
+            Logger logger = (Logger) LoggerFactory.getLogger(KiteWebSocket.class);
+            ListAppender<ILoggingEvent> appender = new ListAppender<>();
+            appender.start();
+            logger.addAppender(appender);
+            try {
+                action.run();
+            } finally {
+                logger.detachAppender(appender);
+            }
+            return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        }
+
+        @Test
+        @DisplayName("initialize waits for an in-flight rebuild instead of swapping the ticker under it")
+        void initializeWaitsForAnInFlightRebuild() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            KiteTicker rebuilt = mock(KiteTicker.class);
+            KiteTicker fromInitialize = mock(KiteTicker.class);
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            AtomicInteger created = new AtomicInteger();
+            ws.setTickerFactory(kc -> {
+                if (created.incrementAndGet() == 1) {
+                    entered.countDown();
+                    try {
+                        release.await(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return rebuilt;
+                }
+                return fromInitialize;
+            });
+            Thread rebuilder = new Thread(() -> ws.rebuild(mock(KiteConnect.class)));
+            rebuilder.start();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            Thread initializer = new Thread(() -> ws.initialize(mock(KiteConnect.class)));
+            initializer.start();
+
+            initializer.join(300);
+            assertTrue(initializer.isAlive(), "initialize must block while rebuild holds rebuildLock");
+            assertEquals(1, created.get());
+
+            release.countDown();
+            rebuilder.join(5000);
+            initializer.join(5000);
+
+            assertEquals(2, created.get());
+            verify(rebuilt).disconnect();
+            verify(fromInitialize).connect();
+        }
+
+        @Test
+        @DisplayName("first connect after a rebuild logs rebuild=true; a normal boot line is unchanged")
+        void firstConnectAfterRebuildLogsRebuildTrue() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            List<String> boot = captureLogsWhile(() -> {
+                ws.setTickerFactory(kc -> mockTicker);
+                ws.initialize(mock(KiteConnect.class));
+                ArgumentCaptor<OnConnect> bootCap = ArgumentCaptor.forClass(OnConnect.class);
+                verify(mockTicker).setOnConnectedListener(bootCap.capture());
+                bootCap.getValue().onConnected();
+            });
+            assertTrue(boot.contains("WS_RESUBSCRIBE: 4 tokens (reconnect=false)"), boot.toString());
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+            ws.rebuild(mock(KiteConnect.class));
+            ArgumentCaptor<OnConnect> cap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(newTicker).setOnConnectedListener(cap.capture());
+
+            List<String> first = captureLogsWhile(() -> cap.getValue().onConnected());
+            List<String> second = captureLogsWhile(() -> cap.getValue().onConnected());
+
+            assertTrue(first.contains("WS_RESUBSCRIBE: 4 tokens (reconnect=false) rebuild=true"), first.toString());
+            assertTrue(second.contains("WS_RESUBSCRIBE: 4 tokens (reconnect=true)"), second.toString());
+        }
+
+        @Test
+        @DisplayName("ticks delivered by a replaced ticker are dropped, the current ticker's are delivered")
+        void tickFromReplacedTickerIsDropped() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            ws.setOnTickerArrivalListener(mockOnTicks);
+            ws.setTickerFactory(kc -> mockTicker);
+            ws.initialize(mock(KiteConnect.class));
+            ArgumentCaptor<OnTicks> oldCap = ArgumentCaptor.forClass(OnTicks.class);
+            verify(mockTicker).setOnTickerArrivalListener(oldCap.capture());
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+            ws.rebuild(mock(KiteConnect.class));
+            ArgumentCaptor<OnTicks> newCap = ArgumentCaptor.forClass(OnTicks.class);
+            verify(newTicker).setOnTickerArrivalListener(newCap.capture());
+
+            oldCap.getValue().onTicks(new ArrayList<>());
+            verify(mockOnTicks, never()).onTicks(any());
+
+            newCap.getValue().onTicks(new ArrayList<>());
+            verify(mockOnTicks, times(1)).onTicks(any());
+        }
+
+        @Test
+        @DisplayName("order updates delivered by a replaced ticker are dropped, the current ticker's are delivered")
+        void orderUpdateFromReplacedTickerIsDropped() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            ws.setOnOrderUpdateListener(mockOnOrderUpdate);
+            ws.setTickerFactory(kc -> mockTicker);
+            ws.initialize(mock(KiteConnect.class));
+            ArgumentCaptor<OnOrderUpdate> oldCap = ArgumentCaptor.forClass(OnOrderUpdate.class);
+            verify(mockTicker).setOnOrderUpdateListener(oldCap.capture());
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+            ws.rebuild(mock(KiteConnect.class));
+            ArgumentCaptor<OnOrderUpdate> newCap = ArgumentCaptor.forClass(OnOrderUpdate.class);
+            verify(newTicker).setOnOrderUpdateListener(newCap.capture());
+            Order order = new Order();
+
+            oldCap.getValue().onOrderUpdate(order);
+            verify(mockOnOrderUpdate, never()).onOrderUpdate(any());
+
+            newCap.getValue().onOrderUpdate(order);
+            verify(mockOnOrderUpdate, times(1)).onOrderUpdate(order);
         }
     }
 }
