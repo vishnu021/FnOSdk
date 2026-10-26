@@ -142,6 +142,25 @@ class QuickQuoteClientTest {
         assertEquals(Map.of(OPT_N, 65), result.get());
     }
 
+    private static Position row(String symbol, int qty) {
+        Position p = new Position();
+        p.tradingSymbol = symbol;
+        p.netQuantity = qty;
+        return p;
+    }
+
+    @Test
+    void sameSymbolAcrossProductsIsSummed() throws Throwable {
+        when(kite.getPositions()).thenReturn(Map.of("net", List.of(row(OPT_N, 65), row(OPT_N, 65))));
+        assertEquals(Map.of(OPT_N, 130), client.getNetPositionQuantities().orElseThrow());
+    }
+
+    @Test
+    void offsettingRowsNetToZero() throws Throwable {
+        when(kite.getPositions()).thenReturn(Map.of("net", List.of(row(OPT_N, 65), row(OPT_N, -65))));
+        assertEquals(Map.of(OPT_N, 0), client.getNetPositionQuantities().orElseThrow());
+    }
+
     @Test
     void netPositionsFailureIsEmptyOptional() throws Throwable {
         when(kite.getPositions()).thenThrow(new IOException("down"));

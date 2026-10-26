@@ -82,7 +82,7 @@ class QuickQuoteClient {
             if (positions != null && positions.get(NET_POSITIONS_KEY) != null) {
                 for (Position position : positions.get(NET_POSITIONS_KEY)) {
                     if (position.tradingSymbol != null) {
-                        result.put(position.tradingSymbol, position.netQuantity);
+                        result.merge(position.tradingSymbol, position.netQuantity, Integer::sum);
                     }
                 }
             }
