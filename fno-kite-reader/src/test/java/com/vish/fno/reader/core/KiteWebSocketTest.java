@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,6 +22,9 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,6 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -957,6 +962,90 @@ class KiteWebSocketTest {
             cap.getValue().onConnected();
             assertEquals(6, lastSubscribe(newTicker).size());
             assertEquals(6, ws.getSubscribedTokensCount());
+        }
+
+        private OnDisconnect captureDisconnected(KiteTicker ticker) {
+            ArgumentCaptor<OnDisconnect> cap = ArgumentCaptor.forClass(OnDisconnect.class);
+            verify(ticker).setOnDisconnectedListener(cap.capture());
+            return cap.getValue();
+        }
+
+        @Test
+        @DisplayName("old ticker's late onDisconnected after rebuild does not flip isConnected")
+        void staleOldTickerDisconnectedIsIgnored() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            OnConnect oldConnect = connectedWithOptions(ws, mockTicker);
+            OnDisconnect oldDisconnect = captureDisconnected(mockTicker);
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+            ws.rebuild(mock(KiteConnect.class));
+            ArgumentCaptor<OnConnect> cap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(newTicker).setOnConnectedListener(cap.capture());
+            cap.getValue().onConnected();
+            assertTrue(getIsConnected(ws));
+
+            oldDisconnect.onDisconnected();
+
+            assertTrue(getIsConnected(ws));
+        }
+
+        @Test
+        @DisplayName("old ticker's late onConnected does not subscribe on the new ticker")
+        void staleOldTickerConnectedIsIgnored() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            OnConnect oldConnect = connectedWithOptions(ws, mockTicker);
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+            ws.rebuild(mock(KiteConnect.class));
+            assertFalse(getIsConnected(ws));
+
+            oldConnect.onConnected();
+
+            verify(newTicker, never()).subscribe(any());
+            assertFalse(getIsConnected(ws));
+        }
+
+        @Test
+        @DisplayName("rebuild disables auto-reconnect on the old ticker before disconnecting it")
+        void rebuildStopsOldTickerReconnectBeforeDisconnect() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            ws.setTickerFactory(kc -> mock(KiteTicker.class));
+
+            ws.rebuild(mock(KiteConnect.class));
+
+            InOrder order = inOrder(mockTicker);
+            order.verify(mockTicker).setTryReconnection(false);
+            order.verify(mockTicker).disconnect();
+        }
+
+        @Test
+        @DisplayName("a rebuild while another is in flight is skipped")
+        void concurrentRebuildIsSkipped() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            AtomicInteger created = new AtomicInteger();
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            ws.setTickerFactory(kc -> {
+                created.incrementAndGet();
+                entered.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return mock(KiteTicker.class);
+            });
+            Thread first = new Thread(() -> ws.rebuild(mock(KiteConnect.class)));
+            first.start();
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+            ws.rebuild(mock(KiteConnect.class));
+            release.countDown();
+            first.join(5000);
+
+            assertEquals(1, created.get());
         }
     }
 }

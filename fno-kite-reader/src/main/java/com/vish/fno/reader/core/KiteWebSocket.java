@@ -41,6 +41,8 @@ public class KiteWebSocket {
     // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
     // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
     private final ReentrantLock tokenLock = new ReentrantLock();
+    // Serialises rebuild(); separate from tokenLock so onConnected never contends with it.
+    private final ReentrantLock rebuildLock = new ReentrantLock();
     private final List<Long> tokensToSubscribe;
     private final List<Long> subscribedTokens;
     @Setter
@@ -79,10 +81,16 @@ public class KiteWebSocket {
         }
     }
 
+    @SuppressWarnings("PMD.CompareObjectsWithEquals") // identity check is intended: detect callbacks from a superseded ticker
     private void addWebSocketListeners(OnTicks onTickerArrivalListener, OnOrderUpdate onOrderUpdateListener) {
+        final KiteTicker ticker = tickerProvider;
         tickerProvider.setOnConnectedListener(() -> {
             tokenLock.lock();
             try {
+                if (ticker != tickerProvider) {
+                    log.info("WS_RESUBSCRIBE: stale-ticker onConnected ignored");
+                    return;
+                }
                 boolean reconnect = !subscribedTokens.isEmpty();
                 sendAllKnownTokens(reconnect);
                 isConnected = true;
@@ -92,6 +100,10 @@ public class KiteWebSocket {
         });
 
         tickerProvider.setOnDisconnectedListener(() -> {
+            if (ticker != tickerProvider) {
+                log.info("WS_RESUBSCRIBE: stale-ticker onDisconnected ignored");
+                return;
+            }
             isConnected = false;
             log.info("disconnected");
         });
@@ -151,27 +163,36 @@ public class KiteWebSocket {
         if (!connectToWebSocket) {
             return;
         }
-        KiteTicker old;
-        tokenLock.lock();
+        if (!rebuildLock.tryLock()) {
+            log.info("WS_RESUBSCRIBE: rebuild already in flight, skipping");
+            return;
+        }
         try {
-            LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
-            union.addAll(tokensToSubscribe);
-            subscribedTokens.clear();
-            tokensToSubscribe.clear();
-            tokensToSubscribe.addAll(union);
-            isConnected = false;
-            old = tickerProvider;
-        } finally {
-            tokenLock.unlock();
-        }
-        if (old != null) {
+            KiteTicker old;
+            tokenLock.lock();
             try {
-                old.disconnect();
-            } catch (RuntimeException e) {
-                log.warn("WS_RESUBSCRIBE: disconnect of old ticker failed, continuing with rebuild", e);
+                LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
+                union.addAll(tokensToSubscribe);
+                subscribedTokens.clear();
+                tokensToSubscribe.clear();
+                tokensToSubscribe.addAll(union);
+                isConnected = false;
+                old = tickerProvider;
+            } finally {
+                tokenLock.unlock();
             }
+            if (old != null) {
+                try {
+                    old.setTryReconnection(false);
+                    old.disconnect();
+                } catch (RuntimeException e) {
+                    log.warn("WS_RESUBSCRIBE: stopping old ticker failed, continuing with rebuild", e);
+                }
+            }
+            initialize(kiteSdk);
+        } finally {
+            rebuildLock.unlock();
         }
-        initialize(kiteSdk);
     }
 
     void setTickerFactory(Function<KiteConnect, KiteTicker> tickerFactory) {
