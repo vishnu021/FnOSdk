@@ -37,6 +37,7 @@ public class KiteService {
 
     /** Shared PMD suppression key — the literal appears on several deliberately-broad catches. */
     private static final String SUPPRESS_GENERIC_CATCH = "PMD.AvoidCatchingGenericException";
+    private static final long QUICK_REST_LOCK_TIMEOUT_MS = 2000;
     private static final List<String> defaultIndices = List.of(NIFTY_50, NIFTY_BANK, BANKEX, SENSEX);
 
     private final KiteSession session;
@@ -44,6 +45,7 @@ public class KiteService {
     private final HistoricalDataProvider dataProvider;
     private final InstrumentCache instrumentCache;
     private final KiteWebSocket kiteWebSocket;
+    private final QuickQuoteClient quickQuoteClient;
     /** ADR 0062 — when false, keep the legacy strike collapse. See {@link #getOptionStock}. */
     private final boolean strikePolicyCorrectionEnabled;
     private boolean itmOptionsAppended;
@@ -61,6 +63,7 @@ public class KiteService {
         this.dataProvider = new HistoricalDataProvider(session, instrumentCache);
         this.orderExecutor = new KiteOrderExecutor(session, instrumentCache);
         this.kiteWebSocket = new KiteWebSocket(connectToWebSocket, instrumentCache);
+        this.quickQuoteClient = new QuickQuoteClient(session, instrumentCache, QUICK_REST_LOCK_TIMEOUT_MS);
     }
 
     public void authenticate(String requestToken) {
@@ -70,6 +73,22 @@ public class KiteService {
             }
             kiteWebSocket.initialize(session.getKiteSdk());
         });
+    }
+
+    /**
+     * Batched last-traded prices on a dedicated 2 s lock (never the shared API lock).
+     * Symbols the broker did not return are absent from the map; total failure yields an empty map.
+     */
+    public Map<String, Double> getLtpQuick(List<String> symbols) {
+        return quickQuoteClient.getLtp(symbols);
+    }
+
+    /**
+     * Broker net positions (trading symbol to net quantity) on the dedicated 2 s lock.
+     * Empty Optional means the call failed, as distinct from an empty map (no positions).
+     */
+    public Optional<Map<String, Integer>> getNetPositionQuantitiesQuick() {
+        return quickQuoteClient.getNetPositionQuantities();
     }
 
     public boolean isInitialised() {
