@@ -3,6 +3,7 @@ package com.vish.fno.reader.core;
 import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.LTPQuote;
+import com.zerodhatech.models.Order;
 import com.zerodhatech.models.Position;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -187,6 +189,102 @@ class QuickQuoteClientTest {
             assertTrue(held.await(2, TimeUnit.SECONDS));
 
             assertEquals(4, client.getLtp(SYMBOLS).size());
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    private static Order order(String id, String filled) {
+        Order o = new Order();
+        o.orderId = id;
+        o.filledQuantity = filled;
+        return o;
+    }
+
+    @Test
+    void orderFilledQuantitiesMapsIdToFilled() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of(order("A1", "65"), order("B2", "20")));
+
+        Optional<Map<String, Integer>> result = client.getOrderFilledQuantities();
+
+        assertTrue(result.isPresent());
+        assertEquals(Map.of("A1", 65, "B2", 20), result.get());
+    }
+
+    @Test
+    void blankFilledIsZero() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of(order("A1", null), order("B2", "  "), order("C3", "")));
+        assertEquals(Map.of("A1", 0, "B2", 0, "C3", 0), client.getOrderFilledQuantities().orElseThrow());
+    }
+
+    @Test
+    void unparseableFilledIsOmitted() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of(order("A1", "abc"), order("B2", "20")));
+        assertEquals(Map.of("B2", 20), client.getOrderFilledQuantities().orElseThrow());
+    }
+
+    @Test
+    void duplicateOrderIdKeepsLastEntry() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of(order("A1", "0"), order("A1", "65")));
+        assertEquals(Map.of("A1", 65), client.getOrderFilledQuantities().orElseThrow());
+    }
+
+    @Test
+    void noOrdersIsEmptyMapNotEmptyOptional() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of());
+        assertEquals(Map.of(), client.getOrderFilledQuantities().orElseThrow());
+    }
+
+    @Test
+    void kiteExceptionReturnsEmpty() throws Throwable {
+        when(kite.getOrders()).thenThrow(new KiteException("bad", 500));
+        assertTrue(client.getOrderFilledQuantities().isEmpty());
+        doThrow(new IOException("down")).when(kite).getOrders();
+        assertTrue(client.getOrderFilledQuantities().isEmpty());
+    }
+
+    @Test
+    void lockTimeoutReturnsEmpty() throws Throwable {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        when(kite.getOrders()).thenAnswer(inv -> {
+            entered.countDown();
+            release.await(5, TimeUnit.SECONDS);
+            return List.of(order("A1", "65"));
+        });
+        ExecutorService pool = Executors.newFixedThreadPool(1);
+        try {
+            pool.submit(() -> client.getOrderFilledQuantities());
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+
+            assertTrue(client.getOrderFilledQuantities().isEmpty());
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void orderFillsDoNotUseTheSharedApiLock() throws Throwable {
+        when(kite.getOrders()).thenReturn(List.of(order("A1", "65")));
+        ApiRateLimiter shared = new ApiRateLimiter();
+        CountDownLatch held = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(1);
+        try {
+            pool.submit(() -> shared.executeWithLock(() -> {
+                held.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return null;
+            }, "hold"));
+            assertTrue(held.await(2, TimeUnit.SECONDS));
+
+            assertEquals(Map.of("A1", 65), client.getOrderFilledQuantities().orElseThrow());
         } finally {
             release.countDown();
             pool.shutdownNow();

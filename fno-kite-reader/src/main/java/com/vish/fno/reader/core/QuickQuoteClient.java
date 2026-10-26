@@ -2,6 +2,7 @@ package com.vish.fno.reader.core;
 
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.LTPQuote;
+import com.zerodhatech.models.Order;
 import com.zerodhatech.models.Position;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONException;
@@ -92,6 +93,51 @@ class QuickQuoteClient {
             return Optional.empty();
         } finally {
             quickLock.unlock();
+        }
+    }
+
+    /**
+     * @return Kite order id to filled quantity from today's order book; empty Optional means the call
+     *         FAILED (distinct from an empty map = no orders). An order whose filled quantity cannot be
+     *         parsed is omitted (never reported as 0), so the caller treats it as a failure.
+     */
+    Optional<Map<String, Integer>> getOrderFilledQuantities() {
+        if (!acquire("getOrders")) {
+            return Optional.empty();
+        }
+        try {
+            List<Order> orders = session.getKiteSdk().getOrders();
+            Map<String, Integer> result = new ConcurrentHashMap<>();
+            if (orders != null) {
+                for (Order order : orders) {
+                    putFilledQuantity(result, order);
+                }
+            }
+            return Optional.of(result);
+        } catch (KiteException | IOException | JSONException e) {
+            log.warn("QUICK_REST getOrders failed: {}", e.getMessage());
+            return Optional.empty();
+        } finally {
+            quickLock.unlock();
+        }
+    }
+
+    private static void putFilledQuantity(Map<String, Integer> result, Order order) {
+        if (order == null || order.orderId == null) {
+            return;
+        }
+        String raw = order.filledQuantity;
+        if (raw == null || raw.isBlank()) {
+            result.put(order.orderId, 0);
+            return;
+        }
+        try {
+            // put() overwrites: if an order id repeats (order modifications), the last entry the
+            // order book returns is the most recent state, so it wins.
+            result.put(order.orderId, Integer.parseInt(raw.trim()));
+        } catch (NumberFormatException e) {
+            log.warn("QUICK_REST getOrders unparseable filledQuantity '{}' for order {}", raw, order.orderId);
+            result.remove(order.orderId);
         }
     }
 

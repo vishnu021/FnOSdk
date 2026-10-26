@@ -91,6 +91,15 @@ public class KiteService {
         return quickQuoteClient.getNetPositionQuantities();
     }
 
+    /**
+     * Per-order filled quantities (Kite order id to filled quantity) from the broker order book on the
+     * dedicated 2 s lock. Empty Optional means the call failed, as distinct from an empty map (no orders);
+     * an order id absent from the map must be treated as unknown, never as 0.
+     */
+    public Optional<Map<String, Integer>> getOrderFilledQuantitiesQuick() {
+        return quickQuoteClient.getOrderFilledQuantities();
+    }
+
     public boolean isInitialised() {
         return session.isInitialised();
     }
