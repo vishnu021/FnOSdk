@@ -302,6 +302,14 @@ public class KiteService {
         }
     }
 
+    public void forceWebSocketResubscribe() {
+        kiteWebSocket.forceResubscribe();
+    }
+
+    public void rebuildWebSocket() {
+        kiteWebSocket.rebuild(session.getKiteSdk());
+    }
+
     public List<Long> getSubscribedWebSocketTokens() {
         return kiteWebSocket.getSubscribedTokens();
     }

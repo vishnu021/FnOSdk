@@ -10,5 +10,14 @@ public enum OrderSellReason {
      * inside the flat band. Deliberately distinct from {@link #STOP_LOSS_HIT} so scratch exits
      * never feed stop-loss-streak accounting (same-strike cooldown / loss-streak rails).
      */
-    SCRATCH_TIME_EXIT
+    SCRATCH_TIME_EXIT,
+
+    /** Position force-closed because the market-data feed was lost; distinct from {@link #STOP_LOSS_HIT}, never feeds SL-streak rails. */
+    FEED_LOST_EXIT,
+
+    /** Position found still open after the end-of-day close; distinct from {@link #STOP_LOSS_HIT}, never feeds SL-streak rails. */
+    UNCLOSED_AT_EOD,
+
+    /** Position found still open at application shutdown; distinct from {@link #STOP_LOSS_HIT}, never feeds SL-streak rails. */
+    UNCLOSED_AT_SHUTDOWN
 }

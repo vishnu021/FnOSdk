@@ -15,7 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -25,7 +27,7 @@ import static com.vish.fno.util.FnoConstants.NIFTY_BANK_TOKEN;
 import static com.vish.fno.util.FnoConstants.SENSEX_TOKEN;
 
 @Slf4j
-@SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.AvoidCatchingGenericException"})
+@SuppressWarnings({"PMD.RedundantFieldInitializer", "PMD.AvoidCatchingGenericException", "PMD.LooseCoupling"})
 public class KiteWebSocket {
     private static final int MAX_RECONNECTION_RETRIES = 10;
     private static final int MAX_RETRY_INTERVAL_SECONDS = 30;
@@ -45,8 +47,9 @@ public class KiteWebSocket {
     private volatile OnTicks onTickerArrivalListener;
     @Setter
     private volatile OnOrderUpdate onOrderUpdateListener;
+    // Seam for tests: how a KiteTicker is built from the SDK session.
+    private Function<KiteConnect, KiteTicker> tickerFactory = kc -> new KiteTicker(kc.getAccessToken(), kc.getApiKey());
 
-    @SuppressWarnings("PMD.LooseCoupling")
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {
         this.connectToWebSocket = connectToWebSocket;
         this.instrumentCache = instrumentCache;
@@ -59,11 +62,10 @@ public class KiteWebSocket {
         this.onOrderUpdateListener = order -> log.info("Order update complete : {}", JsonUtils.getFormattedObject(order));
     }
 
-    @SuppressWarnings("PMD.LooseCoupling")
     public void initialize(KiteConnect kiteSdk) {
         if (connectToWebSocket) {
             log.info("Initialising websocket...");
-            this.tickerProvider = new KiteTicker(kiteSdk.getAccessToken(), kiteSdk.getApiKey());
+            this.tickerProvider = tickerFactory.apply(kiteSdk);
             addWebSocketListeners(onTickerArrivalListener, onOrderUpdateListener);
             tickerProvider.connect();
             log.info("WebSocket connect() called, waiting for onConnected callback");
@@ -81,14 +83,9 @@ public class KiteWebSocket {
         tickerProvider.setOnConnectedListener(() -> {
             tokenLock.lock();
             try {
-                log.info("Subscribing to following {} tokens: {}", tokensToSubscribe.size(), tokensToSubscribe);
-                tickerProvider.subscribe(new ArrayList<>(tokensToSubscribe));
-                tickerProvider.setMode(new ArrayList<>(tokensToSubscribe), KiteTicker.modeFull);
-
-                subscribedTokens.addAll(tokensToSubscribe);
-                tokensToSubscribe.clear();
+                boolean reconnect = !subscribedTokens.isEmpty();
+                sendAllKnownTokens(reconnect);
                 isConnected = true;
-                log.info("Subscription complete. {} tokens now subscribed", subscribedTokens.size());
             } finally {
                 tokenLock.unlock();
             }
@@ -110,6 +107,75 @@ public class KiteWebSocket {
             log.error("Exception while setting retries", e);
             throw new InitialisationException("Error initializing kite web socket", e);
         }
+    }
+
+    /**
+     * Subscribes the de-duplicated union of already-subscribed and queued tokens on the current
+     * ticker, sets full mode, and records the union as subscribed. Caller must hold {@code tokenLock}.
+     * The Kite SDK's own re-subscribe wrapper is not relied on (D-23-01).
+     */
+    private void sendAllKnownTokens(boolean reconnect) {
+        LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
+        union.addAll(tokensToSubscribe);
+        ArrayList<Long> all = new ArrayList<>(union);
+        tickerProvider.subscribe(new ArrayList<>(all));
+        tickerProvider.setMode(new ArrayList<>(all), KiteTicker.modeFull);
+        subscribedTokens.clear();
+        subscribedTokens.addAll(all);
+        tokensToSubscribe.clear();
+        log.info("WS_RESUBSCRIBE: {} tokens (reconnect={})", all.size(), reconnect);
+    }
+
+    /** Re-sends every known token on the current socket, if connected. No-op when the websocket is disabled. */
+    public void forceResubscribe() {
+        if (!connectToWebSocket) {
+            return;
+        }
+        tokenLock.lock();
+        try {
+            if (tickerProvider == null || !isConnected) {
+                log.warn("WS_RESUBSCRIBE: skipped, websocket not connected");
+                return;
+            }
+            sendAllKnownTokens(true);
+        } finally {
+            tokenLock.unlock();
+        }
+    }
+
+    /**
+     * Tears down the current ticker and builds a fresh one. All known tokens are queued so the new
+     * ticker's onConnected subscribes them. Stored listeners are re-attached by {@link #initialize}.
+     */
+    public void rebuild(KiteConnect kiteSdk) {
+        if (!connectToWebSocket) {
+            return;
+        }
+        KiteTicker old;
+        tokenLock.lock();
+        try {
+            LinkedHashSet<Long> union = new LinkedHashSet<>(subscribedTokens);
+            union.addAll(tokensToSubscribe);
+            subscribedTokens.clear();
+            tokensToSubscribe.clear();
+            tokensToSubscribe.addAll(union);
+            isConnected = false;
+            old = tickerProvider;
+        } finally {
+            tokenLock.unlock();
+        }
+        if (old != null) {
+            try {
+                old.disconnect();
+            } catch (RuntimeException e) {
+                log.warn("WS_RESUBSCRIBE: disconnect of old ticker failed, continuing with rebuild", e);
+            }
+        }
+        initialize(kiteSdk);
+    }
+
+    void setTickerFactory(Function<KiteConnect, KiteTicker> tickerFactory) {
+        this.tickerFactory = tickerFactory;
     }
 
     public void addListener(OnTicks onTickerArrivalListener) {
@@ -152,7 +218,6 @@ public class KiteWebSocket {
                 .orElse(false);
     }
 
-    @SuppressWarnings("PMD.LooseCoupling")
     public void appendWebSocketSymbolsList(List<String> symbols, boolean addFutures) {
         if (!connectToWebSocket) {
             return;

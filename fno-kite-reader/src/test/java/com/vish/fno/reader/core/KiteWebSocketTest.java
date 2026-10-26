@@ -1,5 +1,6 @@
 package com.vish.fno.reader.core;
 
+import com.zerodhatech.kiteconnect.KiteConnect;
 import com.zerodhatech.kiteconnect.kitehttp.exceptions.KiteException;
 import com.zerodhatech.models.Instrument;
 import com.zerodhatech.ticker.KiteTicker;
@@ -29,6 +30,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.clearInvocations;
@@ -857,6 +861,102 @@ class KiteWebSocketTest {
             // Assert - should appear once in queue (not duplicated)
             long count = tokensToSubscribe.stream().filter(t -> t == 341249L).count();
             assertEquals(1, count);
+        }
+    }
+
+    // =======================================================================
+    // Reconnect / resubscribe / rebuild (D-23-01)
+    // =======================================================================
+
+    @Nested
+    @DisplayName("reconnect re-subscription")
+    class Reconnect {
+
+        private static final long OPT_1 = 1001L;
+        private static final long OPT_2 = 1002L;
+
+        private OnConnect connectedWithOptions(KiteWebSocket ws, KiteTicker ticker) throws Exception {
+            ws.setTickerFactory(kc -> ticker);
+            ws.initialize(mock(KiteConnect.class));
+            ArgumentCaptor<OnConnect> cap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(ticker).setOnConnectedListener(cap.capture());
+            OnConnect onConnect = cap.getValue();
+            onConnect.onConnected();
+            when(instrumentCache.getInstrument("OPT1")).thenReturn(Optional.of(OPT_1));
+            when(instrumentCache.getInstrument("OPT2")).thenReturn(Optional.of(OPT_2));
+            ws.appendWebSocketSymbolsList(List.of("OPT1", "OPT2"), false);
+            return onConnect;
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<Long> lastSubscribe(KiteTicker ticker) {
+            ArgumentCaptor<ArrayList<Long>> cap = ArgumentCaptor.forClass(ArrayList.class);
+            verify(ticker, atLeastOnce()).subscribe(cap.capture());
+            return cap.getValue();
+        }
+
+        @Test
+        @DisplayName("second onConnected re-subscribes every token from the first connect")
+        void reconnectResubscribesEveryTokenFromFirstConnect() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            OnConnect onConnect = connectedWithOptions(ws, mockTicker);
+            assertEquals(6, ws.getSubscribedTokensCount());
+
+            onConnect.onConnected();
+
+            List<Long> last = lastSubscribe(mockTicker);
+            assertEquals(6, last.size());
+            assertTrue(last.containsAll(List.of(NIFTY_50_TOKEN, NIFTY_BANK_TOKEN, SENSEX_TOKEN, BANKEX_TOKEN, OPT_1, OPT_2)));
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<ArrayList<Long>> modeCap = ArgumentCaptor.forClass(ArrayList.class);
+            verify(mockTicker, atLeastOnce()).setMode(modeCap.capture(), eq(KiteTicker.modeFull));
+            assertEquals(6, modeCap.getValue().size());
+            assertEquals(6, ws.getSubscribedTokensCount());
+            assertEquals(6, ws.getSubscribedTokens().stream().distinct().count());
+        }
+
+        @Test
+        @DisplayName("forceResubscribe sends all known tokens on the current socket")
+        void forceResubscribeSendsAllKnownTokensOnCurrentSocket() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            clearInvocations(mockTicker);
+
+            ws.forceResubscribe();
+
+            assertEquals(6, lastSubscribe(mockTicker).size());
+            verify(mockTicker, times(1)).subscribe(any());
+        }
+
+        @Test
+        @DisplayName("forceResubscribe is a no-op when websocket is disabled")
+        void forceResubscribeIsNoOpWhenWebSocketDisabled() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(false, instrumentCache);
+            injectTickerProvider(ws);
+
+            ws.forceResubscribe();
+
+            verify(mockTicker, never()).subscribe(any());
+        }
+
+        @Test
+        @DisplayName("rebuild disconnects the old ticker and queues all tokens for the new one")
+        void rebuildDisconnectsOldTickerAndKeepsTokenSetForNextConnect() throws Exception {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            connectedWithOptions(ws, mockTicker);
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+
+            ws.rebuild(mock(KiteConnect.class));
+
+            verify(mockTicker, times(1)).disconnect();
+            assertFalse(getIsConnected(ws));
+            assertEquals(6, getTokensToSubscribe(ws).size());
+            ArgumentCaptor<OnConnect> cap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(newTicker).setOnConnectedListener(cap.capture());
+            cap.getValue().onConnected();
+            assertEquals(6, lastSubscribe(newTicker).size());
+            assertEquals(6, ws.getSubscribedTokensCount());
         }
     }
 }
