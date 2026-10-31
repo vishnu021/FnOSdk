@@ -55,6 +55,23 @@ public class PartialRevisingStopLoss extends AbstractTargetAndStopLossStrategy {
     }
 
     /**
+     * Once the partial target sell has banked lots, the remaining runner's stop exit is labelled
+     * TARGET_HIT: SellOrderExecutor feeds the literal STOP_LOSS_HIT to the ADR-0054 sameStrikeCooldown /
+     * lossStreakBreaker rails, and a trade that already banked its target is not a loss event.
+     * Quantity and price are unchanged; a stop hit before any sell stays STOP_LOSS_HIT.
+     */
+    @Override
+    public OrderSellDetailModel isStopLossHit(ActiveOrder order, double ltp) {
+        if (order.getSoldQuantity() > 0 && checkStopLossHit(order, ltp)) {
+            int remaining = order.getBuyQuantity() - order.getSoldQuantity();
+            log.info("Runner stop hit after partial target sell, ltp: {}, selling remaining {} as TARGET_HIT, order: {}",
+                    ltp, remaining, order);
+            return new OrderSellDetailModel(true, remaining, OrderSellReason.TARGET_HIT, order);
+        }
+        return super.isStopLossHit(order, ltp);
+    }
+
+    /**
      * Revises the stop-loss based on the latest Heikin-Ashi candle.
      * Only revises when a new HA candle has formed (candle count changed),
      * preventing redundant revision on every tick within the same candle.
