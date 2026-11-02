@@ -12,6 +12,7 @@ import com.zerodhatech.ticker.OnConnect;
 import com.zerodhatech.ticker.OnDisconnect;
 import com.zerodhatech.ticker.OnOrderUpdate;
 import com.zerodhatech.ticker.OnTicks;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,25 +25,32 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.inOrder;
@@ -101,6 +109,19 @@ class KiteWebSocketTest {
         Field subscribedField = KiteWebSocket.class.getDeclaredField("subscribedTokens");
         subscribedField.setAccessible(true);
         return (List<Long>) subscribedField.get(webSocket);
+    }
+
+    private List<String> captureLogsWhile(Runnable action) {
+        Logger logger = (Logger) LoggerFactory.getLogger(KiteWebSocket.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
     }
 
     // =======================================================================
@@ -1113,19 +1134,6 @@ class KiteWebSocketTest {
             assertEquals(6, ws.getSubscribedTokensCount());
         }
 
-        private List<String> captureLogsWhile(Runnable action) {
-            Logger logger = (Logger) LoggerFactory.getLogger(KiteWebSocket.class);
-            ListAppender<ILoggingEvent> appender = new ListAppender<>();
-            appender.start();
-            logger.addAppender(appender);
-            try {
-                action.run();
-            } finally {
-                logger.detachAppender(appender);
-            }
-            return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-        }
-
         @Test
         @DisplayName("initialize waits for an in-flight rebuild instead of swapping the ticker under it")
         void initializeWaitsForAnInFlightRebuild() throws Exception {
@@ -1235,6 +1243,244 @@ class KiteWebSocketTest {
 
             newCap.getValue().onOrderUpdate(order);
             verify(mockOnOrderUpdate, times(1)).onOrderUpdate(order);
+        }
+    }
+
+    // =======================================================================
+    // Bounded connect (D-02n-01 residual): a connect() that never returns must not hold rebuildLock
+    // =======================================================================
+
+    @Nested
+    @DisplayName("bounded connect")
+    class BoundedConnect {
+
+        private static final Duration BOUND = Duration.ofMillis(200);
+        private static final long WITHIN_BOUND_MS = 2_000;
+
+        private final CountDownLatch release = new CountDownLatch(1);
+        private final CountDownLatch connectReturned = new CountDownLatch(1);
+        private final AtomicBoolean connectInterrupted = new AtomicBoolean();
+        private final AtomicBoolean reconnectOffWhenInterrupted = new AtomicBoolean();
+
+        @AfterEach
+        void releaseBlockedConnect() {
+            release.countDown();
+        }
+
+        /** A ticker whose connect() blocks (up to 5 s) until interrupted or released, like 02-11's 49-s handshake read. */
+        private KiteTicker blockingTicker() {
+            KiteTicker ticker = mock(KiteTicker.class);
+            doAnswer(inv -> {
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    connectInterrupted.set(true);
+                    reconnectOffWhenInterrupted.set(reconnectTurnedOff(ticker));
+                }
+                connectReturned.countDown();
+                return null;
+            }).when(ticker).connect();
+            return ticker;
+        }
+
+        private boolean reconnectTurnedOff(KiteTicker ticker) {
+            return mockingDetails(ticker).getInvocations().stream()
+                    .anyMatch(i -> "setTryReconnection".equals(i.getMethod().getName()) && Boolean.FALSE.equals(i.getArgument(0)));
+        }
+
+        private KiteWebSocket boundedSocket() {
+            return boundedSocket(BOUND);
+        }
+
+        private KiteWebSocket boundedSocket(Duration bound) {
+            KiteWebSocket ws = new KiteWebSocket(true, instrumentCache);
+            ws.setConnectTimeout(bound);
+            return ws;
+        }
+
+        private long elapsedMs(Runnable action) {
+            long start = System.nanoTime();
+            action.run();
+            return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        }
+
+        @Test
+        @DisplayName("rebuild returns within the bound when connect() blocks, and logs WS_CONNECT_TIMEOUT")
+        void rebuildReturnsWithinBoundWhenConnectBlocks() {
+            KiteWebSocket ws = boundedSocket();
+            ws.setTickerFactory(kc -> blockingTicker());
+            long[] ms = new long[1];
+
+            List<String> logs = captureLogsWhile(() -> ms[0] = elapsedMs(() -> ws.rebuild(mock(KiteConnect.class))));
+
+            assertTrue(ms[0] < WITHIN_BOUND_MS, "rebuild took " + ms[0] + " ms");
+            assertTrue(logs.stream().anyMatch(l -> l.startsWith("WS_CONNECT_TIMEOUT")), logs.toString());
+        }
+
+        @Test
+        @DisplayName("initialize returns within the bound when connect() blocks")
+        void initializeReturnsWithinBoundWhenConnectBlocks() {
+            KiteWebSocket ws = boundedSocket();
+            ws.setTickerFactory(kc -> blockingTicker());
+
+            long ms = elapsedMs(() -> ws.initialize(mock(KiteConnect.class)));
+
+            assertTrue(ms < WITHIN_BOUND_MS, "initialize took " + ms + " ms");
+        }
+
+        @Test
+        @DisplayName("a blocked connect releases rebuildLock: the next rebuild builds and connects a new ticker")
+        void blockedConnectReleasesRebuildLockForNextRebuild() throws Exception {
+            KiteWebSocket ws = boundedSocket();
+            KiteTicker blocked = blockingTicker();
+            KiteTicker next = mock(KiteTicker.class);
+            AtomicInteger created = new AtomicInteger();
+            ws.setTickerFactory(kc -> created.incrementAndGet() == 1 ? blocked : next);
+            Thread first = new Thread(() -> ws.rebuild(mock(KiteConnect.class)));
+            first.start();
+            first.join(WITHIN_BOUND_MS);
+            assertFalse(first.isAlive(), "first rebuild did not return within the bound");
+
+            List<String> logs = captureLogsWhile(() -> ws.rebuild(mock(KiteConnect.class)));
+
+            assertEquals(2, created.get());
+            verify(next).connect();
+            assertFalse(logs.contains("WS_RESUBSCRIBE: rebuild already in flight, skipping"), logs.toString());
+        }
+
+        @Test
+        @DisplayName("the abandoned attempt is interrupted, its auto-reconnect disabled, and its ticker disconnected once connect() returns")
+        void abandonedConnectIsInterruptedAndItsTickerStopped() throws Exception {
+            KiteWebSocket ws = boundedSocket();
+            KiteTicker blocked = blockingTicker();
+            ws.setTickerFactory(kc -> blocked);
+
+            ws.rebuild(mock(KiteConnect.class));
+
+            assertTrue(connectReturned.await(WITHIN_BOUND_MS, TimeUnit.MILLISECONDS), "abandoned connect() never returned");
+            assertTrue(connectInterrupted.get(), "abandoned connect() was not interrupted");
+            verify(blocked, timeout(WITHIN_BOUND_MS)).disconnect();
+            InOrder order = inOrder(blocked);
+            order.verify(blocked, atLeastOnce()).setTryReconnection(false); // at abandon and again in the stop
+            order.verify(blocked).disconnect();
+        }
+
+        @Test
+        @DisplayName("auto-reconnect is off before the interrupt lands, so KiteTicker's connect() catch starts no reconnect timer")
+        void abandonTurnsAutoReconnectOffBeforeInterrupt() throws Exception {
+            KiteWebSocket ws = boundedSocket();
+            ws.setTickerFactory(kc -> blockingTicker());
+
+            ws.rebuild(mock(KiteConnect.class));
+
+            assertTrue(connectReturned.await(WITHIN_BOUND_MS, TimeUnit.MILLISECONDS), "abandoned connect() never returned");
+            assertTrue(reconnectOffWhenInterrupted.get(), "setTryReconnection(false) must precede the interrupt");
+        }
+
+        @Test
+        @DisplayName("an abandoned attempt gets no mode request")
+        void abandonedAttemptSendsNoModeRequest() {
+            KiteWebSocket ws = boundedSocket();
+            KiteTicker blocked = blockingTicker();
+            ws.setTickerFactory(kc -> blocked);
+
+            ws.rebuild(mock(KiteConnect.class));
+
+            verify(blocked, never()).setMode(any(), anyString());
+        }
+
+        @Test
+        @DisplayName("late onConnected and ticks from an abandoned attempt are ignored")
+        void abandonedTickerLateCallbacksAreIgnored() throws Exception {
+            KiteWebSocket ws = boundedSocket();
+            ws.setOnTickerArrivalListener(mockOnTicks);
+            KiteTicker blocked = blockingTicker();
+            ws.setTickerFactory(kc -> blocked);
+            ws.rebuild(mock(KiteConnect.class));
+            ArgumentCaptor<OnConnect> connectCap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(blocked).setOnConnectedListener(connectCap.capture());
+            ArgumentCaptor<OnTicks> tickCap = ArgumentCaptor.forClass(OnTicks.class);
+            verify(blocked).setOnTickerArrivalListener(tickCap.capture());
+
+            connectCap.getValue().onConnected();
+            tickCap.getValue().onTicks(new ArrayList<>());
+
+            verify(blocked, never()).subscribe(any());
+            assertFalse(getIsConnected(ws));
+            verify(mockOnTicks, never()).onTicks(any());
+        }
+
+        @Test
+        @DisplayName("a RuntimeException from connect() still reaches the caller, and no mode request follows")
+        void connectThatThrowsPropagatesToTheCaller() {
+            KiteWebSocket ws = boundedSocket(Duration.ofSeconds(5));
+            doThrow(new IllegalStateException("connect failed")).when(mockTicker).connect();
+            ws.setTickerFactory(kc -> mockTicker);
+
+            IllegalStateException thrown = assertThrows(IllegalStateException.class, () -> ws.rebuild(mock(KiteConnect.class)));
+
+            assertEquals("connect failed", thrown.getMessage());
+            verify(mockTicker, never()).setMode(any(), anyString());
+        }
+
+        @Test
+        @DisplayName("a ticker whose onConnected already ran is not abandoned when connect() is slow to return")
+        void onConnectedBeforeConnectReturnsIsNotAbandoned() throws Exception {
+            KiteWebSocket ws = boundedSocket();
+            KiteTicker ticker = mock(KiteTicker.class);
+            AtomicReference<OnConnect> onConnect = new AtomicReference<>();
+            doAnswer(inv -> {
+                onConnect.set(inv.getArgument(0));
+                return null;
+            }).when(ticker).setOnConnectedListener(any());
+            doAnswer(inv -> {
+                onConnect.get().onConnected(); // nv's reader thread reports OPEN before connect() unwinds
+                release.await(5, TimeUnit.SECONDS);
+                return null;
+            }).when(ticker).connect();
+            ws.setTickerFactory(kc -> ticker);
+
+            List<String> logs = captureLogsWhile(() -> ws.rebuild(mock(KiteConnect.class)));
+
+            assertTrue(getIsConnected(ws), "a live ticker must stay connected");
+            verify(ticker, never()).setTryReconnection(false);
+            verify(ticker, never()).disconnect();
+            assertFalse(logs.stream().anyMatch(l -> l.contains("abandoning")), logs.toString());
+        }
+
+        @Test
+        @DisplayName("a connect that returns within the bound is not abandoned")
+        void fastConnectIsNotAbandoned() {
+            KiteWebSocket ws = boundedSocket(Duration.ofSeconds(5)); // generous: a loaded box must not fake an abandon
+            ws.setTickerFactory(kc -> mockTicker);
+
+            List<String> logs = captureLogsWhile(() -> ws.rebuild(mock(KiteConnect.class)));
+
+            verify(mockTicker).connect();
+            verify(mockTicker, never()).setTryReconnection(false);
+            verify(mockTicker, never()).disconnect();
+            assertFalse(logs.stream().anyMatch(l -> l.startsWith("WS_CONNECT_TIMEOUT")), logs.toString());
+        }
+
+        @Test
+        @DisplayName("a replaced ticker that connects late (its own Kite reconnect) is closed, not left as a second live socket")
+        void staleTickerLateOnConnectedIsClosed() {
+            KiteWebSocket ws = boundedSocket();
+            ws.setTickerFactory(kc -> mockTicker);
+            ws.initialize(mock(KiteConnect.class));
+            ArgumentCaptor<OnConnect> oldCap = ArgumentCaptor.forClass(OnConnect.class);
+            verify(mockTicker).setOnConnectedListener(oldCap.capture());
+            KiteTicker newTicker = mock(KiteTicker.class);
+            ws.setTickerFactory(kc -> newTicker);
+            ws.rebuild(mock(KiteConnect.class));
+            clearInvocations(mockTicker);
+
+            List<String> logs = captureLogsWhile(() -> oldCap.getValue().onConnected());
+
+            verify(mockTicker).setTryReconnection(false);
+            verify(mockTicker).disconnect();
+            verify(newTicker, never()).subscribe(any());
+            assertTrue(logs.contains("WS_RESUBSCRIBE: stale-ticker onConnected ignored"), logs.toString());
         }
     }
 }

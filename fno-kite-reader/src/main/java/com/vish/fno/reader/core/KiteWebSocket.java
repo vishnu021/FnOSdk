@@ -13,11 +13,15 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -31,6 +35,8 @@ import static com.vish.fno.util.FnoConstants.SENSEX_TOKEN;
 public class KiteWebSocket {
     private static final int MAX_RECONNECTION_RETRIES = 10;
     private static final int MAX_RETRY_INTERVAL_SECONDS = 30;
+    // Upper bound on one connect() (ADR 0078 Amendment 5). Healthy connects take ~15 ms; 02-11's broken edge held 49-60 s.
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
     private volatile KiteTicker tickerProvider;
     private final InstrumentCache instrumentCache;
@@ -39,6 +45,9 @@ public class KiteWebSocket {
     private volatile boolean isConnected;
     // True from rebuild() until the rebuilt ticker's first onConnected; makes the WS_RESUBSCRIBE log honest.
     private volatile boolean rebuildPending;
+    // The ticker whose connect() was abandoned at the bound; it stays tickerProvider until the next rebuild,
+    // so its late callbacks are recognised as stale by identity with this field.
+    private volatile KiteTicker abandonedTicker;
     // ReentrantLock instead of synchronized to avoid pinning virtual threads to carrier threads.
     // synchronized pins because intrinsic monitors are tied to the OS thread's stack frame;
     // ReentrantLock uses LockSupport.park() which the JVM recognizes as a virtual thread yield point.
@@ -53,6 +62,8 @@ public class KiteWebSocket {
     private volatile OnOrderUpdate onOrderUpdateListener;
     // Seam for tests: how a KiteTicker is built from the SDK session.
     private Function<KiteConnect, KiteTicker> tickerFactory = kc -> new KiteTicker(kc.getAccessToken(), kc.getApiKey());
+    // Seam for tests: how long startTicker waits for connect() before abandoning the attempt.
+    private Duration connectTimeout = CONNECT_TIMEOUT;
 
     public KiteWebSocket(boolean connectToWebSocket, InstrumentCache instrumentCache) {
         this.connectToWebSocket = connectToWebSocket;
@@ -89,7 +100,9 @@ public class KiteWebSocket {
         log.info("Initialising websocket...");
         this.tickerProvider = tickerFactory.apply(kiteSdk);
         addWebSocketListeners(onTickerArrivalListener, onOrderUpdateListener);
-        tickerProvider.connect();
+        if (!connectWithinBound(tickerProvider)) {
+            return;
+        }
         log.info("WebSocket connect() called, waiting for onConnected callback");
 
         tokenLock.lock();
@@ -100,28 +113,95 @@ public class KiteWebSocket {
         }
     }
 
+    /**
+     * Runs {@code ticker.connect()} on a virtual thread and waits at most {@link #connectTimeout}. KiteTicker and its
+     * nv-websocket-client socket set no connect or read timeout, and {@code disconnect()} is a no-op while CONNECTING,
+     * so a handshake the server never answers blocks {@code connect()} indefinitely (02-11: 49.1 s). At the bound the
+     * attempt is abandoned (see {@link #abandon}) and its thread interrupted: a blocking socket read is interruptible on
+     * a virtual thread only. When the abandoned {@code connect()} returns, its thread stops the ticker. A
+     * {@code RuntimeException} from a {@code connect()} that returned in time reaches the caller, as before the bound.
+     * Returns {@code false} if the attempt was abandoned.
+     */
+    private boolean connectWithinBound(KiteTicker ticker) {
+        AtomicBoolean settled = new AtomicBoolean();
+        AtomicReference<RuntimeException> failure = new AtomicReference<>();
+        long startNanos = System.nanoTime();
+        Thread connecting = Thread.ofVirtual().name("ws-connect").start(() -> {
+            try {
+                ticker.connect();
+            } catch (RuntimeException e) {
+                failure.set(e);
+            } finally {
+                if (!settled.compareAndSet(false, true)) {
+                    Thread.interrupted(); // clear the abandon interrupt before the cleanup
+                    log.info("WS_CONNECT_TIMEOUT: abandoned connect() returned ({}); stopping its ticker",
+                            failure.get() == null ? "no exception" : failure.get().toString());
+                    stopTicker(ticker);
+                }
+            }
+        });
+        if (joinWithinBound(connecting) || !abandon(ticker, settled, startNanos)) {
+            RuntimeException thrown = failure.get();
+            if (thrown != null) {
+                throw thrown;
+            }
+            return true;
+        }
+        connecting.interrupt();
+        return false;
+    }
+
+    private boolean joinWithinBound(Thread connecting) {
+        try {
+            return connecting.join(connectTimeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("WS_CONNECT_TIMEOUT: the caller was interrupted while waiting for connect()");
+            return false;
+        }
+    }
+
+    /**
+     * Decides, under {@code tokenLock}, whether to abandon the attempt — the same lock {@link #subscribeIfCurrent} checks
+     * staleness under, so either this ticker's onConnected already ran (the socket is live; {@code connect()} is only
+     * unwinding: keep it) or it will see the ticker as abandoned and close it. Also keeps an attempt whose
+     * {@code connect()} returned at the same instant. On abandon, auto-reconnect is turned off before the caller's
+     * interrupt, else KiteTicker's {@code connect()} catch starts its own reconnect timer (another unbounded connect).
+     */
+    private boolean abandon(KiteTicker ticker, AtomicBoolean settled, long startNanos) {
+        tokenLock.lock();
+        try {
+            if (isConnected || !settled.compareAndSet(false, true)) {
+                return false;
+            }
+            abandonedTicker = ticker;
+        } finally {
+            tokenLock.unlock();
+        }
+        log.warn("WS_CONNECT_TIMEOUT: connect() did not return after {} ms; abandoning the attempt",
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
+        ticker.setTryReconnection(false);
+        return true;
+    }
+
+    /** True for a ticker that was replaced or whose connect was abandoned; its callbacks must not touch state. */
     @SuppressWarnings("PMD.CompareObjectsWithEquals") // identity check is intended: detect callbacks from a superseded ticker
+    private boolean isStale(KiteTicker ticker) {
+        return ticker != tickerProvider || ticker == abandonedTicker;
+    }
+
     private void addWebSocketListeners(OnTicks onTickerArrivalListener, OnOrderUpdate onOrderUpdateListener) {
         final KiteTicker ticker = tickerProvider;
         tickerProvider.setOnConnectedListener(() -> {
-            tokenLock.lock();
-            try {
-                if (ticker != tickerProvider) {
-                    log.info("WS_RESUBSCRIBE: stale-ticker onConnected ignored");
-                    return;
-                }
-                boolean reconnect = !subscribedTokens.isEmpty();
-                boolean rebuilt = rebuildPending;
-                rebuildPending = false;
-                sendAllKnownTokens(reconnect, rebuilt);
-                isConnected = true;
-            } finally {
-                tokenLock.unlock();
+            if (!subscribeIfCurrent(ticker)) {
+                // A replaced or abandoned ticker that connected late (e.g. its own Kite reconnect): close it, so it
+                // does not stay a second live socket whose ticks are silently dropped.
+                stopTicker(ticker);
             }
         });
 
         tickerProvider.setOnDisconnectedListener(() -> {
-            if (ticker != tickerProvider) {
+            if (isStale(ticker)) {
                 log.info("WS_RESUBSCRIBE: stale-ticker onDisconnected ignored");
                 return;
             }
@@ -134,7 +214,7 @@ public class KiteWebSocket {
         });
 
         tickerProvider.setOnOrderUpdateListener(order -> {
-            if (ticker != tickerProvider) {
+            if (isStale(ticker)) {
                 log.debug("WS_STALE_TICKER: order update from replaced ticker dropped");
                 return;
             }
@@ -143,7 +223,7 @@ public class KiteWebSocket {
             }
         });
         tickerProvider.setOnTickerArrivalListener(ticks -> {
-            if (ticker != tickerProvider) {
+            if (isStale(ticker)) {
                 log.debug("WS_STALE_TICKER: ticks from replaced ticker dropped");
                 return;
             }
@@ -159,6 +239,25 @@ public class KiteWebSocket {
         } catch (KiteException e) {
             log.error("Exception while setting retries", e);
             throw new InitialisationException("Error initializing kite web socket", e);
+        }
+    }
+
+    /** onConnected for {@code ticker}: subscribes every known token if it is current; false (and a log line) if stale. */
+    private boolean subscribeIfCurrent(KiteTicker ticker) {
+        tokenLock.lock();
+        try {
+            if (isStale(ticker)) {
+                log.info("WS_RESUBSCRIBE: stale-ticker onConnected ignored");
+                return false;
+            }
+            boolean reconnect = !subscribedTokens.isEmpty();
+            boolean rebuilt = rebuildPending;
+            rebuildPending = false;
+            sendAllKnownTokens(reconnect, rebuilt);
+            isConnected = true;
+            return true;
+        } finally {
+            tokenLock.unlock();
         }
     }
 
@@ -242,17 +341,26 @@ public class KiteWebSocket {
             tokenLock.unlock();
         }
         if (old != null) {
-            try {
-                old.setTryReconnection(false);
-                old.disconnect();
-            } catch (RuntimeException e) {
-                log.warn("WS_RESUBSCRIBE: stopping old ticker failed, continuing", e);
-            }
+            stopTicker(old);
+        }
+    }
+
+    /** Auto-reconnect off, then disconnect (also cancels KiteTicker's pong-check/reconnect timer). Never throws. */
+    private void stopTicker(KiteTicker ticker) {
+        try {
+            ticker.setTryReconnection(false);
+            ticker.disconnect();
+        } catch (RuntimeException e) {
+            log.warn("WS_RESUBSCRIBE: stopping old ticker failed, continuing", e);
         }
     }
 
     void setTickerFactory(Function<KiteConnect, KiteTicker> tickerFactory) {
         this.tickerFactory = tickerFactory;
+    }
+
+    void setConnectTimeout(Duration connectTimeout) {
+        this.connectTimeout = connectTimeout;
     }
 
     public void addListener(OnTicks onTickerArrivalListener) {
