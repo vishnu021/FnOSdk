@@ -207,12 +207,27 @@ never the shared API lock, and never block longer than that; they are meant for 
 | `getOrderFilledQuantitiesQuick()` | `Optional<Map<String, Integer>>` | Kite order id to `filledQuantity` from the order book. **Empty Optional = the call failed** (distinct from an empty map = no orders); an order id absent from the map is unknown, never 0 |
 | `getNetPositionQuantitiesQuick()` | `Optional<Map<String, Integer>>` | Trading symbol to net quantity. Empty Optional = failed. **Unused by OAV2** since R4 moved to per-leg order-book truth (a `Position` has no tag or order id) |
 | `forceWebSocketResubscribe()` | `void` | Re-subscribe the full known token set on the live socket (used on a stale feed) |
-| `rebuildWebSocket()` | `void` | Tear down and rebuild the ticker from the current session, then re-subscribe the full set (used on a lost feed). Skipped if `initialize` holds `rebuildLock`; the caller retries on its next cycle |
+| `rebuildWebSocket()` | `void` | Tear down and rebuild the ticker from the current session, then re-subscribe the full set (used on a lost feed). Skipped if `initialize` holds `rebuildLock`; the caller retries on its next cycle. **Returns within ~10 s** even if the server never answers the handshake (see below) |
 
 The quick methods do not catch `RuntimeException` (for example before authentication); the caller must.
 `KiteWebSocket.initialize` takes `rebuildLock`, and the first connect after a rebuild logs `rebuild=true`. Every connect
 re-subscribes the union of known tokens and logs `WS_RESUBSCRIBE: <N> tokens (reconnect=<bool>)` (Kite SDK 4.0.0 runs
 `connect()` before its own re-subscribe wrapper, so the application listener must do it).
+
+**Bounded connect (OAV2 ADR 0078 amendment 5).** Kite SDK 4.0.0 builds its nv-websocket-client 2.3 socket with a default
+`WebSocketFactory` (connection timeout 0, no `SO_TIMEOUT` anywhere in the library) and exposes no hook to change it, and
+`KiteTicker.disconnect()` is a no-op while the socket is CONNECTING. A handshake the server accepts but never answers
+therefore blocks `connect()` indefinitely (02-11-2026: one 49.1 s read, then a non-101 refusal). `KiteWebSocket` (both
+`initialize` and `rebuild`) runs `connect()` on a virtual thread `ws-connect` and waits at most **10 s**. At the bound it
+logs `WS_CONNECT_TIMEOUT: connect() did not return after <ms> ms; abandoning the attempt`, marks the ticker abandoned (its
+late callbacks are dropped like a replaced ticker's), turns its auto-reconnect off, and interrupts the thread — a blocking
+socket read is interruptible on a virtual thread only (`NvWebSocketVirtualThreadConnectTest`; re-run it on the production JDK
+after any JDK or Kite SDK upgrade). When the abandoned `connect()` returns, its thread disconnects the ticker
+(`WS_CONNECT_TIMEOUT: abandoned connect() returned (…); stopping its ticker`), which also cancels KiteTicker's own
+pong-check/reconnect timer. An attempt whose `onConnected` already ran when the bound expires is kept (the decision is taken
+under `tokenLock`), and a `RuntimeException` from a `connect()` that returned in time still reaches the caller. `rebuildLock` is released at the bound, so the next rebuild
+runs. A replaced or abandoned ticker that connects late (for example through its own Kite reconnect) is disconnected
+in its `onConnected` instead of being left as a second live socket.
 
 ### Instrument Utilities
 
